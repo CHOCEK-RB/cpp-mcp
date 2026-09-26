@@ -262,4 +262,83 @@ export function registerResources(server: McpServer): void {
       };
     },
   );
+
+  // Resource 8: SEI CERT C++ Rules Index
+  server.registerResource(
+    "cpp_cert_rules_index",
+    "cppref://cert",
+    {
+      description:
+        "Index of SEI CERT C++ Coding Standard rules with identifiers, categories, CWE mappings, and vulnerability definitions.",
+      mimeType: "application/json",
+    },
+    async () => {
+      const { CERT_RULES } = await import("../data/cert_rules.js");
+      const summaryList = CERT_RULES.map((r) => ({
+        id: r.id,
+        category: r.category,
+        title: r.title,
+        severity: r.severity,
+        cwe: r.cwe,
+        vulnerability: r.vulnerability,
+        summary: r.summary,
+      }));
+
+      return {
+        contents: [
+          {
+            uri: "cppref://cert",
+            text: JSON.stringify(summaryList, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    },
+  );
+
+  // Resource 9: SEI CERT C++ Rule Detail
+  server.registerResource(
+    "cpp_cert_rule_detail",
+    new ResourceTemplate("cppref://cert/{id}", { list: undefined }),
+    {
+      description:
+        "Full SEI CERT C++ rule specification, risk assessment, noncompliant code example, and compliant secure solution.",
+      mimeType: "application/json",
+    },
+    async (uri: URL, variables: { [key: string]: string | string[] | undefined }) => {
+      const { CERT_RULE_BY_ID } = await import("../data/cert_rules.js");
+      const { normalizeCertRuleId } = await import("../tools/cert.js");
+      const rawId = String(variables.id || "");
+      const normalized = normalizeCertRuleId(rawId);
+      const rule = CERT_RULE_BY_ID.get(normalized);
+
+      if (!rule) {
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              text: JSON.stringify(
+                {
+                  error: `SEI CERT C++ rule '${rawId}' (normalized '${normalized}') not found.`,
+                },
+                null,
+                2,
+              ),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            text: JSON.stringify(rule, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    },
+  );
 }

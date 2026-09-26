@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { registerPrompts } from "./prompts/index.js";
 import { registerResources } from "./resources/index.js";
+import { checkSecureCoding } from "./tools/cert.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
 import { getCppModulesGuide } from "./tools/modules.js";
@@ -295,6 +296,68 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error retrieving C++ modules guide: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "check_secure_coding",
+    {
+      description:
+        "Audit C++ code for security vulnerabilities, undefined behavior (UB), and safety violations against the official SEI CERT C++ Coding Standard and MITRE CWEs. Provides noncompliant code explanations and secure modern fixes.",
+      inputSchema: {
+        rule_id: z
+          .string()
+          .optional()
+          .describe(
+            "Specific SEI CERT rule ID (e.g. 'MEM50-CPP', 'OOP50-CPP', 'CON53-CPP', 'EXP54-CPP') or CWE ID (e.g. 'CWE-416', 'CWE-833')",
+          ),
+        category: z
+          .enum(["MEM", "EXP", "CTR", "ERR", "CON", "OOP", "MSC", "DCL", "FIO"])
+          .optional()
+          .describe(
+            "SEI CERT category filter ('MEM' memory, 'CON' concurrency, 'EXP' expressions, 'OOP' object-oriented, 'ERR' exceptions, 'CTR' containers)",
+          ),
+        query: z
+          .string()
+          .optional()
+          .describe(
+            "Topic or vulnerability search keyword (e.g. 'use-after-free', 'deadlock', 'data race', 'slicing', 'virtual destructor', 'uninitialized')",
+          ),
+        code: z
+          .string()
+          .optional()
+          .describe(
+            "C++ code snippet to inspect for common security and undefined behavior patterns (e.g. rand usage, exception-by-value, throw in destructor)",
+          ),
+      },
+    },
+    async ({ rule_id, category, query, code }) => {
+      try {
+        const result = checkSecureCoding({
+          rule_id,
+          category,
+          query,
+          code,
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error checking secure coding rules: ${error instanceof Error ? error.message : String(error)}`,
             },
           ],
         };

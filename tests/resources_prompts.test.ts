@@ -183,4 +183,40 @@ describe("MCP Resources & Prompts", () => {
     expect(result.messages[0].content.text).toContain("import std;");
     expect(result.messages[0].content.text).toContain("FILE_SET CXX_MODULES");
   });
+
+  it("should return complete CERT catalog for cppref://cert", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResources["cppref://cert"].readCallback;
+    const result = await handler(new URL("cppref://cert"));
+    expect(result.contents).toHaveLength(1);
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed.length).toBeGreaterThanOrEqual(20);
+  });
+
+  it("should return detailed rule for cppref://cert/MEM50-CPP", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResourceTemplates.cpp_cert_rule_detail.readCallback;
+    const result = await handler(new URL("cppref://cert/MEM50-CPP"), { id: "MEM50-CPP" });
+    expect(result.contents).toHaveLength(1);
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(parsed.id).toBe("MEM50-CPP");
+    expect(parsed.cwe).toBe("CWE-416");
+    expect(parsed.vulnerability).toBe("Use-After-Free");
+  });
+
+  it("should generate security audit prompt for cpp_security_audit", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredPrompts.cpp_security_audit.callback;
+    const code = "int* p = new int; delete p; *p = 10;";
+    const result = await handler({
+      code,
+      category: "MEM",
+    });
+
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0].content.text).toContain("SEI CERT C++");
+    expect(result.messages[0].content.text).toContain("CWE");
+    expect(result.messages[0].content.text).toContain("category MEM");
+  });
 });

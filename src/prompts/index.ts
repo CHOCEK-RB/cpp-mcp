@@ -221,4 +221,45 @@ Modularization Guidelines:
       };
     },
   );
+
+  // Prompt 6: Security and Undefined Behavior audit against SEI CERT C++
+  server.registerPrompt(
+    "cpp_security_audit",
+    {
+      description:
+        "Perform a rigorous security and undefined behavior audit against the SEI CERT C++ Coding Standard and MITRE CWEs, identifying memory safety, concurrency races, and object lifetime violations.",
+      argsSchema: {
+        code: z.string().min(1).describe("The C++ source code to audit for security flaws"),
+        category: z
+          .enum(["MEM", "EXP", "CTR", "ERR", "CON", "OOP", "MSC", "DCL", "FIO"])
+          .optional()
+          .describe(
+            "Specific CERT category to focus on (e.g. 'MEM' for memory, 'CON' for concurrency)",
+          ),
+      },
+    },
+    async ({ code, category }) => {
+      const catText = category ? ` focusing on category ${category}` : "";
+      return {
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: `Perform an authoritative security audit of the following C++ code against the **SEI CERT C++ Coding Standard** and **MITRE CWE**${catText}:
+
+\`\`\`cpp
+${code}
+\`\`\`
+
+Audit Requirements:
+1. **Rule Violations & CWEs:** Identify vulnerabilities, citing the exact CERT rule ID (e.g. \`MEM50-CPP\`, \`CON53-CPP\`, \`OOP50-CPP\`) and associated CWE ID (e.g. \`CWE-416\`, \`CWE-833\`).
+2. **Risk & Severity:** Detail the exploitability or Undefined Behavior consequence (e.g. Use-After-Free, Data Race, Object Slicing, Crash).
+3. **Secure Compliant Fix:** Rewrite the vulnerable section into secure, modern C++ adhering strictly to SEI CERT rules.`,
+            },
+          },
+        ],
+      };
+    },
+  );
 }

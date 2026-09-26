@@ -43,10 +43,11 @@ flowchart TD
 
 - **Authoritative C/C++ Lookup**: Instant access to standard headers, containers, algorithms, keywords, and C++20/23/26 features.
 - **C++20/23/26 Modules Architecture**: Dedicated offline guide and best practices for `import std;`, interface & internal partitions, CMake 3.28+ (`FILE_SET CXX_MODULES`), and header migration (`get_cpp_modules_guide`).
+- **SEI CERT C++ Security Standard**: Rules, CWE mappings, and compliant fixes for memory safety, concurrency, and UB prevention (`check_secure_coding`).
 - **C++ Core Guidelines Engine**: Offline catalog of 513 official rules with rationale, enforcement, and code examples (`get_guideline`).
 - **Header & Version Resolution**: Offline static indexing for ISO C/C++ headers and SD-6 feature test macros (`lookup_header`, `check_cpp_standard`).
 - **Tiered Cache with TTL**: Blazing-fast L1 memory LRU cache backed by persistent L2 disk cache (`~/.cache/cpp-mcp/`).
-- **MCP Resources & Prompts**: Zero-token offline resources (`cppref://headers`, `cppref://modules`, `cppref://guidelines`) and diagnostic prompt templates.
+- **MCP Resources & Prompts**: Zero-token offline resources (`cppref://headers`, `cppref://modules`, `cppref://cert`, `cppref://guidelines`) and diagnostic prompt templates.
 - **Standalone Binaries & Zero Setup**: Self-contained native single-file binaries (no Node or Bun required) or instant execution via `npx` / `bunx`.
 - **Noise Elimination**: Strips MediaWiki navigation menus, edit buttons, login prompts, and notices before LLM consumption.
 - **Cursor Pagination**: Transparently handles oversized documentation pages in 16 KB chunks.
@@ -188,6 +189,34 @@ Retrieves authoritative architectural guides, rules, code patterns, and best pra
   }
   ```
 
+### 7. `check_secure_coding`
+
+Audits C++ code for security vulnerabilities, undefined behavior (UB), and safety violations against the official **SEI CERT C++ Coding Standard** and **MITRE CWEs**. Provides noncompliant code explanations, exploitability risks, and compliant modern fixes.
+
+- **Parameters**:
+  - `rule_id` (`string`, optional): Specific SEI CERT rule ID (e.g. `"MEM50-CPP"`, `"OOP50-CPP"`, `"CON53-CPP"`, `"mem50"`) or CWE ID (`"CWE-416"`, `"CWE-833"`).
+  - `category` (`string`, optional): Category filter (`"MEM"`, `"CON"`, `"EXP"`, `"OOP"`, `"ERR"`, `"CTR"`, `"MSC"`, `"DCL"`).
+  - `query` (`string`, optional): Vulnerability search keyword (e.g. `"use-after-free"`, `"deadlock"`, `"slicing"`, `"strict aliasing"`).
+  - `code` (`string`, optional): C++ source code snippet to scan for heuristic security anti-patterns (e.g. `std::rand()`, catch-by-value, throw in destructor).
+
+- **Output Example**:
+  ```json
+  {
+    "found": true,
+    "rule": {
+      "id": "MEM50-CPP",
+      "category": "MEM",
+      "title": "Do not access freed memory",
+      "severity": "High",
+      "cwe": "CWE-416",
+      "vulnerability": "Use-After-Free",
+      "summary": "Dereferencing a pointer after the allocated storage has been deallocated leads to undefined behavior...",
+      "noncompliantCode": "int* ptr = new int(42);\ndelete ptr;\nstd::cout << *ptr << '\\n';",
+      "compliantSolution": "auto ptr = std::make_unique<int>(42);\nstd::cout << *ptr << '\\n';"
+    }
+  }
+  ```
+
 ---
 
 ## Resources Catalog
@@ -201,6 +230,8 @@ The server exposes read-only MCP resources providing zero-overhead offline datas
 - **`cppref://guidelines/{id}`**: Full specification, rationale, enforcement, and code examples for a specific Core Guidelines rule.
 - **`cppref://modules`**: Catalog of architectural guides and best practice rules for C++20, C++23, and C++26 Modules.
 - **`cppref://modules/{topic}`**: Full architectural specification, code patterns, and rules for a specific module topic.
+- **`cppref://cert`**: Complete catalog of SEI CERT C++ Coding Standard rules with categories, severity, and CWE mappings.
+- **`cppref://cert/{id}`**: Detailed SEI CERT rule specification with risk assessment, noncompliant code, and compliant solution.
 
 ---
 
@@ -213,6 +244,7 @@ Pre-engineered prompt templates for AI clients:
 - **`cpp_diagnose_compiler_error`**: Diagnoses compiler diagnostic output, pinpointing missing `#include` headers, standard flag discrepancies (`-std=c++20`), or concept constraints.
 - **`cpp_audit_guidelines`**: Conducts a thorough code review against the C++ Core Guidelines, highlighting rule violations (`R.1`, `F.16`, `C.21`) and recommending compliant modern solutions.
 - **`cpp_modularize_code`**: Converts classic C++ headers and translation units into modern C++20/C++23/C++26 Modules with primary interface units, partitions, GMF macro isolation, and CMake 3.28+ build configuration.
+- **`cpp_security_audit`**: Audits C++ code against the SEI CERT C++ Coding Standard and MITRE CWEs, identifying memory safety, concurrency races, and object lifetime violations with secure remediations.
 
 ---
 
