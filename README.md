@@ -76,6 +76,28 @@ Retrieves a documentation page, sanitizes the HTML, and returns LLM-ready Markdo
   }
   ```
 
+### 3. `lookup_header`
+
+Finds the canonical standard C or C++ header (`<vector>`, `<algorithm>`, `<cstdio>`, `<ranges>`, etc.) required for any function, type, class, or symbol, including standard version and category.
+
+- **Parameters**:
+  - `symbol` (`string`, required): C or C++ symbol, type, function, class, or header name (e.g. `"std::vector"`, `"printf"`, `"std::views::filter"`, `"<ranges>"`).
+
+- **Output Example**:
+  ```json
+  {
+    "query": "printf",
+    "found": true,
+    "header": "<cstdio>",
+    "standard": "C++",
+    "since": "C++98",
+    "category": "C-style input/output",
+    "cEquivalent": "<stdio.h>",
+    "matchedSymbol": "printf",
+    "source": "static_index"
+  }
+  ```
+
 ---
 
 ## Quickstart
