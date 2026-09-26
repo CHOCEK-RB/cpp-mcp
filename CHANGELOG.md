@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/CHOCEK-RB/cpp-mcp/compare/v1.1.1...v1.2.0) (2026-09-26)
+
+
+### Features
+
+* implement modern C++ developer engine (guidelines, modules, cert, tooling, stability) ([a42c67d](https://github.com/CHOCEK-RB/cpp-mcp/commit/a42c67de43a439315a30ec080ef03de2d5167203))
+
 ## [1.1.1](https://github.com/CHOCEK-RB/cpp-mcp/compare/v1.1.0...v1.1.1) (2026-09-26)
 
 
