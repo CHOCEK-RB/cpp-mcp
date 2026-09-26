@@ -103,4 +103,80 @@ export function registerResources(server: McpServer): void {
       };
     },
   );
+
+  // Resource 4: C++ Core Guidelines Index
+  server.registerResource(
+    "cpp_core_guidelines_index",
+    "cppref://guidelines",
+    {
+      description:
+        "Complete index of all official C++ Core Guidelines rules (Bjarne Stroustrup & Herb Sutter) with IDs, titles, sections, and URLs.",
+      mimeType: "application/json",
+    },
+    async () => {
+      const { CPP_CORE_GUIDELINES } = await import("../data/guidelines.js");
+      const summaryList = CPP_CORE_GUIDELINES.map((r) => ({
+        id: r.id,
+        title: r.title,
+        section: r.section,
+        url: r.url,
+      }));
+
+      return {
+        contents: [
+          {
+            uri: "cppref://guidelines",
+            text: JSON.stringify(summaryList, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    },
+  );
+
+  // Resource 5: C++ Core Guidelines Rule Detail
+  server.registerResource(
+    "cpp_core_guideline_detail",
+    new ResourceTemplate("cppref://guidelines/{id}", { list: undefined }),
+    {
+      description:
+        "Full specification, reason, enforcement, and markdown examples for a specific C++ Core Guidelines rule (e.g. 'F.16', 'R.1', 'C.21').",
+      mimeType: "application/json",
+    },
+    async (uri: URL, variables: { [key: string]: string | string[] | undefined }) => {
+      const { GUIDELINE_BY_ID } = await import("../data/guidelines.js");
+      const { normalizeRuleId } = await import("../tools/guidelines.js");
+      const rawId = String(variables.id || "");
+      const normalized = normalizeRuleId(rawId);
+      const rule = GUIDELINE_BY_ID.get(normalized);
+
+      if (!rule) {
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              text: JSON.stringify(
+                {
+                  error: `Rule '${rawId}' (normalized as '${normalized}') not found in C++ Core Guidelines.`,
+                },
+                null,
+                2,
+              ),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            text: JSON.stringify(rule, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    },
+  );
 }

@@ -5,13 +5,14 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { registerPrompts } from "./prompts/index.js";
 import { registerResources } from "./resources/index.js";
+import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
 import { getCppreferencePage } from "./tools/page.js";
 import { searchCppreference } from "./tools/search.js";
 import { checkCppStandard } from "./tools/standards.js";
 
 export const SERVER_NAME = "cpp-mcp";
-export const SERVER_VERSION = "1.0.0";
+export const SERVER_VERSION = "1.1.1";
 
 /**
  * Creates and configures the C/C++ Reference MCP Server with tools.
@@ -178,6 +179,68 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error checking standard version for "${symbol}": ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "get_guideline",
+    {
+      description:
+        "Look up rules, modern idioms, and best practices from the official C++ Core Guidelines (Bjarne Stroustrup & Herb Sutter) by rule ID (e.g. 'F.16', 'R.1', 'C.21', 'I.11') or keyword query (e.g. 'RAII', 'ownership', 'smart pointers', 'rule of five').",
+      inputSchema: {
+        rule_id: z
+          .string()
+          .optional()
+          .describe(
+            "Specific Core Guidelines rule ID (e.g. 'F.16', 'R.1', 'C.21', 'ES.20', 'I.11', 'P.1')",
+          ),
+        query: z
+          .string()
+          .optional()
+          .describe(
+            "Topic or search keyword (e.g. 'RAII', 'rule of five', 'ownership', 'smart pointers', 'pass by value', 'virtual destructor')",
+          ),
+        section: z
+          .string()
+          .optional()
+          .describe(
+            "Filter by section name (e.g. 'Resource management', 'Functions', 'Classes and class hierarchies', 'Concurrency and parallelism')",
+          ),
+        include_content: z
+          .boolean()
+          .optional()
+          .describe(
+            "Whether to include full markdown text and code examples in multi-match results (defaults to true for exact ruleId, false for broad query)",
+          ),
+      },
+    },
+    async ({ rule_id, query, section, include_content }) => {
+      try {
+        const result = getGuideline({
+          ruleId: rule_id,
+          query,
+          section,
+          includeContent: include_content ?? Boolean(rule_id),
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error retrieving C++ Core Guideline: ${error instanceof Error ? error.message : String(error)}`,
             },
           ],
         };

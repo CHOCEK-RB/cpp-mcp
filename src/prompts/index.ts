@@ -129,4 +129,45 @@ Analysis guidelines:
       };
     },
   );
+
+  // Prompt 4: Audit code against C++ Core Guidelines
+  server.registerPrompt(
+    "cpp_audit_guidelines",
+    {
+      description:
+        "Perform a thorough code review against the official C++ Core Guidelines (Stroustrup & Sutter), citing specific rule IDs (e.g. F.16, R.1, C.21) for memory safety, resource management, and modern idiom violations.",
+      argsSchema: {
+        code: z.string().min(1).describe("The C++ source code to audit"),
+        focus: z
+          .string()
+          .optional()
+          .describe(
+            "Specific area of focus (e.g. 'resource-management', 'functions', 'concurrency', 'class-design')",
+          ),
+      },
+    },
+    async ({ code, focus }) => {
+      const focusText = focus ? ` focusing especially on ${focus}` : "";
+      return {
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: `Audit the following C++ code against the official C++ Core Guidelines${focusText}:
+
+\`\`\`cpp
+${code}
+\`\`\`
+
+Review requirements:
+1. **Rule Violations:** Identify anti-patterns or dangerous constructs, citing the exact C++ Core Guidelines rule ID (e.g. \`R.1\`, \`F.16\`, \`C.21\`, \`I.11\`, \`ES.20\`).
+2. **Impact & Risk:** Explain why the rule exists (e.g. memory leak, ownership ambiguity, slicing, lifetime issues).
+3. **Compliant Modern Solution:** Provide an idiomatic, modern C++ refactoring adhering strictly to the Core Guidelines.`,
+            },
+          },
+        ],
+      };
+    },
+  );
 }
