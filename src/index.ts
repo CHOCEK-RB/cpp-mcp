@@ -12,6 +12,7 @@ import { getCppModulesGuide } from "./tools/modules.js";
 import { getCppreferencePage } from "./tools/page.js";
 import { searchCppreference } from "./tools/search.js";
 import { checkCppStandard } from "./tools/standards.js";
+import { getCppToolingGuide } from "./tools/tooling.js";
 
 export const SERVER_NAME = "cpp-mcp";
 export const SERVER_VERSION = "1.1.1";
@@ -358,6 +359,61 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error checking secure coding rules: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "get_cpp_tooling_guide",
+    {
+      description:
+        "Retrieve authoritative documentation, commands, and production starter configurations for modern C/C++ developer tools (xmake build system with C++20 modules, .clang-format, .clang-tidy, and LLVM/GCC runtime sanitizers).",
+      inputSchema: {
+        tool: z
+          .string()
+          .optional()
+          .describe(
+            "Target tool ID or alias (e.g. 'xmake', 'clang-format', 'clang-tidy', 'sanitizers', 'format', 'tidy', 'asan')",
+          ),
+        query: z
+          .string()
+          .optional()
+          .describe(
+            "Search query across directives, CLI commands, and configuration options (e.g. 'compile_commands', 'add_requires', 'modernize', 'IndentWidth')",
+          ),
+        generate_config: z
+          .boolean()
+          .optional()
+          .describe(
+            "If true, outputs the raw, copy-pasteable production configuration file (e.g. xmake.lua, .clang-format, .clang-tidy)",
+          ),
+      },
+    },
+    async ({ tool, query, generate_config }) => {
+      try {
+        const result = getCppToolingGuide({
+          tool,
+          query,
+          generate_config,
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error retrieving C++ tooling guide: ${error instanceof Error ? error.message : String(error)}`,
             },
           ],
         };

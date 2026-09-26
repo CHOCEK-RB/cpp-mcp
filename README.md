@@ -43,11 +43,12 @@ flowchart TD
 
 - **Authoritative C/C++ Lookup**: Instant access to standard headers, containers, algorithms, keywords, and C++20/23/26 features.
 - **C++20/23/26 Modules Architecture**: Dedicated offline guide and best practices for `import std;`, interface & internal partitions, CMake 3.28+ (`FILE_SET CXX_MODULES`), and header migration (`get_cpp_modules_guide`).
+- **Modern C/C++ Tooling Ecosystem**: In-depth recipes and starter configs for `xmake` (Lua build system with native C++20 modules), `clang-format`, `clang-tidy`, and runtime sanitizers (`get_cpp_tooling_guide`).
 - **SEI CERT C++ Security Standard**: Rules, CWE mappings, and compliant fixes for memory safety, concurrency, and UB prevention (`check_secure_coding`).
 - **C++ Core Guidelines Engine**: Offline catalog of 513 official rules with rationale, enforcement, and code examples (`get_guideline`).
 - **Header & Version Resolution**: Offline static indexing for ISO C/C++ headers and SD-6 feature test macros (`lookup_header`, `check_cpp_standard`).
 - **Tiered Cache with TTL**: Blazing-fast L1 memory LRU cache backed by persistent L2 disk cache (`~/.cache/cpp-mcp/`).
-- **MCP Resources & Prompts**: Zero-token offline resources (`cppref://headers`, `cppref://modules`, `cppref://cert`, `cppref://guidelines`) and diagnostic prompt templates.
+- **MCP Resources & Prompts**: Zero-token offline resources (`cppref://headers`, `cppref://modules`, `cppref://cert`, `cppref://tooling`, `cppref://guidelines`) and diagnostic prompt templates.
 - **Standalone Binaries & Zero Setup**: Self-contained native single-file binaries (no Node or Bun required) or instant execution via `npx` / `bunx`.
 - **Noise Elimination**: Strips MediaWiki navigation menus, edit buttons, login prompts, and notices before LLM consumption.
 - **Cursor Pagination**: Transparently handles oversized documentation pages in 16 KB chunks.
@@ -217,6 +218,35 @@ Audits C++ code for security vulnerabilities, undefined behavior (UB), and safet
   }
   ```
 
+### 8. `get_cpp_tooling_guide`
+
+Retrieves documentation, directives, CLI commands, and production starter configurations for modern C/C++ developer tools:
+- **`xmake`**: Lua-based build utility with zero-configuration C++20/C++23 module scanning and integrated packages (`add_requires`).
+- **`clang-format`**: Unified styling with pointer alignment, include sorting, and bracket placements.
+- **`clang-tidy`**: Strict static analysis check profiles (`modernize-*`, `bugprone-*`, `cert-*`).
+- **`sanitizers`**: Compiler instrumentation flags for AddressSanitizer (`ASan`), UndefinedBehaviorSanitizer (`UBSan`), and ThreadSanitizer (`TSan`).
+
+- **Parameters**:
+  - `tool` (`string`, optional): Tool ID or alias (`"xmake"`, `"clang-format"`, `"clang-tidy"`, `"sanitizers"`, `"format"`, `"tidy"`, `"asan"`).
+  - `query` (`string`, optional): Search keyword across configuration directives and commands (e.g. `"compile_commands"`, `"add_requires"`, `"IndentWidth"`).
+  - `generate_config` (`boolean`, optional): Returns the raw copy-pasteable production configuration file (e.g. `xmake.lua`, `.clang-format`, `.clang-tidy`).
+
+- **Output Example**:
+  ```json
+  {
+    "found": true,
+    "tool": "xmake",
+    "configFileName": "xmake.lua",
+    "configContent": "-- xmake.lua\nadd_rules(\"mode.debug\", \"mode.release\")...",
+    "keyDirectives": [
+      {
+        "name": "add_files(\"src/*.cppm\")",
+        "description": "Registers C++ module interfaces; xmake automatically invokes compiler module scanning."
+      }
+    ]
+  }
+  ```
+
 ---
 
 ## Resources Catalog
@@ -232,6 +262,8 @@ The server exposes read-only MCP resources providing zero-overhead offline datas
 - **`cppref://modules/{topic}`**: Full architectural specification, code patterns, and rules for a specific module topic.
 - **`cppref://cert`**: Complete catalog of SEI CERT C++ Coding Standard rules with categories, severity, and CWE mappings.
 - **`cppref://cert/{id}`**: Detailed SEI CERT rule specification with risk assessment, noncompliant code, and compliant solution.
+- **`cppref://tooling`**: Catalog of modern C/C++ developer tools (`xmake`, `clang-format`, `clang-tidy`, runtime sanitizers).
+- **`cppref://tooling/{tool}`**: In-depth documentation, CLI commands, and production starter configurations for a specific tool.
 
 ---
 
@@ -245,6 +277,7 @@ Pre-engineered prompt templates for AI clients:
 - **`cpp_audit_guidelines`**: Conducts a thorough code review against the C++ Core Guidelines, highlighting rule violations (`R.1`, `F.16`, `C.21`) and recommending compliant modern solutions.
 - **`cpp_modularize_code`**: Converts classic C++ headers and translation units into modern C++20/C++23/C++26 Modules with primary interface units, partitions, GMF macro isolation, and CMake 3.28+ build configuration.
 - **`cpp_security_audit`**: Audits C++ code against the SEI CERT C++ Coding Standard and MITRE CWEs, identifying memory safety, concurrency races, and object lifetime violations with secure remediations.
+- **`cpp_generate_tooling_config`**: Generates production-grade, authoritative configuration files for modern C/C++ developer tools (`xmake.lua`, `.clang-format`, `.clang-tidy`, sanitizer flags) tailored to project requirements.
 
 ---
 
