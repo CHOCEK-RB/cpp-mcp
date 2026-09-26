@@ -6,6 +6,7 @@ import { z } from "zod";
 import { lookupHeader } from "./tools/header.js";
 import { getCppreferencePage } from "./tools/page.js";
 import { searchCppreference } from "./tools/search.js";
+import { checkCppStandard } from "./tools/standards.js";
 
 export const SERVER_NAME = "cpp-mcp";
 export const SERVER_VERSION = "1.0.0";
@@ -130,6 +131,51 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error looking up header for "${symbol}": ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "check_cpp_standard",
+    {
+      description:
+        "Check which C or C++ standard version introduced, deprecated, or removed a given symbol, function, class, or header, and verify compatibility against a target language standard (e.g. C++17, C++20, C++23).",
+      inputSchema: {
+        symbol: z
+          .string()
+          .min(1)
+          .describe(
+            "C or C++ symbol, type, function, class, or header name (e.g. 'std::span', 'std::auto_ptr', 'std::ranges::sort', 'std::print', '<format>')",
+          ),
+        standard: z
+          .string()
+          .optional()
+          .describe(
+            "Target language standard to evaluate compatibility against (e.g. 'c++17', 'c++20', 'c++23', 'c11'). If omitted, returns general language availability.",
+          ),
+      },
+    },
+    async ({ symbol, standard }) => {
+      try {
+        const result = await checkCppStandard(symbol, standard);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error checking standard version for "${symbol}": ${error instanceof Error ? error.message : String(error)}`,
             },
           ],
         };
