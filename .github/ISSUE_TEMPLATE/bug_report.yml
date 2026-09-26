@@ -1,0 +1,42 @@
+name: Bug Report
+description: Create a report to help us reproduce and fix an issue
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting an issue with `cpp-mcp`!
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem Description
+      description: What happened? What were you trying to do?
+    validations:
+      required: true
+  - type: input
+    id: query-url
+    attributes:
+      label: Query or URL
+      description: The symbol query or cppreference URL that caused the error (e.g. `std::vector` or `https://en.cppreference.com/...`)
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Error Output
+      description: Paste any error messages or MCP log lines.
+      render: shell
+    validations:
+      required: false
+  - type: dropdown
+    id: environment
+    attributes:
+      label: MCP Client / IDE
+      options:
+        - Claude Desktop
+        - Visual Studio Code (Copilot/Cline/Roo)
+        - Zed
+        - CLion / JetBrains
+        - Cursor
+        - Other
+    validations:
+      required: true

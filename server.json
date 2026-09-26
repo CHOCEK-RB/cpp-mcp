@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.chocek-rb/cpp-mcp",
+  "title": "C/C++ Reference MCP",
+  "description": "MCP server providing C and C++ documentation",
+  "repository": {
+    "url": "https://github.com/CHOCEK-RB/cpp-mcp",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "cpp-mcp",
+      "version": "0.1.0",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

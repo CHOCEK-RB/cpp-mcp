@@ -1,0 +1,28 @@
+name: Feature Request
+description: Suggest an idea or enhancement for cpp-mcp
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: Thank you for helping improve `cpp-mcp`!
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Motivation
+      description: Is there a missing tool, capability, or standard feature that would improve your C/C++ workflow?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the tool, parameter, or behavior you would like to see.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative solutions or workarounds you've considered.
+    validations:
+      required: false
