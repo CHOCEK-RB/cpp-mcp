@@ -2,4 +2,6 @@
 set -e
 
 bun x biome check --write --no-errors-on-unmatched --staged
+git update-index --again
 bun run check
+bun test

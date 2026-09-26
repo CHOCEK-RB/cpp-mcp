@@ -36,6 +36,7 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "check": "tsc --noEmit",
+    "check:hints": "bun scripts/check-hints.ts",
     "check:publint": "publint --strict",
     "test": "bun test",
     "test:coverage": "bun test --coverage"

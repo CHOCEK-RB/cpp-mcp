@@ -6,7 +6,13 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["src/**/*.ts", "tests/**/*.ts", "package.json", "tsconfig.json"],
+    "includes": [
+      "src/**/*.ts",
+      "tests/**/*.ts",
+      "scripts/**/*.ts",
+      "package.json",
+      "tsconfig.json"
+    ],
     "ignoreUnknown": false
   },
   "formatter": {
