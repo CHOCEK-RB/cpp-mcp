@@ -41,6 +41,7 @@
     "test": "bun test",
     "test:coverage": "bun test --coverage",
     "sync:headers": "bun scripts/sync-headers.ts",
+    "sync:guidelines": "bun scripts/sync-guidelines.ts",
     "compile": "bun build --compile --minify ./src/index.ts --outfile dist/bin/cpp-mcp",
     "compile:all": "bun run scripts/compile-binaries.ts"
   },

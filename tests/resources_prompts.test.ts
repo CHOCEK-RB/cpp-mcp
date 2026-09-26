@@ -105,4 +105,45 @@ describe("MCP Resources & Prompts", () => {
     expect(result.messages[0].content.text).toContain("GCC 13");
     expect(result.messages[0].content.text).toContain("Root Cause");
   });
+
+  it("should return complete guidelines index for cppref://guidelines", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResources["cppref://guidelines"].readCallback;
+    const result = await handler(new URL("cppref://guidelines"));
+    expect(result.contents).toHaveLength(1);
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed.length).toBeGreaterThan(500);
+  });
+
+  it("should return detailed rule for cppref://guidelines/F.16", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResourceTemplates.cpp_core_guideline_detail.readCallback;
+    const result = await handler(new URL("cppref://guidelines/F.16"), { id: "F.16" });
+    expect(result.contents).toHaveLength(1);
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(parsed.id).toBe("F.16");
+    expect(parsed.title).toContain("in");
+    expect(parsed.section).toBe("F: Functions");
+  });
+
+  it("should return error for unknown guideline id", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResourceTemplates.cpp_core_guideline_detail.readCallback;
+    const result = await handler(new URL("cppref://guidelines/NONEXISTENT"), { id: "NONEXISTENT" });
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(parsed.error).toContain("not found");
+  });
+
+  it("should generate audit prompt for cpp_audit_guidelines", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredPrompts.cpp_audit_guidelines.callback;
+    const code = "void func(int* ptr) { delete ptr; }";
+    const result = await handler({ code, focus: "resource-management" });
+
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0].content.text).toContain(code);
+    expect(result.messages[0].content.text).toContain("resource-management");
+    expect(result.messages[0].content.text).toContain("Core Guidelines");
+  });
 });

@@ -134,6 +134,33 @@ Checks which C or C++ language standard version introduced, deprecated, or remov
   }
   ```
 
+### 5. `get_guideline`
+
+Looks up official rules, idioms, and best practices from the **C++ Core Guidelines** (Bjarne Stroustrup & Herb Sutter) by rule ID (e.g. `F.16`, `R.1`, `C.21`, `ES.20`, `I.11`) or topic query (e.g. `"RAII"`, `"rule of five"`, `"ownership"`).
+
+- **Parameters**:
+  - `rule_id` (`string`, optional): Exact or flexible rule ID (e.g. `"F.16"`, `"R.1"`, `"C.21"`, `"f16"`).
+  - `query` (`string`, optional): Search topic or keyword (e.g. `"RAII"`, `"ownership"`, `"smart pointers"`).
+  - `section` (`string`, optional): Section name filter (e.g. `"Resource management"`, `"Functions"`).
+  - `include_content` (`boolean`, optional): Include complete markdown text with code examples.
+
+- **Output Example**:
+  ```json
+  {
+    "query": "R.1",
+    "found": true,
+    "totalMatches": 1,
+    "rule": {
+      "id": "R.1",
+      "title": "Manage resources automatically using resource handles and RAII (Resource Acquisition Is Initialization)",
+      "section": "R: Resource management",
+      "url": "https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#rr-raii",
+      "reason": "To avoid leaks and the complexity of manual resource management...",
+      "content": "##### Reason\n\nTo avoid leaks and the complexity of manual resource management..."
+    }
+  }
+  ```
+
 ---
 
 ## Resources Catalog
@@ -143,6 +170,8 @@ The server exposes read-only MCP resources providing zero-overhead offline datas
 - **`cppref://headers`**: Complete inventory of all ISO C and C++ standard library headers with categories and declared symbols.
 - **`cppref://headers/{name}`**: Detailed specification, declared symbols, and standard revisions for a specific header (e.g. `cppref://headers/vector`, `cppref://headers/ranges`, `cppref://headers/print`).
 - **`cppref://standards`**: Chronological standards timeline (C++98 to C++26, C89 to C23) and official feature test macros.
+- **`cppref://guidelines`**: Complete index of 513 official C++ Core Guidelines rules with identifiers, titles, and sections.
+- **`cppref://guidelines/{id}`**: Full specification, rationale, enforcement, and code examples for a specific Core Guidelines rule.
 
 ---
 
@@ -153,6 +182,7 @@ Pre-engineered prompt templates for AI clients:
 - **`cpp_explain_symbol`**: Structured explanation of a C/C++ symbol covering required header, language availability, time/space complexity, and idiomatic modern code example.
 - **`cpp_modernize_code`**: Upgrades legacy C or C++ code into modern idiomatic C++ (C++20/C++23) using RAII, `std::ranges`, `std::string_view`, and `std::print`.
 - **`cpp_diagnose_compiler_error`**: Diagnoses compiler diagnostic output, pinpointing missing `#include` headers, standard flag discrepancies (`-std=c++20`), or concept constraints.
+- **`cpp_audit_guidelines`**: Conducts a thorough code review against the C++ Core Guidelines, highlighting rule violations (`R.1`, `F.16`, `C.21`) and recommending compliant modern solutions.
 
 ---
 
