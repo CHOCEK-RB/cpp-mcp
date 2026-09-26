@@ -341,4 +341,83 @@ export function registerResources(server: McpServer): void {
       };
     },
   );
+
+  // Resource 10: Modern C/C++ Developer Tooling Catalog
+  server.registerResource(
+    "cpp_tooling_index",
+    "cppref://tooling",
+    {
+      description:
+        "Catalog of modern C and C++ developer tooling, build utilities (xmake), linters (clang-tidy), formatters (clang-format), and sanitizers.",
+      mimeType: "application/json",
+    },
+    async () => {
+      const { C_CPP_TOOLS } = await import("../data/tooling.js");
+      const summaryList = C_CPP_TOOLS.map((t) => ({
+        id: t.id,
+        title: t.title,
+        configFileName: t.configFileName,
+        description: t.description,
+      }));
+
+      return {
+        contents: [
+          {
+            uri: "cppref://tooling",
+            text: JSON.stringify(summaryList, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    },
+  );
+
+  // Resource 11: Specific C/C++ Tool Documentation & Config
+  server.registerResource(
+    "cpp_tooling_detail",
+    new ResourceTemplate("cppref://tooling/{tool}", { list: undefined }),
+    {
+      description:
+        "Full documentation, commands, and production starter configuration for a specific C/C++ tool (e.g. 'xmake', 'clang-format', 'clang-tidy', 'sanitizers').",
+      mimeType: "application/json",
+    },
+    async (uri: URL, variables: { [key: string]: string | string[] | undefined }) => {
+      const { TOOL_BY_ID, C_CPP_TOOLS } = await import("../data/tooling.js");
+      const { normalizeToolId } = await import("../tools/tooling.js");
+      const rawTool = String(variables.tool || "");
+      const normalized = normalizeToolId(rawTool);
+      const toolGuide =
+        TOOL_BY_ID.get(rawTool.toLowerCase()) ||
+        TOOL_BY_ID.get(normalized) ||
+        C_CPP_TOOLS.find((t) => t.aliases.some((a) => a.toLowerCase() === normalized));
+
+      if (!toolGuide) {
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              text: JSON.stringify(
+                {
+                  error: `Tool '${rawTool}' not found. Available tools: ${C_CPP_TOOLS.map((t) => t.id).join(", ")}.`,
+                },
+                null,
+                2,
+              ),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            text: JSON.stringify(toolGuide, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    },
+  );
 }

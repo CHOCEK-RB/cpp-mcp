@@ -1,0 +1,4488 @@
+[
+  {
+    "id": "xmake",
+    "title": "xmake Modern C/C++ Build Utility",
+    "aliases": [
+      "xmake",
+      "xmake.lua",
+      "xpack"
+    ],
+    "description": "Modern, lightweight, Lua-based C/C++ build system with first-class zero-boilerplate C++20/C++23 Modules support and built-in package management.",
+    "configFileName": "xmake.lua",
+    "sampleConfig": "add_rules(\"mode.debug\", \"mode.release\")\n\nset_languages(\"c++23\")\n\ntarget(\"app\")\n    set_kind(\"binary\")\n    add_files(\"src/*.cpp\")\n    add_files(\"src/*.cppm\") -- Zero-boilerplate native C++20/23 Modules support\n    add_includedirs(\"include\")\n    add_packages(\"fmt\")\n",
+    "keyDirectives": [
+      {
+        "name": "target",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "target(name: <string>, {     kind = <string>,     files = <string|array>,"
+      },
+      {
+        "name": "target_end",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "target_end()"
+      },
+      {
+        "name": "set_kind",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_kind(kind: <string>)"
+      },
+      {
+        "name": "set_strip",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_strip(strip: <string>)"
+      },
+      {
+        "name": "set_enabled",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_enabled(enabled: <boolean>)"
+      },
+      {
+        "name": "set_default",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_default(default: <boolean>)"
+      },
+      {
+        "name": "set_options",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_options(options: <string|array>, ...)"
+      },
+      {
+        "name": "set_symbols",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_symbols(symbols: <string>, {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "set_basename",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_basename(basename: <string>)"
+      },
+      {
+        "name": "set_filename",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_filename(filename: <string>)"
+      },
+      {
+        "name": "set_prefixname",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_prefixname(prefixname: <string>)"
+      },
+      {
+        "name": "set_suffixname",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_suffixname(suffixname: <string>)"
+      },
+      {
+        "name": "set_extension",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_extension(extension: <string>)"
+      },
+      {
+        "name": "set_warnings",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_warnings(warnings: <string>, {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "set_optimize",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_optimize(optimize: <string>)"
+      },
+      {
+        "name": "set_languages",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_languages(languages: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "set_fpmodels",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_fpmodels(fpmodels: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "set_targetdir",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "target(\"test\")     set_targetdir(\"/tmp/build\")"
+      },
+      {
+        "name": "set_objectdir",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "target(\"test\")     set_objectdir(\"$(builddir)/.objs\")"
+      },
+      {
+        "name": "set_dependir",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "target(\"test\")     set_dependir(\"$(builddir)/.deps\")"
+      },
+      {
+        "name": "add_imports",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "target(\"test\")     on_load(function (target)         import(\"core.base.task\")"
+      },
+      {
+        "name": "add_rules",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_rules(rules: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "on_load",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "on_load(script: <function (target)>)"
+      },
+      {
+        "name": "on_config",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "on_config(script: <function (target)>)"
+      },
+      {
+        "name": "on_prepare",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "on_prepare(script: <function (target, opt)>)"
+      },
+      {
+        "name": "on_prepare_file",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "on_prepare_file(script: <function (target, sourcefile, opt)>)"
+      },
+      {
+        "name": "on_prepare_files",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "on_prepare_files(script: <function (target, jobgraph, sourcebatch, opt)>, {jobgraph = <boolean>})"
+      },
+      {
+        "name": "on_link",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "on_link(script: <function (target)>)"
+      },
+      {
+        "name": "on_build",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "on_build(script: <function (target)>)"
+      },
+      {
+        "name": "on_build_file",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "on_build_file(script: <function (target, sourcefile, opt)>)"
+      },
+      {
+        "name": "on_build_files",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "on_build_files(script: <function (target, sourcebatch, opt)>)"
+      },
+      {
+        "name": "on_clean",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "on_clean(script: <function (target)>)"
+      },
+      {
+        "name": "on_package",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "on_package(script: <function (target)>)"
+      },
+      {
+        "name": "on_install",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "on_install(script: <function (target)>)"
+      },
+      {
+        "name": "on_uninstall",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "on_uninstall(script: <function (target)>)"
+      },
+      {
+        "name": "on_run",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "on_run(script: <function (target)>)"
+      },
+      {
+        "name": "before_prepare",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "before_prepare(script: <function (target)>)"
+      },
+      {
+        "name": "before_prepare_file",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "before_prepare_file(script: <function (target, sourcefile, opt)>)"
+      },
+      {
+        "name": "before_prepare_files",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "before_prepare_files(script: <function (target, sourcebatch, opt)>)"
+      },
+      {
+        "name": "before_link",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "before_link(script: <function (target)>)"
+      },
+      {
+        "name": "before_build",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "before_build(script: <function (target)>)"
+      },
+      {
+        "name": "before_build_file",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "before_build_file(script: <function (target, sourcefile, opt)>)"
+      },
+      {
+        "name": "before_build_files",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "before_build_files(script: <function (target, sourcebatch, opt)>)"
+      },
+      {
+        "name": "before_clean",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "before_clean(script: <function (target)>)"
+      },
+      {
+        "name": "before_package",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "before_package(script: <function (target)>)"
+      },
+      {
+        "name": "before_install",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "before_install(script: <function (target)>)"
+      },
+      {
+        "name": "before_uninstall",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "before_uninstall(script: <function (target)>)"
+      },
+      {
+        "name": "before_run",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "before_run(script: <function (target)>)"
+      },
+      {
+        "name": "after_prepare",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "after_prepare(script: <function (target)>)"
+      },
+      {
+        "name": "after_prepare_file",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "after_prepare_file(script: <function (target, sourcefile, opt)>)"
+      },
+      {
+        "name": "after_prepare_files",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "after_prepare_files(script: <function (target, sourcebatch, opt)>)"
+      },
+      {
+        "name": "after_link",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "after_link(script: <function (target)>)"
+      },
+      {
+        "name": "after_build",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "after_build(script: <function (target)>)"
+      },
+      {
+        "name": "after_build_file",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "after_build_file(script: <function (target, sourcefile, opt)>)"
+      },
+      {
+        "name": "after_build_files",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "after_build_files(script: <function (target, sourcebatch, opt)>)"
+      },
+      {
+        "name": "after_clean",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "after_clean(script: <function (target)>)"
+      },
+      {
+        "name": "after_package",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "after_package(script: <function (target)>)"
+      },
+      {
+        "name": "after_install",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "after_install(script: <function (target)>)"
+      },
+      {
+        "name": "after_uninstall",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "after_uninstall(script: <function (target)>)"
+      },
+      {
+        "name": "after_run",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "after_run(script: <function (target)>)"
+      },
+      {
+        "name": "set_pcheader",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_pcheader(header: <string>)"
+      },
+      {
+        "name": "set_pcxxheader",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_pcxxheader(header: <string>)"
+      },
+      {
+        "name": "set_pmheader",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_pmheader(header: <string>)"
+      },
+      {
+        "name": "set_pmxxheader",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_pmxxheader(header: <string>)"
+      },
+      {
+        "name": "add_deps",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_deps(deps: <string|array>, ..., {     inherit = <boolean> })"
+      },
+      {
+        "name": "add_links",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_links(links: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_syslinks",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_syslinks(syslinks: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_linkorders",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_linkorders(linkorders: <string|array>, ...)"
+      },
+      {
+        "name": "add_linkgroups",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_linkgroups(linkgroups: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_files",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_files(files: <string|array>, ..., {     defines = <string|array>,     languages = <string|array>"
+      },
+      {
+        "name": "remove_files",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "remove_files(files: <string|array>, ...)"
+      },
+      {
+        "name": "remove_headerfiles",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "remove_headerfiles(headerfiles: <string|array>, ...)"
+      },
+      {
+        "name": "add_linkdirs",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_linkdirs(linkdirs: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_rpathdirs",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_rpathdirs(rpathdirs: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_includedirs",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_includedirs(includedirs: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_sysincludedirs",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_sysincludedirs(includedirs: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_embeddirs",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_embeddirs(embeddirs: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_defines",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_defines(defines: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_undefines",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_undefines(undefines: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_cflags",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_cflags(cflags: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_cxflags",
+        "description": "[Target Specification] xmake Target Specification API"
+      },
+      {
+        "name": "add_cxxflags",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_cxxflags(cxxflags: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_mflags",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_mflags(mflags: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_mxflags",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_mxflags(mxflags: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_mxxflags",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_mxxflags(mxxflags: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_scflags",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_scflags(scflags: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_asflags",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_asflags(asflags: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_gcflags",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_gcflags(gcflags: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_dcflags",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_dcflags(dcflags: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_rcflags",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_rcflags(rcflags: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_fcflags",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_fcflags(fcflags: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_zcflags",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_zcflags(zcflags: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_cuflags",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_cuflags(cuflags: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_culdflags",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_culdflags(culdflags: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_cugencodes",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_cugencodes(cugencodes: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_ascnpuarchs",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_ascnpuarchs(archs: <string|array>, ...)"
+      },
+      {
+        "name": "add_ldflags",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_ldflags(ldflags: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_arflags",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_arflags(arflags: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_shflags",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_shflags(shflags: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_options",
+        "description": "[Target Specification] xmake Target Specification API"
+      },
+      {
+        "name": "add_packages",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_packages(packages: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_languages",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_languages(languages: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_vectorexts",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_vectorexts(vectorexts: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_frameworks",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_frameworks(frameworks: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_frameworkdirs",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_frameworkdirs(frameworkdirs: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "set_toolset",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_toolset(toolname: <string>, tool: <string>)"
+      },
+      {
+        "name": "set_toolchains",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_toolchains(toolchains: <string|array>, ..., {     vs = <string>,     plat = <string>,"
+      },
+      {
+        "name": "set_plat",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_plat(plat: <string>)"
+      },
+      {
+        "name": "set_arch",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_arch(arch: <string>)"
+      },
+      {
+        "name": "set_values",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_values(name: <string>, values: <any>, ...)"
+      },
+      {
+        "name": "add_values",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_values(name: <string>, values: <any>, ...)"
+      },
+      {
+        "name": "set_rundir",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_rundir(rundir: <string>)"
+      },
+      {
+        "name": "set_runargs",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_runargs(runargs: <string|array>, ...)"
+      },
+      {
+        "name": "add_runenvs",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_runenvs(name: <string>, values: <string|array>, ...)"
+      },
+      {
+        "name": "set_runenv",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_runenv(name: <string>, value: <string>)"
+      },
+      {
+        "name": "set_installdir",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_installdir(installdir: <string>)"
+      },
+      {
+        "name": "set_prefixdir",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_prefixdir(prefixdir: <string>)"
+      },
+      {
+        "name": "add_installfiles",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_installfiles(installfiles: <string|array>, ..., {     prefixdir = <string>,     rootdir = <strin"
+      },
+      {
+        "name": "add_headerfiles",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_headerfiles(headerfiles: <string|array>, ..., {     prefixdir = <string>,     rootdir = <string>"
+      },
+      {
+        "name": "set_configdir",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_configdir(configdir: <string>)"
+      },
+      {
+        "name": "set_configvar",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_configvar(name: <string>, value: <any>)"
+      },
+      {
+        "name": "add_configfiles",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_configfiles(configfiles: <string|array>, ..., {     prefixdir = <string>,     rootdir = <string>"
+      },
+      {
+        "name": "set_policy",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_policy(policy: <string>, value: <boolean>)"
+      },
+      {
+        "name": "set_runtimes",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_runtimes(runtimes: <string|array>, ...)"
+      },
+      {
+        "name": "set_group",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_group(group: <string>)"
+      },
+      {
+        "name": "add_filegroups",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_filegroups(name: <string>, files: <string|array>, ...)"
+      },
+      {
+        "name": "set_exceptions",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_exceptions(exceptions: <string|array>, ...)"
+      },
+      {
+        "name": "set_encodings",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "set_encodings(encodings: <string|array>, ...)"
+      },
+      {
+        "name": "add_forceincludes",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_forceincludes(includes: <string|array>, ..., {     public|interface|private = <boolean> })"
+      },
+      {
+        "name": "add_extrafiles",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_extrafiles(extrafiles: <string|array>, ...)"
+      },
+      {
+        "name": "add_tests",
+        "description": "[Target Specification] xmake Target Specification API",
+        "syntax": "add_tests(tests: <string|array>, ..., {     runargs = <string|array>,     runenvs = <table>,"
+      },
+      {
+        "name": "includes",
+        "description": "[Global Interfaces] xmake Global Interfaces API",
+        "syntax": "includes(paths: <string|array>, ..., {     rootdir = <string> })"
+      },
+      {
+        "name": "set_project",
+        "description": "[Global Interfaces] xmake Global Interfaces API",
+        "syntax": "set_project(name: <string>)"
+      },
+      {
+        "name": "set_version",
+        "description": "[Global Interfaces] xmake Global Interfaces API",
+        "syntax": "set_version(version: <string>, {     build = <string>,     soname = <string|boolean>"
+      },
+      {
+        "name": "set_xmakever",
+        "description": "[Global Interfaces] xmake Global Interfaces API",
+        "syntax": "set_xmakever(version: <string>)"
+      },
+      {
+        "name": "add_moduledirs",
+        "description": "[Global Interfaces] xmake Global Interfaces API",
+        "syntax": "add_moduledirs(dirs: <string|array>, ...)"
+      },
+      {
+        "name": "add_plugindirs",
+        "description": "[Global Interfaces] xmake Global Interfaces API",
+        "syntax": "add_plugindirs(dirs: <string|array>, ...)"
+      },
+      {
+        "name": "get_config",
+        "description": "[Global Interfaces] xmake Global Interfaces API",
+        "syntax": "get_config(name: <string>): <string|boolean|number>"
+      },
+      {
+        "name": "set_config",
+        "description": "[Global Interfaces] xmake Global Interfaces API",
+        "syntax": "set_config(name: <string>, value: <string|boolean|number>)"
+      },
+      {
+        "name": "add_addons",
+        "description": "[Global Interfaces] xmake Global Interfaces API",
+        "syntax": "add_addons(addons: <string|array>, ...)"
+      },
+      {
+        "name": "add_requires",
+        "description": "[Global Interfaces] xmake Global Interfaces API",
+        "syntax": "add_requires(packages: <string|array>, ..., {     optional = <boolean>,     system = <boolean>,"
+      },
+      {
+        "name": "add_requireconfs",
+        "description": "[Global Interfaces] xmake Global Interfaces API",
+        "syntax": "add_requireconfs(packages: <string|array>, ..., {     configs = <table>,     override = <boolean>,"
+      },
+      {
+        "name": "add_repositories",
+        "description": "[Global Interfaces] xmake Global Interfaces API",
+        "syntax": "add_repositories(repos: <string|array>, ..., {     rootdir = <string> })"
+      },
+      {
+        "name": "set_defaultplat",
+        "description": "[Global Interfaces] xmake Global Interfaces API",
+        "syntax": "set_defaultplat(platform: <string>)"
+      },
+      {
+        "name": "set_defaultarchs",
+        "description": "[Global Interfaces] xmake Global Interfaces API",
+        "syntax": "set_defaultarchs(archs: <string|array>, ...)"
+      },
+      {
+        "name": "set_defaultmode",
+        "description": "[Global Interfaces] xmake Global Interfaces API",
+        "syntax": "set_defaultmode(mode: <string>)"
+      },
+      {
+        "name": "set_allowedplats",
+        "description": "[Global Interfaces] xmake Global Interfaces API",
+        "syntax": "set_allowedplats(platforms: <string|array>, ...)"
+      },
+      {
+        "name": "set_allowedarchs",
+        "description": "[Global Interfaces] xmake Global Interfaces API",
+        "syntax": "set_allowedarchs(archs: <string|array>, ...)"
+      },
+      {
+        "name": "set_allowedmodes",
+        "description": "[Global Interfaces] xmake Global Interfaces API",
+        "syntax": "set_allowedmodes(modes: <string|array>, ...)"
+      },
+      {
+        "name": "namespace",
+        "description": "[Global Interfaces] xmake Global Interfaces API",
+        "syntax": "namespace(name: <string>, script: <function>)"
+      },
+      {
+        "name": "namespace_end",
+        "description": "[Global Interfaces] xmake Global Interfaces API",
+        "syntax": "namespace_end()"
+      },
+      {
+        "name": "package",
+        "description": "[Package Dependencies] xmake Package Dependencies API",
+        "syntax": "package(name: <string>)"
+      },
+      {
+        "name": "set_homepage",
+        "description": "[Package Dependencies] xmake Package Dependencies API",
+        "syntax": "set_homepage(url: <string>)"
+      },
+      {
+        "name": "set_description",
+        "description": "[Package Dependencies] xmake Package Dependencies API",
+        "syntax": "set_description(description: <string>)"
+      },
+      {
+        "name": "set_urls",
+        "description": "[Package Dependencies] xmake Package Dependencies API",
+        "syntax": "set_urls(urls: <string|array>, ..., {     excludes = <array>,     version = <function>,"
+      },
+      {
+        "name": "add_urls",
+        "description": "[Package Dependencies] xmake Package Dependencies API",
+        "syntax": "add_urls(urls: <string|array>, ..., {     alias = <string>,     excludes = <array>,"
+      },
+      {
+        "name": "add_versions",
+        "description": "[Package Dependencies] xmake Package Dependencies API",
+        "syntax": "add_versions(version: <string>, hash: <string>)"
+      },
+      {
+        "name": "add_versionfiles",
+        "description": "[Package Dependencies] xmake Package Dependencies API",
+        "syntax": "add_versionfiles(file: <string>)"
+      },
+      {
+        "name": "set_sourcedir",
+        "description": "[Package Dependencies] xmake Package Dependencies API",
+        "syntax": "set_sourcedir(sourcedir: <string>)"
+      },
+      {
+        "name": "add_patches",
+        "description": "[Package Dependencies] xmake Package Dependencies API",
+        "syntax": "add_patches(version: <string>, url: <string>, hash: <string>)"
+      },
+      {
+        "name": "add_bindirs",
+        "description": "[Package Dependencies] xmake Package Dependencies API",
+        "syntax": "add_bindirs(dirs: <string|array>, ...)"
+      },
+      {
+        "name": "add_schemes",
+        "description": "[Package Dependencies] xmake Package Dependencies API",
+        "syntax": "add_schemes(schemes: <string|array>, ...)"
+      },
+      {
+        "name": "add_configs",
+        "description": "[Package Dependencies] xmake Package Dependencies API",
+        "syntax": "add_configs(name: <string>, {     description = <string>,     default = <string|boolean|number>,"
+      },
+      {
+        "name": "add_extsources",
+        "description": "[Package Dependencies] xmake Package Dependencies API",
+        "syntax": "add_extsources(sources: <string|array>, ...)"
+      },
+      {
+        "name": "add_components",
+        "description": "[Package Dependencies] xmake Package Dependencies API",
+        "syntax": "add_components(components: <string|array>, ..., {     deps = <array> })"
+      },
+      {
+        "name": "set_base",
+        "description": "[Package Dependencies] xmake Package Dependencies API",
+        "syntax": "set_base(package: <string>)"
+      },
+      {
+        "name": "on_fetch",
+        "description": "[Package Dependencies] xmake Package Dependencies API",
+        "syntax": "on_fetch(platforms: <string|array>, ..., script: <function (package, opt)>)"
+      },
+      {
+        "name": "on_check",
+        "description": "[Package Dependencies] xmake Package Dependencies API",
+        "syntax": "on_check(platforms: <string|array>, ..., script: <function (package)>)"
+      },
+      {
+        "name": "on_download",
+        "description": "[Package Dependencies] xmake Package Dependencies API",
+        "syntax": "on_download(script: <function (package, opt)>)"
+      },
+      {
+        "name": "on_test",
+        "description": "[Package Dependencies] xmake Package Dependencies API",
+        "syntax": "on_test(script: <function (package)>)"
+      },
+      {
+        "name": "on_component",
+        "description": "[Package Dependencies] xmake Package Dependencies API",
+        "syntax": "on_component(component: <string>, script: <function (package, component)>)"
+      },
+      {
+        "name": "mode.debug",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_rules(\"mode.debug\")"
+      },
+      {
+        "name": "mode.release",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_rules(\"mode.release\")"
+      },
+      {
+        "name": "mode.releasedbg",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_rules(\"mode.releasedbg\")"
+      },
+      {
+        "name": "mode.minsizerel",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_rules(\"mode.minsizerel\")"
+      },
+      {
+        "name": "mode.check",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_rules(\"mode.check\")"
+      },
+      {
+        "name": "mode.profile",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_rules(\"mode.profile\")"
+      },
+      {
+        "name": "mode.coverage",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_rules(\"mode.coverage\")"
+      },
+      {
+        "name": "mode.valgrind",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_rules(\"mode.valgrind\")"
+      },
+      {
+        "name": "mode.asan",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_rules(\"mode.asan\")"
+      },
+      {
+        "name": "mode.tsan",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_rules(\"mode.tsan\")"
+      },
+      {
+        "name": "mode.lsan",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_rules(\"mode.lsan\")"
+      },
+      {
+        "name": "mode.ubsan",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_rules(\"mode.ubsan\")"
+      },
+      {
+        "name": "qt.static",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "target(\"test\")     add_rules(\"qt.static\")     add_files(\"src/*.cpp\")"
+      },
+      {
+        "name": "qt.shared",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "target(\"test\")     add_rules(\"qt.shared\")     add_files(\"src/*.cpp\")"
+      },
+      {
+        "name": "qt.console",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "target(\"test\")     add_rules(\"qt.console\")     add_files(\"src/*.cpp\")"
+      },
+      {
+        "name": "qt.quickapp",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "target(\"test\")     add_rules(\"qt.quickapp\")     add_files(\"src/*.cpp\")"
+      },
+      {
+        "name": "qt.quickapp_static",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "target(\"test\")     add_rules(\"qt.quickapp_static\")     add_files(\"src/*.cpp\")"
+      },
+      {
+        "name": "qt.widgetapp",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "target(\"test\")     add_rules(\"qt.widgetapp\")     add_files(\"src/*.cpp\")"
+      },
+      {
+        "name": "qt.widgetapp_static",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "target(\"test\")     add_rules(\"qt.widgetapp_static\")     add_files(\"src/*.cpp\")"
+      },
+      {
+        "name": "xcode.bundle",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "target(\"test\")      add_rules(\"xcode.bundle\")      add_files(\"src/*.m\")"
+      },
+      {
+        "name": "xcode.framework",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "target(\"test\")      add_rules(\"xcode.framework\")      add_files(\"src/*.m\")"
+      },
+      {
+        "name": "xcode.application",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "target(\"test\")     add_rules(\"xcode.application\")     add_files(\"src/*.m\", \"src/**.storyboard\", \"src"
+      },
+      {
+        "name": "android.native_app",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_rules(\"mode.debug\", \"mode.release\")  add_requires(\"raylib 5.5.0\")"
+      },
+      {
+        "name": "wdk.env.kmdf",
+        "description": "[Built-in Rules] xmake Built-in Rules API"
+      },
+      {
+        "name": "wdk.env.umdf",
+        "description": "[Built-in Rules] xmake Built-in Rules API"
+      },
+      {
+        "name": "wdk.env.wdm",
+        "description": "[Built-in Rules] xmake Built-in Rules API"
+      },
+      {
+        "name": "wdk.driver",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "-- add target target(\"echo\") "
+      },
+      {
+        "name": "wdk.binary",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "-- add target target(\"app\") "
+      },
+      {
+        "name": "wdk.static",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "target(\"nonpnp\")      -- add rules"
+      },
+      {
+        "name": "wdk.shared",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "target(\"nonpnp\")      -- add rules"
+      },
+      {
+        "name": "wdk.tracewpp",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "target(\"nonpnp\")      -- add rules"
+      },
+      {
+        "name": "win.sdk.application",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "-- add rules add_rules(\"mode.debug\", \"mode.release\") "
+      },
+      {
+        "name": "wdk.sdk.dotnet",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_files(\"xmlhelper.cpp\", {rules = \"win.sdk.dotnet\"})"
+      },
+      {
+        "name": "plugin.vsxmake.autoupdate",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_rules(\"plugin.vsxmake.autoupdate\") target(\"test\")      set_kind(\"binary\")"
+      },
+      {
+        "name": "plugin.compile_commands.autoupdate",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_rules(\"plugin.compile_commands.autoupdate\")  target(\"test\")"
+      },
+      {
+        "name": "utils.symbols.export_all",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_rules(\"mode.release\", \"mode.debug\")  target(\"foo\")"
+      },
+      {
+        "name": "utils.symbols.export_list",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "target(\"foo\")      set_kind(\"shared\")      add_files(\"src/foo.c\")"
+      },
+      {
+        "name": "utils.install.cmake_importfiles",
+        "description": "[Built-in Rules] xmake Built-in Rules API"
+      },
+      {
+        "name": "utils.install.pkgconfig_importfiles",
+        "description": "[Built-in Rules] xmake Built-in Rules API"
+      },
+      {
+        "name": "utils.bin2c",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "target(\"console\")     set_kind(\"binary\")     add_rules(\"utils.bin2c\", {extensions = {\".png\", \".jpg\"}"
+      },
+      {
+        "name": "utils.bin2obj",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "target(\"myapp\")     set_kind(\"binary\")     add_rules(\"utils.bin2obj\", {extensions = {\".bin\", \".ico\"}"
+      },
+      {
+        "name": "utils.replace",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "target(\"foo\")     set_kind(\"binary\")     add_files(\"src/foo.c\", {rules = \"utils.replace\", replaces ="
+      },
+      {
+        "name": "utils.glsl2spv",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_rules(\"mode.debug\", \"mode.release\")  add_requires(\"glslang\", {configs = {binaryonly = true}})"
+      },
+      {
+        "name": "utils.hlsl2spv",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_rules(\"mode.debug\", \"mode.release\")  add_requires(\"directxshadercompiler\")"
+      },
+      {
+        "name": "python.library",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_rules(\"mode.release\", \"mode.debug\") add_requires(\"pybind11\") "
+      },
+      {
+        "name": "nodejs.module",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "add_requires(\"node-addon-api\")  target(\"foo\")"
+      },
+      {
+        "name": "utils.ipsc",
+        "description": "[Built-in Rules] xmake Built-in Rules API",
+        "syntax": "target(\"test\")     set_kind(\"binary\")     add_rules(\"utils.ispc\", {header_extension = \"_ispc.h\"})"
+      },
+      {
+        "name": "option",
+        "description": "[Configuration Options] xmake Configuration Options API",
+        "syntax": "option(name: <string>)"
+      },
+      {
+        "name": "option_end",
+        "description": "[Configuration Options] xmake Configuration Options API",
+        "syntax": "option_end()"
+      },
+      {
+        "name": "before_check",
+        "description": "[Configuration Options] xmake Configuration Options API",
+        "syntax": "before_check(script: <function (option)>)"
+      },
+      {
+        "name": "after_check",
+        "description": "[Configuration Options] xmake Configuration Options API",
+        "syntax": "after_check(script: <function (option)>)"
+      },
+      {
+        "name": "set_showmenu",
+        "description": "[Configuration Options] xmake Configuration Options API",
+        "syntax": "set_showmenu(showmenu: <boolean>)"
+      },
+      {
+        "name": "set_category",
+        "description": "[Configuration Options] xmake Configuration Options API",
+        "syntax": "set_category(category: <string>)"
+      },
+      {
+        "name": "add_cincludes",
+        "description": "[Configuration Options] xmake Configuration Options API",
+        "syntax": "add_cincludes(includes: <string|array>, ...)"
+      },
+      {
+        "name": "add_cxxincludes",
+        "description": "[Configuration Options] xmake Configuration Options API",
+        "syntax": "add_cxxincludes(includes: <string|array>, ...)"
+      },
+      {
+        "name": "add_ctypes",
+        "description": "[Configuration Options] xmake Configuration Options API",
+        "syntax": "add_ctypes(types: <string|array>, ...)"
+      },
+      {
+        "name": "add_cxxtypes",
+        "description": "[Configuration Options] xmake Configuration Options API",
+        "syntax": "add_cxxtypes(types: <string|array>, ...)"
+      },
+      {
+        "name": "add_csnippets",
+        "description": "[Configuration Options] xmake Configuration Options API",
+        "syntax": "add_csnippets(name: <string>, code: <string>, {     tryrun = <boolean>,     output = <boolean>,"
+      },
+      {
+        "name": "add_cxxsnippets",
+        "description": "[Configuration Options] xmake Configuration Options API",
+        "syntax": "add_cxxsnippets(name: <string>, code: <string>, {     tryrun = <boolean>,     output = <boolean>,"
+      },
+      {
+        "name": "add_cfuncs",
+        "description": "[Configuration Options] xmake Configuration Options API",
+        "syntax": "add_cfuncs(funcs: <string|array>, ...)"
+      },
+      {
+        "name": "add_cxxfuncs",
+        "description": "[Configuration Options] xmake Configuration Options API",
+        "syntax": "add_cxxfuncs(funcs: <string|array>, ...)"
+      },
+      {
+        "name": "rule",
+        "description": "[Custom Build Rules] xmake Custom Build Rules API",
+        "syntax": "rule(name: <string>)"
+      },
+      {
+        "name": "set_extensions",
+        "description": "[Custom Build Rules] xmake Custom Build Rules API",
+        "syntax": "set_extensions(extensions: <string|array>, ...)"
+      },
+      {
+        "name": "on_buildcmd_file",
+        "description": "[Custom Build Rules] xmake Custom Build Rules API",
+        "syntax": "on_buildcmd_file(script: <function (target, batchcmds, sourcefile, opt)>)"
+      },
+      {
+        "name": "on_buildcmd_files",
+        "description": "[Custom Build Rules] xmake Custom Build Rules API",
+        "syntax": "on_buildcmd_files(script: <function (target, batchcmds, sourcebatch, opt)>)"
+      },
+      {
+        "name": "before_config",
+        "description": "[Custom Build Rules] xmake Custom Build Rules API",
+        "syntax": "before_config(script: <function (target)>)"
+      },
+      {
+        "name": "before_buildcmd_file",
+        "description": "[Custom Build Rules] xmake Custom Build Rules API",
+        "syntax": "before_buildcmd_file(script: <function (target, batchcmds, sourcefile, opt)>)"
+      },
+      {
+        "name": "before_buildcmd_files",
+        "description": "[Custom Build Rules] xmake Custom Build Rules API",
+        "syntax": "before_buildcmd_files(script: <function (target, batchcmds, sourcebatch, opt)>)"
+      },
+      {
+        "name": "after_config",
+        "description": "[Custom Build Rules] xmake Custom Build Rules API",
+        "syntax": "after_config(script: <function (target)>)"
+      },
+      {
+        "name": "after_buildcmd_file",
+        "description": "[Custom Build Rules] xmake Custom Build Rules API",
+        "syntax": "after_buildcmd_file(script: <function (target, batchcmds, sourcefile, opt)>)"
+      },
+      {
+        "name": "after_buildcmd_files",
+        "description": "[Custom Build Rules] xmake Custom Build Rules API",
+        "syntax": "after_buildcmd_files(script: <function (target, batchcmds, sourcebatch, opt)>)"
+      },
+      {
+        "name": "rule_end",
+        "description": "[Custom Build Rules] xmake Custom Build Rules API",
+        "syntax": "rule_end()"
+      }
+    ],
+    "commands": [
+      {
+        "command": "xmake",
+        "description": "Build current project targets"
+      },
+      {
+        "command": "xmake run <target>",
+        "description": "Run compiled binary target"
+      },
+      {
+        "command": "xmake f -m debug",
+        "description": "Configure project in debug mode"
+      },
+      {
+        "command": "xmake f -m release",
+        "description": "Configure project in release mode"
+      },
+      {
+        "command": "xmake f --policies=build.c++.modules",
+        "description": "Force enable C++20 modules scanning"
+      },
+      {
+        "command": "xmake project -k compile_commands",
+        "description": "Generate compile_commands.json for clangd and IDEs"
+      }
+    ],
+    "content": "xmake simplifies C++20 and C++23 modules compilation without Ninja or complex CMake 3.28 FILE_SET directives. It automatically tracks header units and module dependencies."
+  },
+  {
+    "id": "clang-format",
+    "title": "Clang-Format Source Code Formatter",
+    "aliases": [
+      "clang-format",
+      ".clang-format",
+      "format"
+    ],
+    "description": "Official LLVM code formatter for C, C++, and C++20/23/26 module files, providing deterministic formatting across large codebases.",
+    "configFileName": ".clang-format",
+    "sampleConfig": "---\nLanguage: Cpp\nBasedOnStyle: LLVM\nStandard: Latest\nIndentWidth: 4\nTabWidth: 4\nUseTab: Never\nColumnLimit: 100\nSortIncludes: CaseSensitive\nIncludeBlocks: Regroup\nAllowShortFunctionsOnASingleLine: Inline\nAllowShortIfStatementsOnASingleLine: Never\nAllowShortLoopsOnASingleLine: false\nBreakBeforeBraces: Attach\nSpaceAfterTemplateKeyword: true\nSpaceBeforeRangeBasedForLoopColon: true\n...\n",
+    "keyDirectives": [
+      {
+        "name": "Language",
+        "description": "Clang-Format styling option (Default / Active: Cpp)"
+      },
+      {
+        "name": "AlignAfterOpenBracket",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "AccessModifierOffset",
+        "description": "Clang-Format styling option (Default / Active: -2)"
+      },
+      {
+        "name": "AlignArrayOfStructures",
+        "description": "Clang-Format styling option (Default / Active: None)"
+      },
+      {
+        "name": "AlignConsecutiveAssignments",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "AlignConsecutiveBitFields",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "AlignConsecutiveDeclarations",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "AlignConsecutiveMacros",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "AlignConsecutiveShortCaseStatements",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "AlignConsecutiveTableGenBreakingDAGArgColons",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "AlignConsecutiveTableGenCondOperatorColons",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "AlignConsecutiveTableGenDefinitionColons",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "AlignEscapedNewlines",
+        "description": "Clang-Format styling option (Default / Active: Right)"
+      },
+      {
+        "name": "AlignOperands",
+        "description": "Clang-Format styling option (Default / Active: Align)"
+      },
+      {
+        "name": "AlignTrailingComments",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "AllowAllArgumentsOnNextLine",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "AllowAllParametersOfDeclarationOnNextLine",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "AllowBreakBeforeNoexceptSpecifier",
+        "description": "Clang-Format styling option (Default / Active: Never)"
+      },
+      {
+        "name": "AllowBreakBeforeQtProperty",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "AllowShortBlocksOnASingleLine",
+        "description": "Clang-Format styling option (Default / Active: Never)"
+      },
+      {
+        "name": "AllowShortCaseExpressionOnASingleLine",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "AllowShortCaseLabelsOnASingleLine",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "AllowShortCompoundRequirementOnASingleLine",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "AllowShortEnumsOnASingleLine",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "AllowShortFunctionsOnASingleLine",
+        "description": "Clang-Format styling option (Default / Active: All)"
+      },
+      {
+        "name": "AllowShortIfStatementsOnASingleLine",
+        "description": "Clang-Format styling option (Default / Active: Never)"
+      },
+      {
+        "name": "AllowShortLambdasOnASingleLine",
+        "description": "Clang-Format styling option (Default / Active: All)"
+      },
+      {
+        "name": "AllowShortLoopsOnASingleLine",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "AllowShortNamespacesOnASingleLine",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "AlwaysBreakAfterDefinitionReturnType",
+        "description": "Clang-Format styling option (Default / Active: None)"
+      },
+      {
+        "name": "AlwaysBreakBeforeMultilineStrings",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "AttributeMacros",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "BinPackArguments",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "BinPackLongBracedList",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "BinPackParameters",
+        "description": "Clang-Format styling option (Default / Active: BinPack)"
+      },
+      {
+        "name": "BitFieldColonSpacing",
+        "description": "Clang-Format styling option (Default / Active: Both)"
+      },
+      {
+        "name": "BracedInitializerIndentWidth",
+        "description": "Clang-Format styling option (Default / Active: -1)"
+      },
+      {
+        "name": "BraceWrapping",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "BreakAdjacentStringLiterals",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "BreakAfterAttributes",
+        "description": "Clang-Format styling option (Default / Active: Leave)"
+      },
+      {
+        "name": "BreakAfterJavaFieldAnnotations",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "BreakAfterOpenBracketBracedList",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "BreakAfterOpenBracketFunction",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "BreakAfterOpenBracketIf",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "BreakAfterOpenBracketLoop",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "BreakAfterOpenBracketSwitch",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "BreakAfterReturnType",
+        "description": "Clang-Format styling option (Default / Active: None)"
+      },
+      {
+        "name": "BreakArrays",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "BreakBeforeBinaryOperators",
+        "description": "Clang-Format styling option (Default / Active: None)"
+      },
+      {
+        "name": "BreakBeforeCloseBracketBracedList",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "BreakBeforeCloseBracketFunction",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "BreakBeforeCloseBracketIf",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "BreakBeforeCloseBracketLoop",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "BreakBeforeCloseBracketSwitch",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "BreakBeforeConceptDeclarations",
+        "description": "Clang-Format styling option (Default / Active: Always)"
+      },
+      {
+        "name": "BreakBeforeBraces",
+        "description": "Clang-Format styling option (Default / Active: Attach)"
+      },
+      {
+        "name": "BreakBeforeInlineASMColon",
+        "description": "Clang-Format styling option (Default / Active: OnlyMultiline)"
+      },
+      {
+        "name": "BreakBeforeTemplateCloser",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "BreakBeforeTernaryOperators",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "BreakBinaryOperations",
+        "description": "Clang-Format styling option (Default / Active: Never)"
+      },
+      {
+        "name": "BreakConstructorInitializers",
+        "description": "Clang-Format styling option (Default / Active: BeforeColon)"
+      },
+      {
+        "name": "BreakFunctionDefinitionParameters",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "BreakInheritanceList",
+        "description": "Clang-Format styling option (Default / Active: BeforeColon)"
+      },
+      {
+        "name": "BreakStringLiterals",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "BreakTemplateDeclarations",
+        "description": "Clang-Format styling option (Default / Active: MultiLine)"
+      },
+      {
+        "name": "ColumnLimit",
+        "description": "Clang-Format styling option (Default / Active: 80)"
+      },
+      {
+        "name": "CommentPragmas",
+        "description": "Clang-Format styling option (Default / Active: '^ IWYU pragma:')"
+      },
+      {
+        "name": "CompactNamespaces",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "ConstructorInitializerIndentWidth",
+        "description": "Clang-Format styling option (Default / Active: 4)"
+      },
+      {
+        "name": "ContinuationIndentWidth",
+        "description": "Clang-Format styling option (Default / Active: 4)"
+      },
+      {
+        "name": "Cpp11BracedListStyle",
+        "description": "Clang-Format styling option (Default / Active: AlignFirstComment)"
+      },
+      {
+        "name": "DerivePointerAlignment",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "DisableFormat",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "EmptyLineAfterAccessModifier",
+        "description": "Clang-Format styling option (Default / Active: Never)"
+      },
+      {
+        "name": "EmptyLineBeforeAccessModifier",
+        "description": "Clang-Format styling option (Default / Active: LogicalBlock)"
+      },
+      {
+        "name": "EnumTrailingComma",
+        "description": "Clang-Format styling option (Default / Active: Leave)"
+      },
+      {
+        "name": "ExperimentalAutoDetectBinPacking",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "FixNamespaceComments",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "ForEachMacros",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "IfMacros",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "IncludeBlocks",
+        "description": "Clang-Format styling option (Default / Active: Preserve)"
+      },
+      {
+        "name": "IncludeCategories",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "IncludeIsMainRegex",
+        "description": "Clang-Format styling option (Default / Active: '(Test)?$')"
+      },
+      {
+        "name": "IncludeIsMainSourceRegex",
+        "description": "Clang-Format styling option (Default / Active: '')"
+      },
+      {
+        "name": "IndentAccessModifiers",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "IndentCaseBlocks",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "IndentCaseLabels",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "IndentExportBlock",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "IndentExternBlock",
+        "description": "Clang-Format styling option (Default / Active: AfterExternBlock)"
+      },
+      {
+        "name": "IndentGotoLabels",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "IndentPPDirectives",
+        "description": "Clang-Format styling option (Default / Active: None)"
+      },
+      {
+        "name": "IndentRequiresClause",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "IndentWidth",
+        "description": "Clang-Format styling option (Default / Active: 2)"
+      },
+      {
+        "name": "IndentWrappedFunctionNames",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "InsertBraces",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "InsertNewlineAtEOF",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "InsertTrailingCommas",
+        "description": "Clang-Format styling option (Default / Active: None)"
+      },
+      {
+        "name": "IntegerLiteralSeparator",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "JavaScriptQuotes",
+        "description": "Clang-Format styling option (Default / Active: Leave)"
+      },
+      {
+        "name": "JavaScriptWrapImports",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "KeepEmptyLines",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "KeepFormFeed",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "LambdaBodyIndentation",
+        "description": "Clang-Format styling option (Default / Active: Signature)"
+      },
+      {
+        "name": "LineEnding",
+        "description": "Clang-Format styling option (Default / Active: DeriveLF)"
+      },
+      {
+        "name": "MacroBlockBegin",
+        "description": "Clang-Format styling option (Default / Active: '')"
+      },
+      {
+        "name": "MacroBlockEnd",
+        "description": "Clang-Format styling option (Default / Active: '')"
+      },
+      {
+        "name": "MainIncludeChar",
+        "description": "Clang-Format styling option (Default / Active: Quote)"
+      },
+      {
+        "name": "MaxEmptyLinesToKeep",
+        "description": "Clang-Format styling option (Default / Active: 1)"
+      },
+      {
+        "name": "NamespaceIndentation",
+        "description": "Clang-Format styling option (Default / Active: None)"
+      },
+      {
+        "name": "NumericLiteralCase",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "ObjCBinPackProtocolList",
+        "description": "Clang-Format styling option (Default / Active: Auto)"
+      },
+      {
+        "name": "ObjCBlockIndentWidth",
+        "description": "Clang-Format styling option (Default / Active: 2)"
+      },
+      {
+        "name": "ObjCBreakBeforeNestedBlockParam",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "ObjCSpaceAfterProperty",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "ObjCSpaceBeforeProtocolList",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "OneLineFormatOffRegex",
+        "description": "Clang-Format styling option (Default / Active: '')"
+      },
+      {
+        "name": "PackConstructorInitializers",
+        "description": "Clang-Format styling option (Default / Active: BinPack)"
+      },
+      {
+        "name": "PenaltyBreakAssignment",
+        "description": "Clang-Format styling option (Default / Active: 2)"
+      },
+      {
+        "name": "PenaltyBreakBeforeFirstCallParameter",
+        "description": "Clang-Format styling option (Default / Active: 19)"
+      },
+      {
+        "name": "PenaltyBreakBeforeMemberAccess",
+        "description": "Clang-Format styling option (Default / Active: 150)"
+      },
+      {
+        "name": "PenaltyBreakComment",
+        "description": "Clang-Format styling option (Default / Active: 300)"
+      },
+      {
+        "name": "PenaltyBreakFirstLessLess",
+        "description": "Clang-Format styling option (Default / Active: 120)"
+      },
+      {
+        "name": "PenaltyBreakOpenParenthesis",
+        "description": "Clang-Format styling option (Default / Active: 0)"
+      },
+      {
+        "name": "PenaltyBreakScopeResolution",
+        "description": "Clang-Format styling option (Default / Active: 500)"
+      },
+      {
+        "name": "PenaltyBreakString",
+        "description": "Clang-Format styling option (Default / Active: 1000)"
+      },
+      {
+        "name": "PenaltyBreakTemplateDeclaration",
+        "description": "Clang-Format styling option (Default / Active: 10)"
+      },
+      {
+        "name": "PenaltyExcessCharacter",
+        "description": "Clang-Format styling option (Default / Active: 1000000)"
+      },
+      {
+        "name": "PenaltyIndentedWhitespace",
+        "description": "Clang-Format styling option (Default / Active: 0)"
+      },
+      {
+        "name": "PenaltyReturnTypeOnItsOwnLine",
+        "description": "Clang-Format styling option (Default / Active: 60)"
+      },
+      {
+        "name": "PointerAlignment",
+        "description": "Clang-Format styling option (Default / Active: Right)"
+      },
+      {
+        "name": "PPIndentWidth",
+        "description": "Clang-Format styling option (Default / Active: -1)"
+      },
+      {
+        "name": "QualifierAlignment",
+        "description": "Clang-Format styling option (Default / Active: Leave)"
+      },
+      {
+        "name": "ReferenceAlignment",
+        "description": "Clang-Format styling option (Default / Active: Pointer)"
+      },
+      {
+        "name": "ReflowComments",
+        "description": "Clang-Format styling option (Default / Active: Always)"
+      },
+      {
+        "name": "RemoveBracesLLVM",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "RemoveEmptyLinesInUnwrappedLines",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "RemoveParentheses",
+        "description": "Clang-Format styling option (Default / Active: Leave)"
+      },
+      {
+        "name": "RemoveSemicolon",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "RequiresClausePosition",
+        "description": "Clang-Format styling option (Default / Active: OwnLine)"
+      },
+      {
+        "name": "RequiresExpressionIndentation",
+        "description": "Clang-Format styling option (Default / Active: OuterScope)"
+      },
+      {
+        "name": "SeparateDefinitionBlocks",
+        "description": "Clang-Format styling option (Default / Active: Leave)"
+      },
+      {
+        "name": "ShortNamespaceLines",
+        "description": "Clang-Format styling option (Default / Active: 1)"
+      },
+      {
+        "name": "SkipMacroDefinitionBody",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "SortIncludes",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "SortJavaStaticImport",
+        "description": "Clang-Format styling option (Default / Active: Before)"
+      },
+      {
+        "name": "SortUsingDeclarations",
+        "description": "Clang-Format styling option (Default / Active: LexicographicNumeric)"
+      },
+      {
+        "name": "SpaceAfterCStyleCast",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "SpaceAfterLogicalNot",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "SpaceAfterOperatorKeyword",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "SpaceAfterTemplateKeyword",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "SpaceAroundPointerQualifiers",
+        "description": "Clang-Format styling option (Default / Active: Default)"
+      },
+      {
+        "name": "SpaceBeforeAssignmentOperators",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "SpaceBeforeCaseColon",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "SpaceBeforeCpp11BracedList",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "SpaceBeforeCtorInitializerColon",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "SpaceBeforeInheritanceColon",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "SpaceBeforeJsonColon",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "SpaceBeforeParens",
+        "description": "Clang-Format styling option (Default / Active: ControlStatements)"
+      },
+      {
+        "name": "SpaceBeforeParensOptions",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "SpaceBeforeRangeBasedForLoopColon",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "SpaceBeforeSquareBrackets",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "SpaceInEmptyBraces",
+        "description": "Clang-Format styling option (Default / Active: Never)"
+      },
+      {
+        "name": "SpacesBeforeTrailingComments",
+        "description": "Clang-Format styling option (Default / Active: 1)"
+      },
+      {
+        "name": "SpacesInAngles",
+        "description": "Clang-Format styling option (Default / Active: Never)"
+      },
+      {
+        "name": "SpacesInContainerLiterals",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "SpacesInLineCommentPrefix",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "SpacesInParens",
+        "description": "Clang-Format styling option (Default / Active: Never)"
+      },
+      {
+        "name": "SpacesInParensOptions",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "SpacesInSquareBrackets",
+        "description": "Clang-Format styling option (Default / Active: false)"
+      },
+      {
+        "name": "Standard",
+        "description": "Clang-Format styling option (Default / Active: Latest)"
+      },
+      {
+        "name": "StatementAttributeLikeMacros",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "StatementMacros",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "TableGenBreakInsideDAGArg",
+        "description": "Clang-Format styling option (Default / Active: DontBreak)"
+      },
+      {
+        "name": "TabWidth",
+        "description": "Clang-Format styling option (Default / Active: 8)"
+      },
+      {
+        "name": "UseTab",
+        "description": "Clang-Format styling option (Default / Active: Never)"
+      },
+      {
+        "name": "VerilogBreakBetweenInstancePorts",
+        "description": "Clang-Format styling option (Default / Active: true)"
+      },
+      {
+        "name": "WhitespaceSensitiveMacros",
+        "description": "Clang-Format styling option (Default / Active: Configurable)"
+      },
+      {
+        "name": "WrapNamespaceBodyWithEmptyLines",
+        "description": "Clang-Format styling option (Default / Active: Leave)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "clang-format -i $(find src -name '*.cpp' -o -name '*.cppm' -o -name '*.hpp')",
+        "description": "Format all source, module, and header files in-place"
+      },
+      {
+        "command": "clang-format --dry-run -Werror src/main.cpp",
+        "description": "Verify code formatting adherence in CI pipelines without editing"
+      },
+      {
+        "command": "clang-format --dump-config > .clang-format",
+        "description": "Dump full default configuration for customization"
+      }
+    ],
+    "content": "Clang-Format aligns C++ code according to standardized style guidelines. Supports C++20 module keywords `module`, `import`, and `export` natively."
+  },
+  {
+    "id": "clang-tidy",
+    "title": "Clang-Tidy Static Linter & Modernizer",
+    "aliases": [
+      "clang-tidy",
+      ".clang-tidy",
+      "tidy"
+    ],
+    "description": "LLVM-based static analysis engine enforcing C++ Core Guidelines, SEI CERT security rules, modernization (C++20/C++23), and bug-prone antipattern detection.",
+    "configFileName": ".clang-tidy",
+    "sampleConfig": "---\nChecks: >\n  -*,\n  modernize-*,\n  cppcoreguidelines-*,\n  cert-*,\n  bugprone-*,\n  performance-*,\n  readability-*\n\nWarningsAsErrors: 'cert-*,cppcoreguidelines-*'\nHeaderFilterRegex: '.*'\nFormatStyle: file\nCheckOptions:\n  modernize-use-std-print.Replacement: 'std::print'\n...\n",
+    "keyDirectives": [
+      {
+        "name": "abseil-cleanup-ctad",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "abseil-duration-addition",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "abseil-duration-comparison",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "abseil-duration-conversion-cast",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "abseil-duration-division",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "abseil-duration-factory-float",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "abseil-duration-factory-scale",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "abseil-duration-subtraction",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "abseil-duration-unnecessary-conversion",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "abseil-faster-strsplit-delimiter",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "abseil-no-internal-dependencies",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "abseil-no-namespace",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "abseil-redundant-strcat-calls",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "abseil-str-cat-append",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "abseil-string-find-startswith",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "abseil-string-find-str-contains",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "abseil-time-comparison",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "abseil-time-subtraction",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "abseil-unchecked-statusor-access",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "abseil-upgrade-duration-conversions",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "altera-id-dependent-backward-branch",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "altera-kernel-name-restriction",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "altera-single-work-item-barrier",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "altera-struct-pack-align",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "altera-unroll-loops",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "android-cloexec-accept",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "android-cloexec-accept4",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "android-cloexec-creat",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "android-cloexec-dup",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "android-cloexec-epoll-create",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "android-cloexec-epoll-create1",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "android-cloexec-fopen",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "android-cloexec-inotify-init",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "android-cloexec-inotify-init1",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "android-cloexec-memfd-create",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "android-cloexec-open",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "android-cloexec-pipe",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "android-cloexec-pipe2",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "android-cloexec-socket",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "android-comparison-in-temp-failure-retry",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "boost-use-ranges",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "boost-use-to-string",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "bugprone-argument-comment",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-assert-side-effect",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-assignment-in-if-condition",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-bad-signal-to-kill-thread",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-bitwise-pointer-cast",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-bool-pointer-implicit-conversion",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-branch-clone",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-capturing-this-in-member-variable",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-casting-through-void",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-chained-comparison",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-command-processor",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-compare-pointer-to-member-virtual-function",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-copy-constructor-init",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-copy-constructor-mutates-argument",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-crtp-constructor-accessibility",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-dangling-handle",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-default-operator-new-on-overaligned-type",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-derived-method-shadowing-base-method",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-dynamic-static-initializers",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-easily-swappable-parameters",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-empty-catch",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-exception-copy-constructor-throws",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-exception-escape",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-float-loop-counter",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-fold-init-type",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-forward-declaration-namespace",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-forwarding-reference-overload",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-implicit-widening-of-multiplication-result",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-inaccurate-erase",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-inc-dec-in-conditions",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-incorrect-enable-if",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-incorrect-enable-shared-from-this",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-incorrect-roundings",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-infinite-loop",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-integer-division",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-invalid-enum-default-initialization",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-lambda-function-name",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-macro-parentheses",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-macro-repeated-side-effects",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-misleading-setter-of-reference",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-misplaced-operator-in-strlen-in-alloc",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-misplaced-pointer-arithmetic-in-alloc",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-misplaced-widening-cast",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-move-forwarding-reference",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-multi-level-implicit-pointer-conversion",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-multiple-new-in-one-expression",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-multiple-statement-macro",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-narrowing-conversions",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-no-escape",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-non-zero-enum-to-bool-conversion",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-nondeterministic-pointer-iteration-order",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-not-null-terminated-result",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-optional-value-conversion",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-parent-virtual-call",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-pointer-arithmetic-on-polymorphic-object",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-posix-return",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-random-generator-seed",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-raw-memory-call-on-non-trivial-type",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-redundant-branch-condition",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-reserved-identifier",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-return-const-ref-from-parameter",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-shared-ptr-array-mismatch",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-signal-handler",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-signed-char-misuse",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-sizeof-container",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-sizeof-expression",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-spuriously-wake-up-functions",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-standalone-empty",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-std-namespace-modification",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-string-constructor",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-string-integer-assignment",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-string-literal-with-embedded-nul",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-stringview-nullptr",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-suspicious-enum-usage",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-suspicious-include",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-suspicious-memory-comparison",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-suspicious-memset-usage",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-suspicious-missing-comma",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-suspicious-realloc-usage",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-suspicious-semicolon",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-suspicious-string-compare",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-suspicious-stringview-data-usage",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-swapped-arguments",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-switch-missing-default-case",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-tagged-union-member-count",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-terminating-continue",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-throw-keyword-missing",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-throwing-static-initialization",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-too-small-loop-variable",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-unchecked-optional-access",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-unchecked-string-to-number-conversion",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-undefined-memory-manipulation",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-undelegated-constructor",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-unhandled-exception-at-new",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-unhandled-self-assignment",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-unintended-char-ostream-output",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-unique-ptr-array-mismatch",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-unsafe-functions",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-unused-local-non-trivial-variable",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-unused-raii",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-unused-return-value",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-use-after-move",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "bugprone-virtual-near-miss",
+        "description": "Static detection of bug-prone constructs, memory leaks, and UB"
+      },
+      {
+        "name": "cert-arr39-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-con36-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-con54-cpp",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-ctr56-cpp",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-dcl03-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-dcl16-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-dcl37-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-dcl50-cpp",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-dcl51-cpp",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-dcl54-cpp",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-dcl58-cpp",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-dcl59-cpp",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-env33-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-err09-cpp",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-err33-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-err34-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-err52-cpp",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-err58-cpp",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-err60-cpp",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-err61-cpp",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-exp42-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-fio38-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-flp30-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-flp37-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-int09-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-mem57-cpp",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-msc24-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-msc30-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-msc32-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-msc33-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-msc50-cpp",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-msc51-cpp",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-msc54-cpp",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-oop11-cpp",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-oop54-cpp",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-oop57-cpp",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-oop58-cpp",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-pos44-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-pos47-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-sig30-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "cert-str34-c",
+        "description": "Carnegie Mellon SEI CERT C++ secure coding standard rule"
+      },
+      {
+        "name": "clang-analyzer-apiModeling.Errno",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-apiModeling.TrustNonnull",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-apiModeling.TrustReturnsNonnull",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-apiModeling.google.GTest",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-apiModeling.llvm.CastValue",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-apiModeling.llvm.ReturnValue",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.BitwiseShift",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.CallAndMessage",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.DivideZero",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.DynamicTypePropagation",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.FixedAddressDereference",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.NonNullParamChecker",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.NonnilStringConstants",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.NullDereference",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.NullPointerArithm",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.StackAddressEscape",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.UndefinedBinaryOperatorResult",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.VLASize",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.builtin.AssumeModeling",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.builtin.BuiltinFunctions",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.builtin.NoReturnFunctions",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.uninitialized.ArraySubscript",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.uninitialized.Assign",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.uninitialized.Branch",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.uninitialized.CapturedBlockVariable",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.uninitialized.NewArraySize",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-core.uninitialized.UndefReturn",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-cplusplus.ArrayDelete",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-cplusplus.InnerPointer",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-cplusplus.Move",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-cplusplus.NewDelete",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-cplusplus.NewDeleteLeaks",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-cplusplus.PlacementNew",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-cplusplus.PureVirtualCall",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-cplusplus.SelfAssignment",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-cplusplus.SmartPtrModeling",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-cplusplus.StringChecker",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-deadcode.DeadStores",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-fuchsia.HandleChecker",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-nullability.NullPassedToNonnull",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-nullability.NullReturnedFromNonnull",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-nullability.NullableDereferenced",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-nullability.NullablePassedToNonnull",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-nullability.NullableReturnedFromNonnull",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-optin.core.EnumCastOutOfRange",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-optin.cplusplus.UninitializedObject",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-optin.cplusplus.VirtualCall",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-optin.mpi.MPI-Checker",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-optin.osx.OSObjectCStyleCast",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-optin.osx.cocoa.localizability.EmptyLocalizationContextChecker",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-optin.osx.cocoa.localizability.NonLocalizedStringChecker",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-optin.performance.GCDAntipattern",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-optin.performance.Padding",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-optin.portability.UnixAPI",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-optin.taint.GenericTaint",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-optin.taint.TaintPropagation",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-optin.taint.TaintedAlloc",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-optin.taint.TaintedDiv",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.API",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.MIG",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.NumberObjectConversion",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.OSObjectRetainCount",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.ObjCProperty",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.SecKeychainAPI",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.cocoa.AtSync",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.cocoa.AutoreleaseWrite",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.cocoa.ClassRelease",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.cocoa.Dealloc",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.cocoa.IncompatibleMethodTypes",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.cocoa.Loops",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.cocoa.MissingSuperCall",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.cocoa.NSAutoreleasePool",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.cocoa.NSError",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.cocoa.NilArg",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.cocoa.NonNilReturnValue",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.cocoa.ObjCGenerics",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.cocoa.RetainCount",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.cocoa.RetainCountBase",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.cocoa.RunLoopAutoreleaseLeak",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.cocoa.SelfInit",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.cocoa.SuperDealloc",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.cocoa.UnusedIvars",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.cocoa.VariadicMethodTypes",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.coreFoundation.CFError",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.coreFoundation.CFNumber",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.coreFoundation.CFRetainRelease",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.coreFoundation.containers.OutOfBounds",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-osx.coreFoundation.containers.PointerSizedValues",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.ArrayBound",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.FloatLoopCounter",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.MmapWriteExec",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.PointerSub",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.PutenvStackArray",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.SetgidSetuidOrder",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.VAList",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.cert.env.InvalidPtr",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.insecureAPI.SecuritySyntaxChecker",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.insecureAPI.UncheckedReturn",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.insecureAPI.bcmp",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.insecureAPI.bcopy",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.insecureAPI.bzero",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.insecureAPI.decodeValueOfObjCType",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.insecureAPI.getpw",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.insecureAPI.gets",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.insecureAPI.mkstemp",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.insecureAPI.mktemp",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.insecureAPI.rand",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.insecureAPI.strcpy",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-security.insecureAPI.vfork",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-unix.API",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-unix.BlockInCriticalSection",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-unix.Chroot",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-unix.DynamicMemoryModeling",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-unix.Errno",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-unix.Malloc",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-unix.MallocSizeof",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-unix.MismatchedDeallocator",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-unix.StdCLibraryFunctions",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-unix.Stream",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-unix.Vfork",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-unix.cstring.BadSizeArg",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-unix.cstring.CStringModeling",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-unix.cstring.NotNullTerminated",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-unix.cstring.NullArg",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-webkit.NoUncountedMemberChecker",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-webkit.RefCntblBaseVirtualDtor",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "clang-analyzer-webkit.UncountedLambdaCapturesChecker",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "concurrency-mt-unsafe",
+        "description": "Thread safety, race condition prevention, and concurrent memory models"
+      },
+      {
+        "name": "concurrency-thread-canceltype-asynchronous",
+        "description": "Thread safety, race condition prevention, and concurrent memory models"
+      },
+      {
+        "name": "cppcoreguidelines-avoid-c-arrays",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-avoid-capturing-lambda-coroutines",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-avoid-const-or-ref-data-members",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-avoid-do-while",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-avoid-goto",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-avoid-magic-numbers",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-avoid-non-const-global-variables",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-avoid-reference-coroutine-parameters",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-c-copy-assignment-signature",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-explicit-virtual-functions",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-init-variables",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-interfaces-global-init",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-macro-to-enum",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-macro-usage",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-misleading-capture-default-by-value",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-missing-std-forward",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-narrowing-conversions",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-no-malloc",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-no-suspend-with-lock",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-noexcept-destructor",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-noexcept-move-operations",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-noexcept-swap",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-non-private-member-variables-in-classes",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-owning-memory",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-prefer-member-initializer",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-pro-bounds-array-to-pointer-decay",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-pro-bounds-avoid-unchecked-container-access",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-pro-bounds-constant-array-index",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-pro-bounds-pointer-arithmetic",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-pro-type-const-cast",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-pro-type-cstyle-cast",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-pro-type-member-init",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-pro-type-reinterpret-cast",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-pro-type-static-cast-downcast",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-pro-type-union-access",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-pro-type-vararg",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-rvalue-reference-param-not-moved",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-slicing",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-special-member-functions",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-use-default-member-init",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-use-enum-class",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "cppcoreguidelines-virtual-class-destructor",
+        "description": "Bjarne Stroustrup & Herb Sutter C++ Core Guidelines enforcement"
+      },
+      {
+        "name": "darwin-avoid-spinlock",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "darwin-dispatch-once-nonstatic",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "fuchsia-default-arguments-calls",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "fuchsia-default-arguments-declarations",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "fuchsia-header-anon-namespaces",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "fuchsia-multiple-inheritance",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "fuchsia-overloaded-operator",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "fuchsia-statically-constructed-objects",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "fuchsia-temporary-objects",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "fuchsia-trailing-return",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "fuchsia-virtual-inheritance",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "google-build-explicit-make-pair",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "google-build-namespaces",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "google-build-using-namespace",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "google-default-arguments",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "google-explicit-constructor",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "google-global-names-in-headers",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "google-objc-avoid-nsobject-new",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "google-objc-avoid-throwing-exception",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "google-objc-function-naming",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "google-objc-global-variable-declaration",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "google-readability-avoid-underscore-in-googletest-name",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "google-readability-braces-around-statements",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "google-readability-casting",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "google-readability-function-size",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "google-readability-namespace-comments",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "google-readability-todo",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "google-runtime-float",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "google-runtime-int",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "google-runtime-operator",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "google-upgrade-googletest-case",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-avoid-c-arrays",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-avoid-goto",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-braces-around-statements",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-deprecated-headers",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-exception-baseclass",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-explicit-conversions",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-function-size",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-ignored-remove-result",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-invalid-access-moved",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-member-init",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-move-const-arg",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-multiway-paths-covered",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-named-parameter",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-new-delete-operators",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-no-array-decay",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-no-assembler",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-no-malloc",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-noexcept-move",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-signed-bitwise",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-special-member-functions",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-static-assert",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-undelegated-constructor",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-uppercase-literal-suffix",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-use-auto",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-use-emplace",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-use-equals-default",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-use-equals-delete",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-use-noexcept",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-use-nullptr",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-use-override",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "hicpp-vararg",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "linuxkernel-must-check-errs",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "llvm-else-after-return",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "llvm-header-guard",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "llvm-include-order",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "llvm-namespace-comment",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "llvm-prefer-isa-or-dyn-cast-in-conditionals",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "llvm-prefer-register-over-unsigned",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "llvm-prefer-static-over-anonymous-namespace",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "llvm-qualified-auto",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "llvm-twine-local",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "llvm-use-new-mlir-op-builder",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "llvm-use-ranges",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "llvmlibc-callee-namespace",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "llvmlibc-implementation-in-namespace",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "llvmlibc-inline-function-decl",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "llvmlibc-restrict-system-libc-headers",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-anonymous-namespace-in-header",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-confusable-identifiers",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-const-correctness",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-coroutine-hostile-raii",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-definitions-in-headers",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-header-include-cycle",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-include-cleaner",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-misleading-bidirectional",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-misleading-identifier",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-misplaced-const",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-multiple-inheritance",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-new-delete-overloads",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-no-recursion",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-non-copyable-objects",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-non-private-member-variables-in-classes",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-override-with-different-visibility",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-predictable-rand",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-redundant-expression",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-static-assert",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-throw-by-value-catch-by-reference",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-unconventional-assign-operator",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-uniqueptr-reset-release",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-unused-alias-decls",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-unused-parameters",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-unused-using-decls",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-use-anonymous-namespace",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "misc-use-internal-linkage",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "modernize-avoid-bind",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-avoid-c-arrays",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-avoid-c-style-cast",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-avoid-setjmp-longjmp",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-avoid-variadic-functions",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-concat-nested-namespaces",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-deprecated-headers",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-deprecated-ios-base-aliases",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-loop-convert",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-macro-to-enum",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-make-shared",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-make-unique",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-min-max-use-initializer-list",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-pass-by-value",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-raw-string-literal",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-redundant-void-arg",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-replace-auto-ptr",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-replace-disallow-copy-and-assign-macro",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-replace-random-shuffle",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-return-braced-init-list",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-shrink-to-fit",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-type-traits",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-unary-static-assert",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-auto",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-bool-literals",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-constraints",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-default-member-init",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-designated-initializers",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-emplace",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-equals-default",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-equals-delete",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-integer-sign-comparison",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-nodiscard",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-noexcept",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-nullptr",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-override",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-ranges",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-scoped-lock",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-starts-ends-with",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-std-format",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-std-numbers",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-std-print",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-trailing-return-type",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-transparent-functors",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-uncaught-exceptions",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "modernize-use-using",
+        "description": "C++ modern standard idiom & feature adoption (C++11/14/17/20/23/26)"
+      },
+      {
+        "name": "mpi-buffer-deref",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "mpi-type-mismatch",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "objc-assert-equals",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "objc-avoid-nserror-init",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "objc-dealloc-in-category",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "objc-forbidden-subclassing",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "objc-missing-hash",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "objc-nsdate-formatter",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "objc-nsinvocation-argument-lifetime",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "objc-property-declaration",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "objc-super-self",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "openmp-exception-escape",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "openmp-use-default-none",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "performance-avoid-endl",
+        "description": "Runtime efficiency, move semantics, and redundant copy elimination"
+      },
+      {
+        "name": "performance-enum-size",
+        "description": "Runtime efficiency, move semantics, and redundant copy elimination"
+      },
+      {
+        "name": "performance-faster-string-find",
+        "description": "Runtime efficiency, move semantics, and redundant copy elimination"
+      },
+      {
+        "name": "performance-for-range-copy",
+        "description": "Runtime efficiency, move semantics, and redundant copy elimination"
+      },
+      {
+        "name": "performance-implicit-conversion-in-loop",
+        "description": "Runtime efficiency, move semantics, and redundant copy elimination"
+      },
+      {
+        "name": "performance-inefficient-algorithm",
+        "description": "Runtime efficiency, move semantics, and redundant copy elimination"
+      },
+      {
+        "name": "performance-inefficient-string-concatenation",
+        "description": "Runtime efficiency, move semantics, and redundant copy elimination"
+      },
+      {
+        "name": "performance-inefficient-vector-operation",
+        "description": "Runtime efficiency, move semantics, and redundant copy elimination"
+      },
+      {
+        "name": "performance-move-const-arg",
+        "description": "Runtime efficiency, move semantics, and redundant copy elimination"
+      },
+      {
+        "name": "performance-move-constructor-init",
+        "description": "Runtime efficiency, move semantics, and redundant copy elimination"
+      },
+      {
+        "name": "performance-no-automatic-move",
+        "description": "Runtime efficiency, move semantics, and redundant copy elimination"
+      },
+      {
+        "name": "performance-no-int-to-ptr",
+        "description": "Runtime efficiency, move semantics, and redundant copy elimination"
+      },
+      {
+        "name": "performance-noexcept-destructor",
+        "description": "Runtime efficiency, move semantics, and redundant copy elimination"
+      },
+      {
+        "name": "performance-noexcept-move-constructor",
+        "description": "Runtime efficiency, move semantics, and redundant copy elimination"
+      },
+      {
+        "name": "performance-noexcept-swap",
+        "description": "Runtime efficiency, move semantics, and redundant copy elimination"
+      },
+      {
+        "name": "performance-trivially-destructible",
+        "description": "Runtime efficiency, move semantics, and redundant copy elimination"
+      },
+      {
+        "name": "performance-type-promotion-in-math-fn",
+        "description": "Runtime efficiency, move semantics, and redundant copy elimination"
+      },
+      {
+        "name": "performance-unnecessary-copy-initialization",
+        "description": "Runtime efficiency, move semantics, and redundant copy elimination"
+      },
+      {
+        "name": "performance-unnecessary-value-param",
+        "description": "Runtime efficiency, move semantics, and redundant copy elimination"
+      },
+      {
+        "name": "portability-avoid-pragma-once",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "portability-restrict-system-includes",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "portability-simd-intrinsics",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "portability-std-allocator-const",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "portability-template-virtual-member-function",
+        "description": "Clang-Tidy diagnostic check"
+      },
+      {
+        "name": "readability-ambiguous-smartptr-reset-call",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-avoid-const-params-in-decls",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-avoid-nested-conditional-operator",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-avoid-return-with-void-value",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-avoid-unconditional-preprocessor-if",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-braces-around-statements",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-const-return-type",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-container-contains",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-container-data-pointer",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-container-size-empty",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-convert-member-functions-to-static",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-delete-null-pointer",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-duplicate-include",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-else-after-return",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-enum-initial-value",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-function-cognitive-complexity",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-function-size",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-identifier-length",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-identifier-naming",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-implicit-bool-conversion",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-inconsistent-declaration-parameter-name",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-inconsistent-ifelse-braces",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-isolate-declaration",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-magic-numbers",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-make-member-function-const",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-math-missing-parentheses",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-misleading-indentation",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-misplaced-array-index",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-named-parameter",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-non-const-parameter",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-operators-representation",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-qualified-auto",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-redundant-access-specifiers",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-redundant-casting",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-redundant-control-flow",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-redundant-declaration",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-redundant-function-ptr-dereference",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-redundant-inline-specifier",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-redundant-member-init",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-redundant-parentheses",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-redundant-preprocessor",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-redundant-smartptr-get",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-redundant-string-cstr",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-redundant-string-init",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-redundant-typename",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-reference-to-constructed-temporary",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-simplify-boolean-expr",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-simplify-subscript-expr",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-static-accessed-through-instance",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-static-definition-in-anonymous-namespace",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-string-compare",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-suspicious-call-argument",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-uniqueptr-delete-release",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-uppercase-literal-suffix",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-use-anyofallof",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-use-concise-preprocessor-directives",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "readability-use-std-min-max",
+        "description": "Code clarity, const correctness, and clean C++ style conventions"
+      },
+      {
+        "name": "zircon-temporary-objects",
+        "description": "Clang-Tidy diagnostic check"
+      }
+    ],
+    "commands": [
+      {
+        "command": "clang-tidy -p build src/main.cpp",
+        "description": "Run static analysis using compile_commands.json database"
+      },
+      {
+        "command": "clang-tidy -fix -p build src/*.cpp",
+        "description": "Automatically apply modernization and style fixes in-place"
+      },
+      {
+        "command": "clang-tidy --list-checks",
+        "description": "List all enabled checks in the current configuration"
+      }
+    ],
+    "content": "Clang-Tidy operates on AST level to find memory safety issues, modernize older codebases to C++20/C++23 features, and enforce Core Guidelines."
+  },
+  {
+    "id": "sanitizers",
+    "title": "LLVM/GCC Runtime Sanitizers (ASan, UBSan, TSan, MSan)",
+    "aliases": [
+      "sanitizers",
+      "asan",
+      "ubsan",
+      "tsan",
+      "msan"
+    ],
+    "description": "Compiler-instrumented runtime detectors for memory safety violations, undefined behavior, and multi-threaded race conditions.",
+    "configFileName": "sanitizers.env",
+    "sampleConfig": "# Modern C++ Runtime Sanitizers Configuration\n\n# 1. CMake Recipe (ASan + UBSan)\n# set(CMAKE_CXX_FLAGS \"${CMAKE_CXX_FLAGS} -fsanitize=address,undefined -fno-omit-frame-pointer -g\")\n# set(CMAKE_LINKER_FLAGS \"${CMAKE_LINKER_FLAGS} -fsanitize=address,undefined\")\n\n# Alternative: TSan Recipe (ThreadSanitizer - Mutually exclusive with ASan)\n# set(CMAKE_CXX_FLAGS \"${CMAKE_CXX_FLAGS} -fsanitize=thread -g\")\n# set(CMAKE_LINKER_FLAGS \"${CMAKE_LINKER_FLAGS} -fsanitize=thread\")\n\n# 2. xmake Recipe\n# add_rules(\"mode.asan\", \"mode.ubsan\")\n# or for data race detection:\n# add_rules(\"mode.tsan\")\n\n# 3. Recommended Environment Flags for Execution\nexport ASAN_OPTIONS=\"detect_leaks=1:abort_on_error=1:symbolize=1\"\nexport UBSAN_OPTIONS=\"print_stacktrace=1:halt_on_error=1\"\nexport TSAN_OPTIONS=\"second_deadlock_stack=1\"\n",
+    "keyDirectives": [
+      {
+        "name": "-fsanitize=address",
+        "description": "AddressSanitizer (ASan): Detects out-of-bounds access, use-after-free, double-free, and memory leaks"
+      },
+      {
+        "name": "-fsanitize=undefined",
+        "description": "UndefinedBehaviorSanitizer (UBSan): Detects integer overflow, null pointer dereference, misaligned memory"
+      },
+      {
+        "name": "-fsanitize=thread",
+        "description": "ThreadSanitizer (TSan): Detects data races between threads (mutually exclusive with ASan)"
+      },
+      {
+        "name": "-fsanitize=memory",
+        "description": "MemorySanitizer (MSan): Detects reads of uninitialized memory (Clang only)"
+      },
+      {
+        "name": "-fno-omit-frame-pointer",
+        "description": "Preserves call stack frames for accurate debugging and backtraces"
+      }
+    ],
+    "commands": [
+      {
+        "command": "clang++ -fsanitize=address,undefined -g src/main.cpp -o main",
+        "description": "Compile with Address and Undefined Behavior sanitizers enabled"
+      },
+      {
+        "command": "xmake f -m asan && xmake run",
+        "description": "Build and run with ASan under xmake"
+      },
+      {
+        "command": "ASAN_OPTIONS=detect_leaks=1 ./main",
+        "description": "Run executable with strict memory leak detection"
+      }
+    ],
+    "content": "Sanitizers catch critical memory corruption bugs at runtime with low overhead (~2x slowdown compared to ~20-50x with Valgrind). Always compile with `-g` and `-fno-omit-frame-pointer`."
+  }
+]

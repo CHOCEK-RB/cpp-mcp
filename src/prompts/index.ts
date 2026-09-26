@@ -262,4 +262,49 @@ Audit Requirements:
       };
     },
   );
+
+  // Prompt 7: Generate modern tooling configuration files
+  server.registerPrompt(
+    "cpp_generate_tooling_config",
+    {
+      description:
+        "Generate production-grade configuration files for modern C/C++ developer tools (xmake.lua, .clang-format, .clang-tidy, or sanitizer presets) tailored to specific project requirements.",
+      argsSchema: {
+        tool: z
+          .enum(["xmake", "clang-format", "clang-tidy", "sanitizers"])
+          .describe("Target tool to generate configuration for"),
+        standard: z
+          .enum(["C++17", "C++20", "C++23", "C++26"])
+          .optional()
+          .describe("Target C++ language version (defaults to 'C++23')"),
+        projectType: z
+          .enum(["executable", "library", "header-only", "modular"])
+          .optional()
+          .describe("Project type architecture (defaults to 'modular')"),
+      },
+    },
+    async ({ tool, standard, projectType }) => {
+      const std = standard || "C++23";
+      const ptype = projectType || "modular";
+
+      return {
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: `Generate a production-grade, authoritative configuration file for **${tool}** targeting a **${ptype}** project with **${std}**:
+
+Requirements:
+1. Provide the complete, copy-pasteable configuration file content with inline explanatory comments.
+2. If tool is \`xmake\`: include C++ modules support, debug/release modes, package dependencies, and sanitizer flags.
+3. If tool is \`clang-format\`: configure pointer alignment (Left), include sorting, namespace comment fixes, and column limits.
+4. If tool is \`clang-tidy\`: select strict modern checks (modernize, bugprone, cert, performance, cppcoreguidelines) while disabling noisy rules.
+5. If tool is \`sanitizers\`: provide the compiler and linker flags for ASan, UBSan, and TSan with CMake/xmake recipes.`,
+            },
+          },
+        ],
+      };
+    },
+  );
 }

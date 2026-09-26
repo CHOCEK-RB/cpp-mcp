@@ -219,4 +219,40 @@ describe("MCP Resources & Prompts", () => {
     expect(result.messages[0].content.text).toContain("CWE");
     expect(result.messages[0].content.text).toContain("category MEM");
   });
+
+  it("should return complete tooling catalog for cppref://tooling", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResources["cppref://tooling"].readCallback;
+    const result = await handler(new URL("cppref://tooling"));
+    expect(result.contents).toHaveLength(1);
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("should return detailed guide for cppref://tooling/xmake", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResourceTemplates.cpp_tooling_detail.readCallback;
+    const result = await handler(new URL("cppref://tooling/xmake"), { tool: "xmake" });
+    expect(result.contents).toHaveLength(1);
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(parsed.id).toBe("xmake");
+    expect(parsed.configFileName).toBe("xmake.lua");
+    expect(parsed.sampleConfig).toContain("c++23");
+  });
+
+  it("should generate tooling configuration prompt for cpp_generate_tooling_config", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredPrompts.cpp_generate_tooling_config.callback;
+    const result = await handler({
+      tool: "xmake",
+      standard: "C++23",
+      projectType: "modular",
+    });
+
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0].content.text).toContain("xmake");
+    expect(result.messages[0].content.text).toContain("C++23");
+    expect(result.messages[0].content.text).toContain("modular");
+  });
 });
