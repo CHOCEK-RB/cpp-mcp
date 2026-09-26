@@ -15,16 +15,26 @@ Model Context Protocol (MCP) server that empowers AI coding assistants with auth
 ## Architecture
 
 ```mermaid
-flowchart LR
-    A["AI Client\n(VS Code / Claude / Zed)"] -- stdio / JSON-RPC --> B["cpp-mcp Server"]
-    B --> C["search_cppreference"]
-    B --> D["get_cppreference_page"]
-    C --> E[("LRUCache\n(200 items)")]
-    D --> F[("LRUCache\n(50 items)")]
-    C -- HTTPS GET --> G["cppreference.com Search"]
-    D -- HTTPS GET --> H["cppreference.com Articles"]
-    D --> I["Cheerio DOM Sanitizer\n(Strips 60% HTML noise)"]
-    I --> J["Turndown Markdown\n(16 KB Paginated Chunks)"]
+flowchart TD
+    Client["AI Client\n(Antigravity / Claude / VS Code / Zed)"] -- stdio / JSON-RPC --> Server["cpp-mcp Server"]
+    
+    subgraph Tools ["Tools Catalog"]
+        Server --> T1["search_cppreference"]
+        Server --> T2["get_cppreference_page"]
+        Server --> T3["lookup_header"]
+        Server --> T4["check_cpp_standard"]
+    end
+
+    subgraph Primitives ["MCP Native Primitives"]
+        Server --> Res["Resources (cppref://...)"]
+        Server --> Prm["Prompts (cpp_explain_symbol...)"]
+    end
+
+    subgraph Storage ["Tiered Storage & Fallback"]
+        T1 & T2 & T3 & T4 --> Cache[("TieredCache\n(L1 LRU Memory + L2 Disk with TTL)")]
+        T3 & T4 --> StaticIdx[("Static ISO Index\n(C++98-C++26 & C89-C23)")]
+        Cache -- Miss --> Web["cppreference.com\n(HTTPS Scraper + Sanitizer)"]
+    end
 ```
 
 ---
@@ -32,11 +42,12 @@ flowchart LR
 ## Features
 
 - **Authoritative C/C++ Lookup**: Instant access to standard headers, containers, algorithms, keywords, and C++20/23/26 features.
+- **Header & Version Resolution**: Offline static indexing for ISO C/C++ headers and SD-6 feature test macros (`lookup_header`, `check_cpp_standard`).
+- **Tiered Cache with TTL**: Blazing-fast L1 memory LRU cache backed by persistent L2 disk cache (`~/.cache/cpp-mcp/`).
+- **MCP Resources & Prompts**: Zero-token offline resources (`cppref://headers`, `cppref://standards`) and pre-engineered diagnostic prompt templates.
+- **Standalone Binaries & Zero Setup**: Self-contained native single-file binaries (no Node or Bun required) or instant execution via `npx` / `bunx`.
 - **Noise Elimination**: Strips MediaWiki navigation menus, edit buttons, login prompts, and notices before LLM consumption.
-- **Optimized Markdown**: Converts tables, code blocks, and cross-references into clean Markdown with absolute links.
 - **Cursor Pagination**: Transparently handles oversized documentation pages in 16 KB chunks.
-- **In-Memory LRU Cache**: Instantaneous response times for repeated queries.
-- **Zero Configuration**: Ready to use instantly via `npx` or `bunx`.
 
 ---
 
@@ -174,6 +185,21 @@ bunx cpp-mcp
 
 ## Client Configuration
 
+### Google Antigravity (AGY)
+
+Add to global configuration (`~/.gemini/config/mcp_config.json`) or workspace configuration (`.agents/mcp_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "cpp-mcp": {
+      "command": "npx",
+      "args": ["-y", "cpp-mcp"]
+    }
+  }
+}
+```
+
 ### Claude Desktop
 
 Add this entry to your `claude_desktop_config.json`:
@@ -202,7 +228,9 @@ Add to your MCP configuration file (`mcp_settings.json` or Cline MCP settings):
       "disabled": false,
       "autoApprove": [
         "search_cppreference",
-        "get_cppreference_page"
+        "get_cppreference_page",
+        "lookup_header",
+        "check_cpp_standard"
       ]
     }
   }
@@ -226,6 +254,20 @@ Add to your Zed `settings.json`:
 }
 ```
 
+### Standalone Native Executable (Zero Dependencies)
+
+If you downloaded the precompiled binary from [GitHub Releases](https://github.com/CHOCEK-RB/cpp-mcp/releases), configure any client directly without Node.js or Bun:
+
+```json
+{
+  "mcpServers": {
+    "cpp-mcp": {
+      "command": "/usr/local/bin/cpp-mcp-linux-x64"
+    }
+  }
+}
+```
+
 ---
 
 ## Development
@@ -241,12 +283,14 @@ bun install
 # 3. Start development server in watch mode
 bun run dev
 
-# 4. Quality gates
+# 4. Quality gates & build
 bun run check        # TypeScript strict verification
 bun run lint         # Biome formatting and lint check
 bun run lint:fix     # Auto-fix formatting issues
 bun test --coverage  # Run test suite with coverage
 bun run build        # Compile self-contained bundle into dist/
+bun run compile      # Build native standalone binary (dist/bin/cpp-mcp)
+bun run compile:all  # Cross-compile native binaries for 5 platform targets
 bun run check:publint# Validate package distribution standards
 ```
 
