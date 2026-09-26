@@ -98,6 +98,31 @@ Finds the canonical standard C or C++ header (`<vector>`, `<algorithm>`, `<cstdi
   }
   ```
 
+### 4. `check_cpp_standard`
+
+Checks which C or C++ language standard version introduced, deprecated, or removed a given symbol, and evaluates compatibility against a target standard version (e.g. C++17, C++20, C++23).
+
+- **Parameters**:
+  - `symbol` (`string`, required): C or C++ symbol, type, function, class, or header name (e.g. `"std::span"`, `"std::auto_ptr"`, `"std::print"`).
+  - `standard` (`string`, optional): Target language standard to evaluate compatibility against (e.g. `"c++17"`, `"c++20"`, `"c++23"`).
+
+- **Output Example**:
+  ```json
+  {
+    "symbol": "std::span",
+    "standard": "C++",
+    "since": "C++20",
+    "targetStandard": "C++17",
+    "status": "unsupported",
+    "featureTestMacro": {
+      "macro": "__cpp_lib_span",
+      "value": "202002L"
+    },
+    "summary": "std::span is available since C++20. Target standard C++17: unsupported.",
+    "source": "static_index"
+  }
+  ```
+
 ---
 
 ## Quickstart
