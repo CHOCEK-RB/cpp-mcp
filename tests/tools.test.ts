@@ -12,7 +12,7 @@ describe("searchCppreference", () => {
   });
 
   it("should extract search result links from HTML", async () => {
-    searchCache.clear();
+    await searchCache.clear();
     const mockHtml = `
       <html>
         <body>
@@ -35,7 +35,7 @@ describe("searchCppreference", () => {
   });
 
   it("should handle direct redirects without search results", async () => {
-    searchCache.clear();
+    await searchCache.clear();
     const mockHtml = `<html><body><h1>std::vector</h1></body></html>`;
     const mockResponse = new Response(mockHtml, {
       status: 200,
@@ -52,7 +52,7 @@ describe("searchCppreference", () => {
   });
 
   it("should return cached results on repeated queries", async () => {
-    searchCache.clear();
+    await searchCache.clear();
     let callCount = 0;
     const mockFetch = async () => {
       callCount++;
@@ -83,7 +83,7 @@ describe("getCppreferencePage", () => {
   });
 
   it("should clean MediaWiki noise and convert HTML to Markdown", async () => {
-    pageCache.clear();
+    await pageCache.clear();
     const sampleHtml = `
       <html>
         <body>
@@ -122,7 +122,7 @@ describe("getCppreferencePage", () => {
   });
 
   it("should support pagination cursor", async () => {
-    pageCache.clear();
+    await pageCache.clear();
     const longText = "A".repeat(20000);
     const mockHtml = `<div id="content"><p>${longText}</p></div>`;
     const mockFetch = async () => new Response(mockHtml, { status: 200 });

@@ -18,7 +18,7 @@ export async function searchCppreference(
     return { query: "", result_urls: [] };
   }
 
-  const cached = searchCache.get(normalizedQuery);
+  const cached = await searchCache.get(normalizedQuery);
   if (cached) {
     return cached;
   }
@@ -56,7 +56,7 @@ export async function searchCppreference(
       query: normalizedQuery,
       result_urls: [finalUrl],
     };
-    searchCache.set(normalizedQuery, directResult);
+    await searchCache.set(normalizedQuery, directResult);
     return directResult;
   }
 
@@ -88,6 +88,6 @@ export async function searchCppreference(
     result_urls: urls,
   };
 
-  searchCache.set(normalizedQuery, result);
+  await searchCache.set(normalizedQuery, result);
   return result;
 }
