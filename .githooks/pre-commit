@@ -1,6 +1,5 @@
 #!/usr/bin/env sh
 set -e
 
-echo "Running pre-commit quality checks..."
-bun x biome check --write --staged
+bun x biome check --write --no-errors-on-unmatched --staged
 bun run check
