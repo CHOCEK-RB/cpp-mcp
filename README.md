@@ -147,7 +147,20 @@ Pre-engineered prompt templates for AI clients:
 
 ## Quickstart
 
-Run directly without manual installation:
+### Option 1: Standalone Single-File Binary (Zero Dependencies)
+
+Download the precompiled native executable for your platform from [GitHub Releases](https://github.com/CHOCEK-RB/cpp-mcp/releases):
+
+```bash
+# Linux x64
+curl -L -o cpp-mcp https://github.com/CHOCEK-RB/cpp-mcp/releases/latest/download/cpp-mcp-linux-x64
+chmod +x cpp-mcp
+./cpp-mcp
+```
+
+Available binaries: `cpp-mcp-linux-x64`, `cpp-mcp-linux-arm64`, `cpp-mcp-darwin-x64`, `cpp-mcp-darwin-arm64`, `cpp-mcp-windows-x64.exe`.
+
+### Option 2: Package Runners (Node.js / Bun)
 
 ```bash
 # Using npx (Node.js)

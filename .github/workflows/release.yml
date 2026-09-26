@@ -40,14 +40,24 @@ jobs:
         if: ${{ steps.release.outputs.release_created }}
         run: bun run build
 
-      - name: Configure NPM credentials
+      - name: Compile standalone executables
         if: ${{ steps.release.outputs.release_created }}
+        run: bun run compile:all
+
+      - name: Upload binaries to GitHub Release
+        if: ${{ steps.release.outputs.release_created }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ steps.release.outputs.tag_name }}" dist/bin/* --clobber
+
+      - name: Configure NPM credentials
+        if: ${{ steps.release.outputs.release_created && secrets.NPM_TOKEN != '' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
 
       - name: Publish to NPM
-        if: ${{ steps.release.outputs.release_created }}
+        if: ${{ steps.release.outputs.release_created && secrets.NPM_TOKEN != '' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --provenance --access public
@@ -55,7 +65,7 @@ jobs:
   publish-mcp:
     name: Trigger MCP Registry Publish
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created }}
+    if: ${{ needs.release-please.outputs.release_created && secrets.MCP_KEY != '' }}
     uses: ./.github/workflows/publish-mcp.yml
     secrets:
       MCP_KEY: ${{ secrets.MCP_KEY }}
