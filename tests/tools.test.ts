@@ -31,7 +31,7 @@ describe("searchCppreference", () => {
     const result = await searchCppreference("std::vector", mockFetch as unknown as typeof fetch);
     expect(result.query).toBe("std::vector");
     expect(result.result_urls).toHaveLength(2);
-    expect(result.result_urls[0]).toBe("https://cppreference.com/w/cpp/container/vector");
+    expect(result.result_urls[0]).toBe("https://en.cppreference.com/w/cpp/container/vector");
   });
 
   it("should handle direct redirects without search results", async () => {

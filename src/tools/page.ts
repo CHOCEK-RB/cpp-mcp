@@ -4,6 +4,7 @@ import { type PageResultPayload, pageCache } from "../cache.js";
 
 export const PAGE_SIZE = 1024 * 16;
 export const USER_AGENT = "cpp-mcp/0.1.0 (+https://github.com/CHOCEK-RB/cpp-mcp)";
+export const HTTP_TIMEOUT_MS = 15_000;
 
 const turndownService = new TurndownService({
   headingStyle: "atx",
@@ -60,6 +61,7 @@ export async function getCppreferencePage(
         Accept: "text/html,application/xhtml+xml",
       },
       redirect: "follow",
+      signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
     });
 
     if (!response.ok) {

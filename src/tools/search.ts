@@ -1,9 +1,10 @@
 import * as cheerio from "cheerio";
 import { type SearchResultPayload, searchCache } from "../cache.js";
 
-export const BASE_URL = "https://cppreference.com";
+export const BASE_URL = "https://en.cppreference.com";
 export const USER_AGENT = "cpp-mcp/0.1.0 (+https://github.com/CHOCEK-RB/cpp-mcp)";
 export const MAX_SEARCH_RESULTS = 5;
+export const HTTP_TIMEOUT_MS = 15_000;
 
 /**
  * Searches cppreference.com for C/C++ language, library, and compiler symbols.
@@ -32,6 +33,7 @@ export async function searchCppreference(
       Accept: "text/html,application/xhtml+xml",
     },
     redirect: "follow",
+    signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
   });
 
   if (!response.ok) {

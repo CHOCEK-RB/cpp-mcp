@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+set -e
+
+echo "Running pre-push packaging validation..."
+bun run build
+bun run check:publint

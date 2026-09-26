@@ -18,15 +18,18 @@ export function createServer(): McpServer {
     version: SERVER_VERSION,
   });
 
-  server.tool(
+  server.registerTool(
     "search_cppreference",
-    "Search cppreference.com for C or C++ standard library, language, and compiler documentation. Returns up to 5 matching URLs.",
     {
-      query: z
-        .string()
-        .describe(
-          "Concise C or C++ search query, such as a symbol, header, keyword, or concept (e.g. std::vector, constexpr, std::ranges::sort).",
-        ),
+      description:
+        "Search cppreference.com for C or C++ standard library, language, and compiler documentation. Returns up to 5 matching URLs.",
+      inputSchema: {
+        query: z
+          .string()
+          .describe(
+            "Concise C or C++ search query, such as a symbol, header, keyword, or concept (e.g. std::vector, constexpr, std::ranges::sort).",
+          ),
+      },
     },
     async ({ query }) => {
       try {
@@ -53,21 +56,21 @@ export function createServer(): McpServer {
     },
   );
 
-  server.tool(
+  server.registerTool(
     "get_cppreference_page",
-    "Retrieve a cppreference.com documentation page and return its sanitized content as Markdown.",
     {
-      url: z
-        .string()
-        .url()
-        .describe("HTTPS URL of a cppreference.com documentation page to retrieve."),
-      cursor: z
-        .string()
-        .nullable()
-        .optional()
-        .describe(
-          "Pagination cursor returned by a previous call, or null/omitted for the first fragment.",
-        ),
+      description:
+        "Retrieve a cppreference.com documentation page and return its sanitized content as Markdown.",
+      inputSchema: {
+        url: z.url().describe("HTTPS URL of a cppreference.com documentation page to retrieve."),
+        cursor: z
+          .string()
+          .nullable()
+          .optional()
+          .describe(
+            "Pagination cursor returned by a previous call, or null/omitted for the first fragment.",
+          ),
+      },
     },
     async ({ url, cursor }) => {
       try {

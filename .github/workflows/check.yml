@@ -23,6 +23,9 @@ jobs:
       - name: Typecheck
         run: bun run check
 
+      - name: Verify deprecations and hints
+        run: bun run check:hints
+
       - name: Build
         run: bun run build
 
