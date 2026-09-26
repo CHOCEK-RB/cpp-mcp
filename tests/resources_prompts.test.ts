@@ -146,4 +146,41 @@ describe("MCP Resources & Prompts", () => {
     expect(result.messages[0].content.text).toContain("resource-management");
     expect(result.messages[0].content.text).toContain("Core Guidelines");
   });
+
+  it("should return complete modules catalog for cppref://modules", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResources["cppref://modules"].readCallback;
+    const result = await handler(new URL("cppref://modules"));
+    expect(result.contents).toHaveLength(1);
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed.length).toBeGreaterThanOrEqual(9);
+  });
+
+  it("should return detailed specification for cppref://modules/import-std", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResourceTemplates.cpp_modules_topic_detail.readCallback;
+    const result = await handler(new URL("cppref://modules/import-std"), { topic: "import-std" });
+    expect(result.contents).toHaveLength(1);
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(parsed.id).toBe("import-std");
+    expect(parsed.standard).toBe("C++23");
+    expect(parsed.content).toContain("import std;");
+  });
+
+  it("should generate modularization prompt for cpp_modularize_code", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredPrompts.cpp_modularize_code.callback;
+    const code = "class Calculator { public: int add(int a, int b); };";
+    const result = await handler({
+      code,
+      moduleName: "math.calc",
+      targetStandard: "C++23",
+    });
+
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0].content.text).toContain("math.calc");
+    expect(result.messages[0].content.text).toContain("import std;");
+    expect(result.messages[0].content.text).toContain("FILE_SET CXX_MODULES");
+  });
 });

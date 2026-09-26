@@ -1,0 +1,136 @@
+[
+  {
+    "id": "syntax-structure",
+    "title": "Module Declarations & File Organization (C++20/23/26)",
+    "standard": "C++20",
+    "aliases": ["syntax", "structure", "interface", "implementation", "private-fragment"],
+    "summary": "Primary module interfaces, module implementation units, and private module fragments for organizing modular code.",
+    "rules": [
+      "Every module has exactly one primary module interface unit declared with 'export module <name>;'.",
+      "Module implementation units use 'module <name>;' without 'export' and do not export symbols.",
+      "Use private module fragment ('module :private;') only in primary interface units when no other implementation units exist.",
+      "Functions defined inside a module purview do not require 'inline' to prevent ODR violations.",
+      "All definitions exported by a module must be part of the interface purview."
+    ],
+    "content": "### Primary Module Interface Unit\n\nA primary module interface unit declares the module and exports its public API. There can only be **one** primary module interface per module name.\n\n```cpp\n// math.cppm (or math.ixx)\nexport module math;\n\n// Publicly visible to all importers\nexport namespace math {\n    [[nodiscard]] constexpr int add(int a, int b) noexcept {\n        return a + b;\n    }\n\n    export class Matrix {\n    public:\n        explicit Matrix(int rows, int cols);\n        void resize(int rows, int cols);\n    private:\n        int rows_;\n        int cols_;\n    };\n}\n```\n\n### Module Implementation Unit\n\nImplementation units contain definitions not needed in the interface. They automatically import the primary module interface (everything in the module interface is visible, even non-exported items).\n\n```cpp\n// math_impl.cpp\nmodule math; // Note: NO 'export'\n\nnamespace math {\n    Matrix::Matrix(int rows, int cols) : rows_(rows), cols_(cols) {}\n    void Matrix::resize(int rows, int cols) {\n        rows_ = rows;\n        cols_ = cols;\n    }\n}\n```\n\n### Private Module Fragment (`module :private;`)\n\nEnables keeping interface and implementation in a single physical file without triggering re-compilation of importers when the implementation changes. Importers only depend on the interface before `:private;`.\n\n```cpp\n// single_file_logger.cppm\nexport module logger;\n\nimport std;\n\nexport class Logger {\npublic:\n    void log(std::string_view msg);\n};\n\n// Anything below this line is NOT part of the interface BMI.\n// Changing implementation code below does not cause importers to recompile.\nmodule :private;\n\nvoid Logger::log(std::string_view msg) {\n    std::println(\"[LOG] {}\", msg);\n}\n```\n\n*Constraint:* A module with a private module fragment cannot have any other module implementation units or partitions."
+  },
+  {
+    "id": "import-std",
+    "title": "Standard Library Modules: import std and import std.compat (C++23/C++26)",
+    "standard": "C++23",
+    "aliases": ["std", "import-std", "std-compat", "standard-library", "iostream"],
+    "summary": "Importing the standard library via 'import std;' vs 'import std.compat;', performance gains, and compiler support.",
+    "rules": [
+      "Use 'import std;' in C++23+ for standard library symbols in the 'std' namespace.",
+      "Use 'import std.compat;' only if you need C standard library functions in the global namespace (e.g. '::printf').",
+      "Never mix '#include <vector>' and 'import std;' in the same translation unit without a global module fragment.",
+      "'import std;' provides 5x-10x faster compilation compared to including all heavy headers (<algorithm>, <ranges>, <iostream>).",
+      "Macros like 'assert' or 'errno' are NOT exported by 'import std;'; include <cassert> in the global module fragment if needed."
+    ],
+    "content": "### What is `import std;` (C++23, P2465R3)\n\nC++23 standardizes the modular Standard Library. Instead of including dozens of standard headers, importing `std` makes the entire standard library available almost instantaneously through a precompiled Binary Module Interface (BMI).\n\n```cpp\n// modern_app.cpp\nimport std; // Provides std::vector, std::print, std::ranges, std::expected, etc.\n\nint main() {\n    std::vector<int> numbers = {5, 3, 1, 4, 2};\n    std::ranges::sort(numbers);\n    std::println(\"Sorted: {}\", numbers);\n    return 0;\n}\n```\n\n### Difference between `import std;` and `import std.compat;`\n\n| Feature | `import std;` | `import std.compat;` |\n| :--- | :--- | :--- |\n| **Namespace** | Everything in `namespace std` | `namespace std` + global C functions (`::printf`, `::memcpy`) |\n| **Recommended for** | New C++23/C++26 codebases | Migrating legacy code with unqualified C library calls |\n| **Standard** | C++23 | C++23 |\n\n### Dealing with Standard Macros (`assert`, `errno`)\n\nModules **do not export macros**. Macro names from the preprocessor cannot cross module boundaries.\n\n```cpp\n// main.cpp\nmodule; // Global module fragment for macros\n#include <cassert>\n\nexport module my_service;\nimport std;\n\nexport void process(int value) {\n    assert(value > 0); // Works because <cassert> is in global module fragment\n    std::println(\"Value: {}\", value);\n}\n```\n\n### Compiler & Standard Support Matrix\n- **MSVC**: Supported since Visual Studio 2022 17.5+ (`/std:c++latest` or `/std:c++20` with standard library modules enabled).\n- **Clang**: Supported since Clang 17+ / Clang 18+ (`-fmodules -std=c++23`).\n- **GCC**: Supported since GCC 14+ (`-std=c++23 -fmodules-ts`).\n- **CMake**: Supported natively in CMake 3.28+ with Ninja generator."
+  },
+  {
+    "id": "partitions",
+    "title": "Module Partitions: Architecture & Cyclic Dependencies (C++20/23/26)",
+    "standard": "C++20",
+    "aliases": ["partition", "partitions", "submodules", "internal-partition", "interface-partition"],
+    "summary": "Splitting complex modules into interface partitions and internal implementation partitions without exposing internal structure to users.",
+    "rules": [
+      "Interface partitions ('export module A:B;') must be re-exported by the primary interface with 'export import :B;'.",
+      "Internal partitions ('module A:Internal;') are visible only within module A and CANNOT be exported.",
+      "Partitions cannot have cyclic dependencies between each other.",
+      "External consumers only import the primary module ('import A;'), never individual partitions ('import A:B;' is illegal for consumers).",
+      "Use partitions instead of multiple separate modules when classes or functions share an internal implementation contract."
+    ],
+    "content": "### Architecture of Module Partitions\n\nModule partitions allow splitting a large module across multiple files while presenting a single cohesive module interface to callers.\n\n```\n                   [Consumer: import engine;]\n                              │\n                              ▼\n                   [export module engine;]  (Primary Interface)\n                      ├── export import :types;     (Interface Partition)\n                      └── export import :renderer;  (Interface Partition)\n                               │           │\n                    (internal) └── import :helpers; (Internal Partition)\n```\n\n### 1. Interface Partition (`export module <name>:<partition>;`)\n\nContributes to the public interface of the module:\n\n```cpp\n// engine_types.cppm\nexport module engine:types;\n\nexport namespace engine {\n    struct Vec3 {\n        float x, y, z;\n    };\n}\n```\n\n### 2. Internal Partition (`module <name>:<partition>;`)\n\nVisible only inside module `engine`. Cannot be exported to outside users:\n\n```cpp\n// engine_helpers.cppm\nmodule engine:helpers; // NO 'export' before 'module'\n\nnamespace engine {\n    void validate_hardware_acceleration();\n}\n```\n\n### 3. Primary Module Interface Aggregator\n\nAggregates partitions into the public API:\n\n```cpp\n// engine.cppm\nexport module engine;\n\n// Re-export interface partitions\nexport import :types;\nexport import :renderer;\n\n// Import internal partition for own usage without re-exporting\nimport :helpers;\n\nexport namespace engine {\n    void initialize() {\n        validate_hardware_acceleration();\n    }\n}\n```\n\n### Preventing Cyclic Dependencies with Partitions\nIf Partition A needs Partition B, and Partition B needs Partition A:\n1. Extract shared type definitions into a lower-level partition `module engine:common_types;`.\n2. Both Partition A and Partition B import `:common_types`.\n3. Keep the dependency graph strictly a Directed Acyclic Graph (DAG)."
+  },
+  {
+    "id": "global-module-fragment",
+    "title": "Global Module Fragment & Legacy Header Hygiene",
+    "standard": "C++20",
+    "aliases": ["gmf", "global-module-fragment", "legacy-headers", "include-in-modules", "macros"],
+    "summary": "Using 'module;' to include third-party or legacy headers, avoiding macro leakage, and preventing ODR violations.",
+    "rules": [
+      "The global module fragment MUST appear first in the file with 'module;' before 'export module <name>;'.",
+      "Only preprocessor directives (#include, #define, #ifdef) are permitted inside the global module fragment.",
+      "Never put '#include' inside the module purview (after 'export module'); put all '#include's in the global module fragment.",
+      "Macros defined in headers inside the global module fragment are active only in that translation unit and are NOT exported.",
+      "Symbols from headers in the global module fragment are not automatically exported unless explicitly 'export'ed."
+    ],
+    "content": "### The Purpose of the Global Module Fragment (GMF)\n\nThe global module fragment exists to provide backward compatibility with traditional C and C++ header files that rely on the preprocessor or are not modularized.\n\n```cpp\n// Correct pattern for legacy headers\nmodule; // 1. Start of Global Module Fragment\n\n#include <openssl/ssl.h> // Legacy C header with extensive macro definitions\n#include <zlib.h>\n#define BUFFER_SIZE 4096\n\nexport module secure_channel; // 2. Start of Module Purview\n\nimport std; // Modular imports go here in the purview\n\nexport namespace net {\n    class TlsSocket {\n    public:\n        explicit TlsSocket();\n        ~TlsSocket();\n        void write(std::span<const std::byte> data);\n    private:\n        SSL* ssl_handle_{nullptr};\n    };\n}\n```\n\n### Why `#include` in Module Purview is an Anti-Pattern\n\n```cpp\n// BAD ANTI-PATTERN:\nexport module bad_example;\n#include <windows.h> // DISASTER: All macros (min, max, ERROR) pollute the module purview!\n\nexport void run() {}\n```\n\n**Consequences of putting `#include` inside purview:**\n1. Macro collisions across translations units.\n2. Header contents get compiled into the module's BMI, bloating BMI size.\n3. Can cause silent ODR conflicts with other modules importing the same header."
+  },
+  {
+    "id": "linkage-and-visibility",
+    "title": "Module Linkage, Visibility vs Reachability, and ODR (C++20/23/26)",
+    "standard": "C++20",
+    "aliases": ["linkage", "visibility", "reachability", "odr", "inline"],
+    "summary": "Module linkage, how visibility differs from reachability, and why 'inline' is no longer required for ODR in module purviews.",
+    "rules": [
+      "Symbols declared in a module without 'export' have 'module linkage' (visible across all units of that module, invisible outside).",
+      "Functions defined in a module interface do NOT need 'inline' to avoid Multiple Definition errors.",
+      "A type can be 'reachable' even if it is not 'visible' (e.g. returned by an exported function without the type itself being exported).",
+      "Do not return unexported types from exported functions unless deliberately designing an opaque handle.",
+      "Templates defined in a module interface must have their complete definition in the interface unit."
+    ],
+    "content": "### Types of Linkage in Modern C++\n\n1. **External linkage**: Declared with `export`. Usable from any translation unit that imports the module.\n2. **Module linkage**: Declared in a module without `export` and without `static` or anonymous namespace. Visible to all units and partitions of the **same module**, but completely inaccessible outside.\n3. **Internal linkage**: Declared with `static` or in an anonymous namespace. Visible only within the current translation unit.\n\n```cpp\nexport module security;\n\n// 1. External linkage: Accessible to all importers\nexport void authenticate(std::string_view user);\n\n// 2. Module linkage: Accessible to security implementation units & partitions only\nvoid internal_crypto_hash(std::span<const std::byte> data);\n\n// 3. Internal linkage: Accessible only within security.cppm\nnamespace {\n    constexpr int SALT_ROUNDS = 12;\n}\n```\n\n### The 'Inline' Revolution with Modules\nIn classic C++, defining a non-template function in a header required `inline` to prevent the linker from throwing `multiple definition of 'foo'` (ODR violation).\n\nIn C++20 modules:\n- Every module interface is compiled **once** into a Binary Module Interface (BMI).\n- Functions defined in module purviews are **not duplicate definitions**.\n- You only need `inline` if you want the compiler to consider inlining across module boundaries for performance."
+  },
+  {
+    "id": "cmake-build-systems",
+    "title": "CMake 3.28+ Native C++ Modules & Ninja Build Configuration",
+    "standard": "C++20",
+    "aliases": ["cmake", "ninja", "build", "cxx-modules", "bmi"],
+    "summary": "Configuring CMake 3.28+ with FILE_SET CXX_MODULES, Ninja generator, and compiler flags for GCC, Clang, and MSVC.",
+    "rules": [
+      "Use CMake 3.28 or later; earlier CMake versions do not support standard C++20 modules reliably.",
+      "Always use the 'Ninja' generator or Visual Studio 2022 Generator; standard Unix Makefiles do NOT support C++ module scanning.",
+      "Declare module interfaces using 'target_sources(target PUBLIC FILE_SET CXX_MODULES FILES ...)'.",
+      "For C++23 'import std;', set 'set(CMAKE_CXX_MODULE_STD ON)' in CMake 3.30+ or use compiler-specific std modules.",
+      "Do not manually craft compilation commands for BMIs; let CMake and Ninja handle module dependency scanning (P1689R5)."
+    ],
+    "content": "### Idiomatic `CMakeLists.txt` for C++20/C++23 Modules\n\n```cmake\ncmake_minimum_required(VERSION 3.28)\nproject(ModularCppApp LANGUAGES CXX)\n\nset(CMAKE_CXX_STANDARD 23)\nset(CMAKE_CXX_STANDARD_REQUIRED ON)\nset(CMAKE_CXX_EXTENSIONS OFF)\n\n# Required for building with C++20 modules\n# Generator MUST be Ninja: cmake -B build -G Ninja\n\n# 1. Define modular library\nadd_library(core_lib)\ntarget_sources(core_lib\n    PUBLIC\n        FILE_SET CXX_MODULES FILES\n            src/core.cppm\n            src/core_math.cppm\n    PRIVATE\n        src/core_impl.cpp\n)\n\n# 2. Define application using the modular library\nadd_executable(app src/main.cpp)\ntarget_link_libraries(app PRIVATE core_lib)\n```\n\n### C++23 `import std;` in CMake 3.30+\n\n```cmake\n# Enable standard library modules in CMake 3.30+\nset(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD \"0e5b6991-d74f-473d-941e-73b8437c3b24\")\nset(CMAKE_CXX_MODULE_STD ON)\n\nadd_executable(my_app src/main.cpp)\n# Now 'import std;' works seamlessly in GCC 14, Clang 18, and MSVC 19.36+\n```\n\n### Recommended File Extensions\n- `.cppm`: Standard-agnostic preferred extension for module interfaces.\n- `.ixx`: Default module interface extension for MSVC.\n- `.cpp` / `.cc`: Module implementation units."
+  },
+  {
+    "id": "migration-strategies",
+    "title": "Migrating from Headers to Modules: Dual-Mode & Façade Strategies",
+    "standard": "C++20",
+    "aliases": ["migration", "dual-mode", "facade", "refactoring", "legacy"],
+    "summary": "Step-by-step strategies for transitioning large C++ codebases to modules without breaking non-modular consumers.",
+    "rules": [
+      "Do not rewrite the entire codebase at once; start by modularizing bottom-level leaf utilities (math, string utils, logging).",
+      "Use the 'Module Wrapper / Façade' pattern to expose existing headers via modules immediately.",
+      "Use Dual-Mode macros when a library must be consumable both via '#include' and 'import' simultaneously.",
+      "Ensure all third-party dependencies are included in the global module fragment during transition.",
+      "Verify that transitive header dependencies are cleanly replaced by module imports."
+    ],
+    "content": "### Strategy 1: The Module Façade (Easiest & Fastest)\n\nWrap existing, tested header files in a module interface. This provides instant compilation speedups without rewriting existing source code.\n\n```cpp\n// mylib.cppm\nmodule;\n#include \"mylib/matrix.h\"\n#include \"mylib/vector.h\"\n#include \"mylib/solver.h\"\n\nexport module mylib;\n\nexport namespace mylib {\n    using mylib::Matrix;\n    using mylib::Vector;\n    using mylib::solve_linear_system;\n}\n```\n\n### Strategy 2: Dual-Mode Header (For Shared Libraries)\n\nWhen authoring a library that must support both C++17 (headers) and C++20 (modules):\n\n```cpp\n// mylib_api.h\n#ifdef MYLIB_BUILD_MODULE\n  #define MYLIB_EXPORT export\n#else\n  #define MYLIB_EXPORT\n#endif\n\n// mylib/types.h\nMYLIB_EXPORT namespace mylib {\n    struct Config {\n        int timeout_ms;\n    };\n}\n```\n\nIn the module interface file:\n```cpp\n// mylib.cppm\nmodule;\n#define MYLIB_BUILD_MODULE\n#include \"mylib/types.h\"\n\nexport module mylib;\n```\n\n### Recommended Migration Order\n1. **Level 0 (Leaf utilities)**: Math, formatting, string helpers, error types.\n2. **Level 1 (Data structures & Core algorithms)**: Models, collections, business types.\n3. **Level 2 (Services & Subsystems)**: Network, database, rendering.\n4. **Level 3 (Application / Entrypoint)**: Main executable, CLI dispatch."
+  },
+  {
+    "id": "pitfalls-anti-patterns",
+    "title": "Top Modules Pitfalls, Anti-Patterns, and Debugging Techniques",
+    "standard": "C++20",
+    "aliases": ["pitfalls", "anti-patterns", "gotchas", "errors", "debugging"],
+    "summary": "Common mistakes with C++ modules, leaky reachability, header pollution, circular partition references, and compiler diagnostic troubleshooting.",
+    "rules": [
+      "Anti-Pattern 1: Leaking unexported dependent types (creates compiler errors in downstream template instantiations).",
+      "Anti-Pattern 2: Macro pollution in module purview (always quarantine macros in 'module;').",
+      "Anti-Pattern 3: Circular partition imports (split shared interfaces into a separate partition).",
+      "Anti-Pattern 4: Defining static data members with internal linkage in module interfaces.",
+      "Anti-Pattern 5: Expecting '#define' flags from importer to alter module behavior (modules are precompiled and isolated from importer macros)."
+    ],
+    "content": "### 1. Leaky Reachability Anti-Pattern\n\n```cpp\n// BAD:\nexport module store;\n\nclass DatabaseConnection { /* not exported */ };\n\nexport DatabaseConnection& get_connection();\n```\n\n**The Problem**: A caller can call `auto& conn = get_connection();`, but `conn` has an unnameable type. Attempting to use methods or pass it to templates will trigger confusing compiler errors.\n\n**The Fix**: If a type appears in the signature of an exported entity, export that type as well.\n\n### 2. Importer Macro Independence Gotcha\n\nIn classic C++:\n```cpp\n// Caller\n#define DEBUG_MODE 1\n#include <engine.h> // engine.h behavior changes based on DEBUG_MODE!\n```\n\nIn C++ Modules:\n```cpp\n// Caller\n#define DEBUG_MODE 1\nimport engine; // DOES NOTHING! engine BMI was already compiled in isolation!\n```\n\n**Best Practice**: Never use preprocessor flags to configure module behavior. Pass configuration via parameters, template arguments, or build-system configuration constants."
+  },
+  {
+    "id": "cpp26-evolution",
+    "title": "C++26 Modules Evolution & Next-Gen Standard Features",
+    "standard": "C++26",
+    "aliases": ["cpp26", "evolution", "future", "reflection", "contracts"],
+    "summary": "How C++26 enhances modules: reflection interaction, contract assertions across module interfaces, and standard library completions.",
+    "rules": [
+      "In C++26, Contracts (P2900R6) assertions on exported module functions become part of the module interface contract.",
+      "Compile-time Reflection (P2996R5) operates across module boundaries with zero macro overhead.",
+      "C++26 expands standard library modularization to ensure full coverage of freetime math, numerics, and SIMD.",
+      "Binary Module Interface caching and distributed compilation protocols are standardized in toolchain ecosystems."
+    ],
+    "content": "### C++26 Contracts and Modules (P2900)\n\nC++26 introduces native Contracts (`pre`, `post`, `contract_assert`). When exported in a module interface, contract predicates are visible to callers for static analysis and runtime checking without leaking implementation details.\n\n```cpp\n// C++26 Module Interface with Contracts\nexport module account_service;\n\nimport std;\n\nexport namespace banking {\n    class Account {\n    public:\n        void deposit(double amount)\n            pre(amount > 0.0); // Contract precondition part of module interface\n\n        [[nodiscard]] double balance() const noexcept;\n    };\n}\n```\n\n### C++26 Reflection (`^` reflexpr) with Modules (P2996)\n\nReflection enables inspecting types at compile-time without relying on preprocessor macros or external code-generation steps. Because modules isolate symbol visibility, reflection over module-exported types provides clean introspection without leaking internal implementation details."
+  }
+]

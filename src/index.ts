@@ -7,6 +7,7 @@ import { registerPrompts } from "./prompts/index.js";
 import { registerResources } from "./resources/index.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
+import { getCppModulesGuide } from "./tools/modules.js";
 import { getCppreferencePage } from "./tools/page.js";
 import { searchCppreference } from "./tools/search.js";
 import { checkCppStandard } from "./tools/standards.js";
@@ -241,6 +242,59 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error retrieving C++ Core Guideline: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "get_cpp_modules_guide",
+    {
+      description:
+        "Retrieve authoritative architecture guides, rules, code patterns, and best practices for C++ Modules in C++20, C++23, and C++26. Covers 'import std;', interface & implementation partitions, Global Module Fragment macro isolation, CMake 3.28+ setup, and header migration.",
+      inputSchema: {
+        topic: z
+          .string()
+          .optional()
+          .describe(
+            "Specific module topic (e.g. 'syntax-structure', 'import-std', 'partitions', 'global-module-fragment', 'linkage-and-visibility', 'cmake-build-systems', 'migration-strategies', 'pitfalls-anti-patterns', 'cpp26-evolution')",
+          ),
+        standard: z
+          .enum(["c++20", "c++23", "c++26"])
+          .optional()
+          .describe("Target C++ language version filter ('c++20', 'c++23', 'c++26')"),
+        query: z
+          .string()
+          .optional()
+          .describe(
+            "Search query across module rules and code patterns (e.g. 'ninja', 'private fragment', 'inline', 'macro', 'export import')",
+          ),
+      },
+    },
+    async ({ topic, standard, query }) => {
+      try {
+        const result = getCppModulesGuide({
+          topic,
+          standard,
+          query,
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error retrieving C++ modules guide: ${error instanceof Error ? error.message : String(error)}`,
             },
           ],
         };

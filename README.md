@@ -42,9 +42,11 @@ flowchart TD
 ## Features
 
 - **Authoritative C/C++ Lookup**: Instant access to standard headers, containers, algorithms, keywords, and C++20/23/26 features.
+- **C++20/23/26 Modules Architecture**: Dedicated offline guide and best practices for `import std;`, interface & internal partitions, CMake 3.28+ (`FILE_SET CXX_MODULES`), and header migration (`get_cpp_modules_guide`).
+- **C++ Core Guidelines Engine**: Offline catalog of 513 official rules with rationale, enforcement, and code examples (`get_guideline`).
 - **Header & Version Resolution**: Offline static indexing for ISO C/C++ headers and SD-6 feature test macros (`lookup_header`, `check_cpp_standard`).
 - **Tiered Cache with TTL**: Blazing-fast L1 memory LRU cache backed by persistent L2 disk cache (`~/.cache/cpp-mcp/`).
-- **MCP Resources & Prompts**: Zero-token offline resources (`cppref://headers`, `cppref://standards`) and pre-engineered diagnostic prompt templates.
+- **MCP Resources & Prompts**: Zero-token offline resources (`cppref://headers`, `cppref://modules`, `cppref://guidelines`) and diagnostic prompt templates.
 - **Standalone Binaries & Zero Setup**: Self-contained native single-file binaries (no Node or Bun required) or instant execution via `npx` / `bunx`.
 - **Noise Elimination**: Strips MediaWiki navigation menus, edit buttons, login prompts, and notices before LLM consumption.
 - **Cursor Pagination**: Transparently handles oversized documentation pages in 16 KB chunks.
@@ -161,6 +163,31 @@ Looks up official rules, idioms, and best practices from the **C++ Core Guidelin
   }
   ```
 
+### 6. `get_cpp_modules_guide`
+
+Retrieves authoritative architectural guides, rules, code patterns, and best practices for **C++ Modules in C++20, C++23, and C++26**. Covers `import std;`, interface & implementation partitions, Global Module Fragment macro hygiene, CMake 3.28+ native setup, and header migration.
+
+- **Parameters**:
+  - `topic` (`string`, optional): Specific topic ID or alias (e.g. `"syntax-structure"`, `"import-std"`, `"partitions"`, `"global-module-fragment"`, `"linkage-and-visibility"`, `"cmake-build-systems"`, `"migration-strategies"`, `"pitfalls-anti-patterns"`, `"cpp26-evolution"`).
+  - `standard` (`string`, optional): Target C++ language version filter (`"c++20"`, `"c++23"`, `"c++26"`).
+  - `query` (`string`, optional): Keyword search across module rules and code patterns (e.g. `"ninja"`, `"private fragment"`, `"inline"`, `"macro"`).
+
+- **Output Example**:
+  ```json
+  {
+    "found": true,
+    "topic": "import-std",
+    "title": "Standard Library Modules: import std and import std.compat (C++23/C++26)",
+    "standard": "C++23",
+    "summary": "Importing the standard library via 'import std;' vs 'import std.compat;', performance gains, and compiler support.",
+    "rules": [
+      "Use 'import std;' in C++23+ for standard library symbols in the 'std' namespace.",
+      "Use 'import std.compat;' only if you need C standard library functions in the global namespace (e.g. '::printf')."
+    ],
+    "content": "### What is import std; (C++23, P2465R3)..."
+  }
+  ```
+
 ---
 
 ## Resources Catalog
@@ -172,6 +199,8 @@ The server exposes read-only MCP resources providing zero-overhead offline datas
 - **`cppref://standards`**: Chronological standards timeline (C++98 to C++26, C89 to C23) and official feature test macros.
 - **`cppref://guidelines`**: Complete index of 513 official C++ Core Guidelines rules with identifiers, titles, and sections.
 - **`cppref://guidelines/{id}`**: Full specification, rationale, enforcement, and code examples for a specific Core Guidelines rule.
+- **`cppref://modules`**: Catalog of architectural guides and best practice rules for C++20, C++23, and C++26 Modules.
+- **`cppref://modules/{topic}`**: Full architectural specification, code patterns, and rules for a specific module topic.
 
 ---
 
@@ -183,6 +212,7 @@ Pre-engineered prompt templates for AI clients:
 - **`cpp_modernize_code`**: Upgrades legacy C or C++ code into modern idiomatic C++ (C++20/C++23) using RAII, `std::ranges`, `std::string_view`, and `std::print`.
 - **`cpp_diagnose_compiler_error`**: Diagnoses compiler diagnostic output, pinpointing missing `#include` headers, standard flag discrepancies (`-std=c++20`), or concept constraints.
 - **`cpp_audit_guidelines`**: Conducts a thorough code review against the C++ Core Guidelines, highlighting rule violations (`R.1`, `F.16`, `C.21`) and recommending compliant modern solutions.
+- **`cpp_modularize_code`**: Converts classic C++ headers and translation units into modern C++20/C++23/C++26 Modules with primary interface units, partitions, GMF macro isolation, and CMake 3.28+ build configuration.
 
 ---
 

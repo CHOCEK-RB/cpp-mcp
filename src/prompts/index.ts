@@ -170,4 +170,55 @@ Review requirements:
       };
     },
   );
+
+  // Prompt 5: Modularize C++ code into C++20/C++23/C++26 Modules
+  server.registerPrompt(
+    "cpp_modularize_code",
+    {
+      description:
+        "Convert classic C++ header/source files into idiomatic C++20/C++23/C++26 Modules with primary interface units, partitions, GMF macro isolation, and CMake build configuration.",
+      argsSchema: {
+        code: z.string().min(1).describe("Classic C++ header and/or source code to modularize"),
+        moduleName: z
+          .string()
+          .optional()
+          .describe("Target module name (e.g. 'core.math', 'network.client')"),
+        targetStandard: z
+          .enum(["C++20", "C++23", "C++26"])
+          .optional()
+          .describe("Target C++ language version (defaults to 'C++23')"),
+      },
+    },
+    async ({ code, moduleName, targetStandard }) => {
+      const target = targetStandard || "C++23";
+      const mod = moduleName || "my_module";
+      const isCpp23OrNewer = target === "C++23" || target === "C++26";
+      const stdlibGuidance = isCpp23OrNewer
+        ? "Adopt 'import std;' instead of including standard library headers."
+        : "Include standard headers in the Global Module Fragment ('module;') if standard library modules are not available.";
+
+      return {
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: `Modularize the following C++ code into modern **${target}** Modules named \`${mod}\`:
+
+\`\`\`cpp
+${code}
+\`\`\`
+
+Modularization Guidelines:
+1. **Primary Interface Unit (\`${mod}.cppm\`):** Declare \`export module ${mod};\`. Export only public classes, functions, and types.
+2. **Global Module Fragment (\`module;\`):** Quarantine any third-party or legacy C headers that define macros. Never place \`#include\` in module purview.
+3. **Standard Library:** ${stdlibGuidance}
+4. **Partitions & Implementation Units:** If the code contains internal helpers or distinct subsystems, separate them into interface partitions (\`export module ${mod}:part;\`) or internal partitions (\`module ${mod}:impl;\`).
+5. **CMake Integration:** Provide the modern CMake 3.28+ snippet using \`target_sources(FILE_SET CXX_MODULES ...)\`.`,
+            },
+          },
+        ],
+      };
+    },
+  );
 }
