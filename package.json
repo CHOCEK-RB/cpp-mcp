@@ -39,7 +39,8 @@
     "check:hints": "bun scripts/check-hints.ts",
     "check:publint": "publint --strict",
     "test": "bun test",
-    "test:coverage": "bun test --coverage"
+    "test:coverage": "bun test --coverage",
+    "sync:headers": "bun scripts/sync-headers.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.1",

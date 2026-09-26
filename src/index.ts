@@ -3,11 +3,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { lookupHeader } from "./tools/header.js";
 import { getCppreferencePage } from "./tools/page.js";
 import { searchCppreference } from "./tools/search.js";
 
 export const SERVER_NAME = "cpp-mcp";
-export const SERVER_VERSION = "0.1.0";
+export const SERVER_VERSION = "1.0.0";
 
 /**
  * Creates and configures the C/C++ Reference MCP Server with tools.
@@ -90,6 +91,45 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error retrieving cppreference page: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "lookup_header",
+    {
+      description:
+        "Find the standard C or C++ header (<vector>, <algorithm>, <cstdio>, etc.) required for a given function, type, class, or symbol, including standard version and category.",
+      inputSchema: {
+        symbol: z
+          .string()
+          .min(1)
+          .describe(
+            "C or C++ symbol, type, function, class, or header name (e.g. 'std::vector', 'printf', 'std::views::filter', 'size_t', '<ranges>')",
+          ),
+      },
+    },
+    async ({ symbol }) => {
+      try {
+        const result = await lookupHeader(symbol);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error looking up header for "${symbol}": ${error instanceof Error ? error.message : String(error)}`,
             },
           ],
         };
