@@ -103,4 +103,321 @@ export function registerResources(server: McpServer): void {
       };
     },
   );
+
+  // Resource 4: C++ Core Guidelines Index
+  server.registerResource(
+    "cpp_core_guidelines_index",
+    "cppref://guidelines",
+    {
+      description:
+        "Complete index of all official C++ Core Guidelines rules (Bjarne Stroustrup & Herb Sutter) with IDs, titles, sections, and URLs.",
+      mimeType: "application/json",
+    },
+    async () => {
+      const { CPP_CORE_GUIDELINES } = await import("../data/guidelines.js");
+      const summaryList = CPP_CORE_GUIDELINES.map((r) => ({
+        id: r.id,
+        title: r.title,
+        section: r.section,
+        url: r.url,
+      }));
+
+      return {
+        contents: [
+          {
+            uri: "cppref://guidelines",
+            text: JSON.stringify(summaryList, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    },
+  );
+
+  // Resource 5: C++ Core Guidelines Rule Detail
+  server.registerResource(
+    "cpp_core_guideline_detail",
+    new ResourceTemplate("cppref://guidelines/{id}", { list: undefined }),
+    {
+      description:
+        "Full specification, reason, enforcement, and markdown examples for a specific C++ Core Guidelines rule (e.g. 'F.16', 'R.1', 'C.21').",
+      mimeType: "application/json",
+    },
+    async (uri: URL, variables: { [key: string]: string | string[] | undefined }) => {
+      const { GUIDELINE_BY_ID } = await import("../data/guidelines.js");
+      const { normalizeRuleId } = await import("../tools/guidelines.js");
+      const rawId = String(variables.id || "");
+      const normalized = normalizeRuleId(rawId);
+      const rule = GUIDELINE_BY_ID.get(normalized);
+
+      if (!rule) {
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              text: JSON.stringify(
+                {
+                  error: `Rule '${rawId}' (normalized as '${normalized}') not found in C++ Core Guidelines.`,
+                },
+                null,
+                2,
+              ),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            text: JSON.stringify(rule, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    },
+  );
+
+  // Resource 6: C++ Modules Guide Index
+  server.registerResource(
+    "cpp_modules_guide_index",
+    "cppref://modules",
+    {
+      description:
+        "Architectural catalog and best practice guidelines for C++20, C++23, and C++26 Modules (syntax, import std, partitions, GMF, CMake).",
+      mimeType: "application/json",
+    },
+    async () => {
+      const { MODULE_GUIDES } = await import("../data/modules_guide.js");
+      const summaryList = MODULE_GUIDES.map((g) => ({
+        id: g.id,
+        title: g.title,
+        standard: g.standard,
+        summary: g.summary,
+      }));
+
+      return {
+        contents: [
+          {
+            uri: "cppref://modules",
+            text: JSON.stringify(summaryList, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    },
+  );
+
+  // Resource 7: C++ Modules Topic Detail
+  server.registerResource(
+    "cpp_modules_topic_detail",
+    new ResourceTemplate("cppref://modules/{topic}", { list: undefined }),
+    {
+      description:
+        "Full architectural specification, rules, and code patterns for a specific C++ module topic (e.g. 'import-std', 'partitions', 'cmake-build-systems').",
+      mimeType: "application/json",
+    },
+    async (uri: URL, variables: { [key: string]: string | string[] | undefined }) => {
+      const { MODULE_GUIDE_BY_ID, MODULE_GUIDES } = await import("../data/modules_guide.js");
+      const { normalizeTopicId } = await import("../tools/modules.js");
+      const rawTopic = String(variables.topic || "");
+      const normalized = normalizeTopicId(rawTopic);
+      const topicEntry =
+        MODULE_GUIDE_BY_ID.get(rawTopic.toLowerCase()) ||
+        MODULE_GUIDE_BY_ID.get(normalized) ||
+        MODULE_GUIDES.find(
+          (g) =>
+            g.id.toLowerCase().includes(normalized) ||
+            g.aliases.some((a) => a.toLowerCase().includes(normalized)),
+        );
+
+      if (!topicEntry) {
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              text: JSON.stringify(
+                {
+                  error: `Module topic '${rawTopic}' not found. Available topics: ${MODULE_GUIDES.map((g) => g.id).join(", ")}.`,
+                },
+                null,
+                2,
+              ),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            text: JSON.stringify(topicEntry, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    },
+  );
+
+  // Resource 8: SEI CERT C++ Rules Index
+  server.registerResource(
+    "cpp_cert_rules_index",
+    "cppref://cert",
+    {
+      description:
+        "Index of SEI CERT C++ Coding Standard rules with identifiers, categories, CWE mappings, and vulnerability definitions.",
+      mimeType: "application/json",
+    },
+    async () => {
+      const { CERT_RULES } = await import("../data/cert_rules.js");
+      const summaryList = CERT_RULES.map((r) => ({
+        id: r.id,
+        category: r.category,
+        title: r.title,
+        severity: r.severity,
+        cwe: r.cwe,
+        vulnerability: r.vulnerability,
+        summary: r.summary,
+      }));
+
+      return {
+        contents: [
+          {
+            uri: "cppref://cert",
+            text: JSON.stringify(summaryList, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    },
+  );
+
+  // Resource 9: SEI CERT C++ Rule Detail
+  server.registerResource(
+    "cpp_cert_rule_detail",
+    new ResourceTemplate("cppref://cert/{id}", { list: undefined }),
+    {
+      description:
+        "Full SEI CERT C++ rule specification, risk assessment, noncompliant code example, and compliant secure solution.",
+      mimeType: "application/json",
+    },
+    async (uri: URL, variables: { [key: string]: string | string[] | undefined }) => {
+      const { CERT_RULE_BY_ID } = await import("../data/cert_rules.js");
+      const { normalizeCertRuleId } = await import("../tools/cert.js");
+      const rawId = String(variables.id || "");
+      const normalized = normalizeCertRuleId(rawId);
+      const rule = CERT_RULE_BY_ID.get(normalized);
+
+      if (!rule) {
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              text: JSON.stringify(
+                {
+                  error: `SEI CERT C++ rule '${rawId}' (normalized '${normalized}') not found.`,
+                },
+                null,
+                2,
+              ),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            text: JSON.stringify(rule, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    },
+  );
+
+  // Resource 10: Modern C/C++ Developer Tooling Catalog
+  server.registerResource(
+    "cpp_tooling_index",
+    "cppref://tooling",
+    {
+      description:
+        "Catalog of modern C and C++ developer tooling, build utilities (xmake), linters (clang-tidy), formatters (clang-format), and sanitizers.",
+      mimeType: "application/json",
+    },
+    async () => {
+      const { C_CPP_TOOLS } = await import("../data/tooling.js");
+      const summaryList = C_CPP_TOOLS.map((t) => ({
+        id: t.id,
+        title: t.title,
+        configFileName: t.configFileName,
+        description: t.description,
+      }));
+
+      return {
+        contents: [
+          {
+            uri: "cppref://tooling",
+            text: JSON.stringify(summaryList, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    },
+  );
+
+  // Resource 11: Specific C/C++ Tool Documentation & Config
+  server.registerResource(
+    "cpp_tooling_detail",
+    new ResourceTemplate("cppref://tooling/{tool}", { list: undefined }),
+    {
+      description:
+        "Full documentation, commands, and production starter configuration for a specific C/C++ tool (e.g. 'xmake', 'clang-format', 'clang-tidy', 'sanitizers').",
+      mimeType: "application/json",
+    },
+    async (uri: URL, variables: { [key: string]: string | string[] | undefined }) => {
+      const { TOOL_BY_ID, C_CPP_TOOLS } = await import("../data/tooling.js");
+      const { normalizeToolId } = await import("../tools/tooling.js");
+      const rawTool = String(variables.tool || "");
+      const normalized = normalizeToolId(rawTool);
+      const toolGuide =
+        TOOL_BY_ID.get(rawTool.toLowerCase()) ||
+        TOOL_BY_ID.get(normalized) ||
+        C_CPP_TOOLS.find((t) => t.aliases.some((a) => a.toLowerCase() === normalized));
+
+      if (!toolGuide) {
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              text: JSON.stringify(
+                {
+                  error: `Tool '${rawTool}' not found. Available tools: ${C_CPP_TOOLS.map((t) => t.id).join(", ")}.`,
+                },
+                null,
+                2,
+              ),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            text: JSON.stringify(toolGuide, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    },
+  );
 }

@@ -42,9 +42,13 @@ flowchart TD
 ## Features
 
 - **Authoritative C/C++ Lookup**: Instant access to standard headers, containers, algorithms, keywords, and C++20/23/26 features.
+- **C++20/23/26 Modules Architecture**: Dedicated offline guide and best practices for `import std;`, interface & internal partitions, CMake 3.28+ (`FILE_SET CXX_MODULES`), and header migration (`get_cpp_modules_guide`).
+- **Modern C/C++ Tooling Ecosystem**: In-depth recipes and starter configs for `xmake` (Lua build system with native C++20 modules), `clang-format`, `clang-tidy`, and runtime sanitizers (`get_cpp_tooling_guide`).
+- **SEI CERT C++ Security Standard**: Rules, CWE mappings, and compliant fixes for memory safety, concurrency, and UB prevention (`check_secure_coding`).
+- **C++ Core Guidelines Engine**: Offline catalog of 513 official rules with rationale, enforcement, and code examples (`get_guideline`).
 - **Header & Version Resolution**: Offline static indexing for ISO C/C++ headers and SD-6 feature test macros (`lookup_header`, `check_cpp_standard`).
 - **Tiered Cache with TTL**: Blazing-fast L1 memory LRU cache backed by persistent L2 disk cache (`~/.cache/cpp-mcp/`).
-- **MCP Resources & Prompts**: Zero-token offline resources (`cppref://headers`, `cppref://standards`) and pre-engineered diagnostic prompt templates.
+- **MCP Resources & Prompts**: Zero-token offline resources (`cppref://headers`, `cppref://modules`, `cppref://cert`, `cppref://tooling`, `cppref://guidelines`) and diagnostic prompt templates.
 - **Standalone Binaries & Zero Setup**: Self-contained native single-file binaries (no Node or Bun required) or instant execution via `npx` / `bunx`.
 - **Noise Elimination**: Strips MediaWiki navigation menus, edit buttons, login prompts, and notices before LLM consumption.
 - **Cursor Pagination**: Transparently handles oversized documentation pages in 16 KB chunks.
@@ -134,6 +138,115 @@ Checks which C or C++ language standard version introduced, deprecated, or remov
   }
   ```
 
+### 5. `get_guideline`
+
+Looks up official rules, idioms, and best practices from the **C++ Core Guidelines** (Bjarne Stroustrup & Herb Sutter) by rule ID (e.g. `F.16`, `R.1`, `C.21`, `ES.20`, `I.11`) or topic query (e.g. `"RAII"`, `"rule of five"`, `"ownership"`).
+
+- **Parameters**:
+  - `rule_id` (`string`, optional): Exact or flexible rule ID (e.g. `"F.16"`, `"R.1"`, `"C.21"`, `"f16"`).
+  - `query` (`string`, optional): Search topic or keyword (e.g. `"RAII"`, `"ownership"`, `"smart pointers"`).
+  - `section` (`string`, optional): Section name filter (e.g. `"Resource management"`, `"Functions"`).
+  - `include_content` (`boolean`, optional): Include complete markdown text with code examples.
+
+- **Output Example**:
+  ```json
+  {
+    "query": "R.1",
+    "found": true,
+    "totalMatches": 1,
+    "rule": {
+      "id": "R.1",
+      "title": "Manage resources automatically using resource handles and RAII (Resource Acquisition Is Initialization)",
+      "section": "R: Resource management",
+      "url": "https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#rr-raii",
+      "reason": "To avoid leaks and the complexity of manual resource management...",
+      "content": "##### Reason\n\nTo avoid leaks and the complexity of manual resource management..."
+    }
+  }
+  ```
+
+### 6. `get_cpp_modules_guide`
+
+Retrieves authoritative architectural guides, rules, code patterns, and best practices for **C++ Modules in C++20, C++23, and C++26**. Covers `import std;`, interface & implementation partitions, Global Module Fragment macro hygiene, CMake 3.28+ native setup, and header migration.
+
+- **Parameters**:
+  - `topic` (`string`, optional): Specific topic ID or alias (e.g. `"syntax-structure"`, `"import-std"`, `"partitions"`, `"global-module-fragment"`, `"linkage-and-visibility"`, `"cmake-build-systems"`, `"migration-strategies"`, `"pitfalls-anti-patterns"`, `"cpp26-evolution"`).
+  - `standard` (`string`, optional): Target C++ language version filter (`"c++20"`, `"c++23"`, `"c++26"`).
+  - `query` (`string`, optional): Keyword search across module rules and code patterns (e.g. `"ninja"`, `"private fragment"`, `"inline"`, `"macro"`).
+
+- **Output Example**:
+  ```json
+  {
+    "found": true,
+    "topic": "import-std",
+    "title": "Standard Library Modules: import std and import std.compat (C++23/C++26)",
+    "standard": "C++23",
+    "summary": "Importing the standard library via 'import std;' vs 'import std.compat;', performance gains, and compiler support.",
+    "rules": [
+      "Use 'import std;' in C++23+ for standard library symbols in the 'std' namespace.",
+      "Use 'import std.compat;' only if you need C standard library functions in the global namespace (e.g. '::printf')."
+    ],
+    "content": "### What is import std; (C++23, P2465R3)..."
+  }
+  ```
+
+### 7. `check_secure_coding`
+
+Audits C++ code for security vulnerabilities, undefined behavior (UB), and safety violations against the official **SEI CERT C++ Coding Standard** and **MITRE CWEs**. Provides noncompliant code explanations, exploitability risks, and compliant modern fixes.
+
+- **Parameters**:
+  - `rule_id` (`string`, optional): Specific SEI CERT rule ID (e.g. `"MEM50-CPP"`, `"OOP50-CPP"`, `"CON53-CPP"`, `"mem50"`) or CWE ID (`"CWE-416"`, `"CWE-833"`).
+  - `category` (`string`, optional): Category filter (`"MEM"`, `"CON"`, `"EXP"`, `"OOP"`, `"ERR"`, `"CTR"`, `"MSC"`, `"DCL"`).
+  - `query` (`string`, optional): Vulnerability search keyword (e.g. `"use-after-free"`, `"deadlock"`, `"slicing"`, `"strict aliasing"`).
+  - `code` (`string`, optional): C++ source code snippet to scan for heuristic security anti-patterns (e.g. `std::rand()`, catch-by-value, throw in destructor).
+
+- **Output Example**:
+  ```json
+  {
+    "found": true,
+    "rule": {
+      "id": "MEM50-CPP",
+      "category": "MEM",
+      "title": "Do not access freed memory",
+      "severity": "High",
+      "cwe": "CWE-416",
+      "vulnerability": "Use-After-Free",
+      "summary": "Dereferencing a pointer after the allocated storage has been deallocated leads to undefined behavior...",
+      "noncompliantCode": "int* ptr = new int(42);\ndelete ptr;\nstd::cout << *ptr << '\\n';",
+      "compliantSolution": "auto ptr = std::make_unique<int>(42);\nstd::cout << *ptr << '\\n';"
+    }
+  }
+  ```
+
+### 8. `get_cpp_tooling_guide`
+
+Retrieves documentation, directives, CLI commands, and production starter configurations for modern C/C++ developer tools:
+- **`xmake`**: Lua-based build utility with zero-configuration C++20/C++23 module scanning and integrated packages (`add_requires`).
+- **`clang-format`**: Unified styling with pointer alignment, include sorting, and bracket placements.
+- **`clang-tidy`**: Strict static analysis check profiles (`modernize-*`, `bugprone-*`, `cert-*`).
+- **`sanitizers`**: Compiler instrumentation flags for AddressSanitizer (`ASan`), UndefinedBehaviorSanitizer (`UBSan`), and ThreadSanitizer (`TSan`).
+
+- **Parameters**:
+  - `tool` (`string`, optional): Tool ID or alias (`"xmake"`, `"clang-format"`, `"clang-tidy"`, `"sanitizers"`, `"format"`, `"tidy"`, `"asan"`).
+  - `query` (`string`, optional): Search keyword across configuration directives and commands (e.g. `"compile_commands"`, `"add_requires"`, `"IndentWidth"`).
+  - `generate_config` (`boolean`, optional): Returns the raw copy-pasteable production configuration file (e.g. `xmake.lua`, `.clang-format`, `.clang-tidy`).
+
+- **Output Example**:
+  ```json
+  {
+    "found": true,
+    "tool": "xmake",
+    "configFileName": "xmake.lua",
+    "configContent": "-- xmake.lua\nadd_rules(\"mode.debug\", \"mode.release\")...",
+    "keyDirectives": [
+      {
+        "name": "add_files(\"src/*.cppm\")",
+        "description": "Registers C++ module interfaces; xmake automatically invokes compiler module scanning."
+      }
+    ]
+  }
+  ```
+
 ---
 
 ## Resources Catalog
@@ -143,6 +256,14 @@ The server exposes read-only MCP resources providing zero-overhead offline datas
 - **`cppref://headers`**: Complete inventory of all ISO C and C++ standard library headers with categories and declared symbols.
 - **`cppref://headers/{name}`**: Detailed specification, declared symbols, and standard revisions for a specific header (e.g. `cppref://headers/vector`, `cppref://headers/ranges`, `cppref://headers/print`).
 - **`cppref://standards`**: Chronological standards timeline (C++98 to C++26, C89 to C23) and official feature test macros.
+- **`cppref://guidelines`**: Complete index of 513 official C++ Core Guidelines rules with identifiers, titles, and sections.
+- **`cppref://guidelines/{id}`**: Full specification, rationale, enforcement, and code examples for a specific Core Guidelines rule.
+- **`cppref://modules`**: Catalog of architectural guides and best practice rules for C++20, C++23, and C++26 Modules.
+- **`cppref://modules/{topic}`**: Full architectural specification, code patterns, and rules for a specific module topic.
+- **`cppref://cert`**: Complete catalog of SEI CERT C++ Coding Standard rules with categories, severity, and CWE mappings.
+- **`cppref://cert/{id}`**: Detailed SEI CERT rule specification with risk assessment, noncompliant code, and compliant solution.
+- **`cppref://tooling`**: Catalog of modern C/C++ developer tools (`xmake`, `clang-format`, `clang-tidy`, runtime sanitizers).
+- **`cppref://tooling/{tool}`**: In-depth documentation, CLI commands, and production starter configurations for a specific tool.
 
 ---
 
@@ -153,6 +274,10 @@ Pre-engineered prompt templates for AI clients:
 - **`cpp_explain_symbol`**: Structured explanation of a C/C++ symbol covering required header, language availability, time/space complexity, and idiomatic modern code example.
 - **`cpp_modernize_code`**: Upgrades legacy C or C++ code into modern idiomatic C++ (C++20/C++23) using RAII, `std::ranges`, `std::string_view`, and `std::print`.
 - **`cpp_diagnose_compiler_error`**: Diagnoses compiler diagnostic output, pinpointing missing `#include` headers, standard flag discrepancies (`-std=c++20`), or concept constraints.
+- **`cpp_audit_guidelines`**: Conducts a thorough code review against the C++ Core Guidelines, highlighting rule violations (`R.1`, `F.16`, `C.21`) and recommending compliant modern solutions.
+- **`cpp_modularize_code`**: Converts classic C++ headers and translation units into modern C++20/C++23/C++26 Modules with primary interface units, partitions, GMF macro isolation, and CMake 3.28+ build configuration.
+- **`cpp_security_audit`**: Audits C++ code against the SEI CERT C++ Coding Standard and MITRE CWEs, identifying memory safety, concurrency races, and object lifetime violations with secure remediations.
+- **`cpp_generate_tooling_config`**: Generates production-grade, authoritative configuration files for modern C/C++ developer tools (`xmake.lua`, `.clang-format`, `.clang-tidy`, sanitizer flags) tailored to project requirements.
 
 ---
 

@@ -105,4 +105,154 @@ describe("MCP Resources & Prompts", () => {
     expect(result.messages[0].content.text).toContain("GCC 13");
     expect(result.messages[0].content.text).toContain("Root Cause");
   });
+
+  it("should return complete guidelines index for cppref://guidelines", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResources["cppref://guidelines"].readCallback;
+    const result = await handler(new URL("cppref://guidelines"));
+    expect(result.contents).toHaveLength(1);
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed.length).toBeGreaterThan(500);
+  });
+
+  it("should return detailed rule for cppref://guidelines/F.16", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResourceTemplates.cpp_core_guideline_detail.readCallback;
+    const result = await handler(new URL("cppref://guidelines/F.16"), { id: "F.16" });
+    expect(result.contents).toHaveLength(1);
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(parsed.id).toBe("F.16");
+    expect(parsed.title).toContain("in");
+    expect(parsed.section).toBe("F: Functions");
+  });
+
+  it("should return error for unknown guideline id", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResourceTemplates.cpp_core_guideline_detail.readCallback;
+    const result = await handler(new URL("cppref://guidelines/NONEXISTENT"), { id: "NONEXISTENT" });
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(parsed.error).toContain("not found");
+  });
+
+  it("should generate audit prompt for cpp_audit_guidelines", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredPrompts.cpp_audit_guidelines.callback;
+    const code = "void func(int* ptr) { delete ptr; }";
+    const result = await handler({ code, focus: "resource-management" });
+
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0].content.text).toContain(code);
+    expect(result.messages[0].content.text).toContain("resource-management");
+    expect(result.messages[0].content.text).toContain("Core Guidelines");
+  });
+
+  it("should return complete modules catalog for cppref://modules", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResources["cppref://modules"].readCallback;
+    const result = await handler(new URL("cppref://modules"));
+    expect(result.contents).toHaveLength(1);
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed.length).toBeGreaterThanOrEqual(9);
+  });
+
+  it("should return detailed specification for cppref://modules/import-std", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResourceTemplates.cpp_modules_topic_detail.readCallback;
+    const result = await handler(new URL("cppref://modules/import-std"), { topic: "import-std" });
+    expect(result.contents).toHaveLength(1);
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(parsed.id).toBe("import-std");
+    expect(parsed.standard).toBe("C++23");
+    expect(parsed.content).toContain("import std;");
+  });
+
+  it("should generate modularization prompt for cpp_modularize_code", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredPrompts.cpp_modularize_code.callback;
+    const code = "class Calculator { public: int add(int a, int b); };";
+    const result = await handler({
+      code,
+      moduleName: "math.calc",
+      targetStandard: "C++23",
+    });
+
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0].content.text).toContain("math.calc");
+    expect(result.messages[0].content.text).toContain("import std;");
+    expect(result.messages[0].content.text).toContain("FILE_SET CXX_MODULES");
+  });
+
+  it("should return complete CERT catalog for cppref://cert", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResources["cppref://cert"].readCallback;
+    const result = await handler(new URL("cppref://cert"));
+    expect(result.contents).toHaveLength(1);
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed.length).toBeGreaterThanOrEqual(20);
+  });
+
+  it("should return detailed rule for cppref://cert/MEM50-CPP", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResourceTemplates.cpp_cert_rule_detail.readCallback;
+    const result = await handler(new URL("cppref://cert/MEM50-CPP"), { id: "MEM50-CPP" });
+    expect(result.contents).toHaveLength(1);
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(parsed.id).toBe("MEM50-CPP");
+    expect(parsed.cwe).toBe("CWE-416");
+    expect(parsed.vulnerability).toBe("Use-After-Free");
+  });
+
+  it("should generate security audit prompt for cpp_security_audit", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredPrompts.cpp_security_audit.callback;
+    const code = "int* p = new int; delete p; *p = 10;";
+    const result = await handler({
+      code,
+      category: "MEM",
+    });
+
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0].content.text).toContain("SEI CERT C++");
+    expect(result.messages[0].content.text).toContain("CWE");
+    expect(result.messages[0].content.text).toContain("category MEM");
+  });
+
+  it("should return complete tooling catalog for cppref://tooling", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResources["cppref://tooling"].readCallback;
+    const result = await handler(new URL("cppref://tooling"));
+    expect(result.contents).toHaveLength(1);
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("should return detailed guide for cppref://tooling/xmake", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResourceTemplates.cpp_tooling_detail.readCallback;
+    const result = await handler(new URL("cppref://tooling/xmake"), { tool: "xmake" });
+    expect(result.contents).toHaveLength(1);
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(parsed.id).toBe("xmake");
+    expect(parsed.configFileName).toBe("xmake.lua");
+    expect(parsed.sampleConfig).toContain("c++23");
+  });
+
+  it("should generate tooling configuration prompt for cpp_generate_tooling_config", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredPrompts.cpp_generate_tooling_config.callback;
+    const result = await handler({
+      tool: "xmake",
+      standard: "C++23",
+      projectType: "modular",
+    });
+
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0].content.text).toContain("xmake");
+    expect(result.messages[0].content.text).toContain("C++23");
+    expect(result.messages[0].content.text).toContain("modular");
+  });
 });
