@@ -7,12 +7,12 @@
     "url": "https://github.com/CHOCEK-RB/cpp-mcp",
     "source": "github"
   },
-  "version": "0.1.0",
+  "version": "1.0.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "cpp-mcp",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
