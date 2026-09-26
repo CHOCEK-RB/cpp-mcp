@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/CHOCEK-RB/cpp-mcp/compare/v1.1.0...v1.1.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* **build:** remove duplicate shebang and sync version 1.1.1 ([3ec2adb](https://github.com/CHOCEK-RB/cpp-mcp/commit/3ec2adb9f5562e0ce8c5e60da2f0f90c01f1577a))
+
 ## [1.1.0](https://github.com/CHOCEK-RB/cpp-mcp/compare/v1.0.0...v1.1.0) (2026-09-26)
 
 
