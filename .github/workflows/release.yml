@@ -51,21 +51,29 @@ jobs:
         run: gh release upload "${{ steps.release.outputs.tag_name }}" dist/bin/* --clobber
 
       - name: Configure NPM credentials
-        if: ${{ steps.release.outputs.release_created && secrets.NPM_TOKEN != '' }}
+        if: ${{ steps.release.outputs.release_created }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
+        run: |
+          if [ -n "$NODE_AUTH_TOKEN" ]; then
+            echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
+          fi
 
       - name: Publish to NPM
-        if: ${{ steps.release.outputs.release_created && secrets.NPM_TOKEN != '' }}
+        if: ${{ steps.release.outputs.release_created }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --provenance --access public
+        run: |
+          if [ -n "$NODE_AUTH_TOKEN" ]; then
+            npm publish --provenance --access public
+          else
+            echo "Skipping npm publish: NPM_TOKEN not configured."
+          fi
 
   publish-mcp:
     name: Trigger MCP Registry Publish
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created && secrets.MCP_KEY != '' }}
+    if: ${{ needs.release-please.outputs.release_created }}
     uses: ./.github/workflows/publish-mcp.yml
     secrets:
       MCP_KEY: ${{ secrets.MCP_KEY }}
