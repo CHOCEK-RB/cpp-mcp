@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
+import { pageCache } from "../cache.js";
 import { HEADER_MAP, SYMBOL_MAP } from "../data/headers.js";
-import { isValidCppReferenceUrl } from "./page.js";
+import { isValidCppReferenceUrl, USER_AGENT } from "./page.js";
 import { searchCppreference } from "./search.js";
 
 export interface HeaderLookupResult {
@@ -115,16 +116,23 @@ export async function lookupHeader(
     const searchResult = await searchCppreference(rawQuery, fetchFn);
     const targetUrl = searchResult.result_urls[0];
     if (targetUrl && isValidCppReferenceUrl(targetUrl)) {
-      const pageResponse = await fetchFn(targetUrl, {
-        headers: {
-          "User-Agent": "cpp-mcp/1.0.0 (+https://github.com/CHOCEK-RB/cpp-mcp)",
-          Accept: "text/html,application/xhtml+xml",
-        },
-        signal: AbortSignal.timeout(15_000),
-      });
+      let html = await pageCache.get(targetUrl);
+      if (!html) {
+        const pageResponse = await fetchFn(targetUrl, {
+          headers: {
+            "User-Agent": USER_AGENT,
+            Accept: "text/html,application/xhtml+xml",
+          },
+          signal: AbortSignal.timeout(15_000),
+        });
 
-      if (pageResponse.ok) {
-        const html = await pageResponse.text();
+        if (pageResponse.ok) {
+          html = await pageResponse.text();
+          await pageCache.set(targetUrl, html);
+        }
+      }
+
+      if (html) {
         const extracted = extractHeaderFromHtml(html);
 
         if (extracted.header) {

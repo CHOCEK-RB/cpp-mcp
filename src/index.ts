@@ -433,10 +433,15 @@ export async function main(): Promise<void> {
   await server.connect(transport);
 }
 
+const entryArg = typeof process !== "undefined" ? process.argv[1] : undefined;
 const isDirectExecution =
-  typeof process !== "undefined" &&
-  process.argv[1] &&
-  (process.argv[1].endsWith("index.js") || process.argv[1].endsWith("index.ts"));
+  (typeof import.meta !== "undefined" && Boolean(import.meta.main)) ||
+  (typeof process !== "undefined" &&
+    entryArg !== undefined &&
+    !process.argv.some((arg) => arg.includes("test")) &&
+    (entryArg.endsWith("index.js") ||
+      entryArg.endsWith("index.ts") ||
+      entryArg.includes("cpp-mcp")));
 
 if (isDirectExecution) {
   main().catch((err) => {

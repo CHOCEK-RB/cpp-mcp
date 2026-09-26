@@ -74,6 +74,34 @@ try {
     expect(res.codeAuditFindings?.some((f) => f.ruleId === "ERR54-CPP")).toBe(true);
   });
 
+  test("should detect MEM50-CPP manual delete even when delete[] is also present", () => {
+    const code = `
+void cleanup() {
+    delete[] buffer;
+    delete singlePtr;
+}
+`;
+    const res = checkSecureCoding({ code });
+    expect(res.found).toBe(true);
+    expect(res.codeAuditFindings?.some((f) => f.ruleId === "MEM50-CPP")).toBe(true);
+  });
+
+  test("should detect ERR53-CPP throw in destructor with nested control flow", () => {
+    const code = `
+class ResourceHolder {
+    ~ResourceHolder() {
+        if (hasError) {
+            cleanup();
+        }
+        throw std::runtime_error("failed in dtor");
+    }
+};
+`;
+    const res = checkSecureCoding({ code });
+    expect(res.found).toBe(true);
+    expect(res.codeAuditFindings?.some((f) => f.ruleId === "ERR53-CPP")).toBe(true);
+  });
+
   test("should return not found for unknown rule ID", () => {
     const res = checkSecureCoding({ rule_id: "XYZ999-CPP" });
     expect(res.found).toBe(false);

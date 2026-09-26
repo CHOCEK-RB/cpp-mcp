@@ -104,6 +104,28 @@ describe("lookupHeader", () => {
     expect(result.header).toBe("<custom_hdr>");
     expect(result.since).toBe("C++26");
     expect(result.source).toBe("cppreference_scrape");
+
+    // Second call should hit pageCache without calling network fetch
+    let networkHit = false;
+    const trackingFetch = async (url: string | URL | Request) => {
+      const urlStr = decodeURIComponent(url.toString());
+      if (urlStr.includes("Special:Search")) {
+        return new Response(
+          '<div class="mw-search-result-heading"><a href="/w/cpp/custom_symbol">symbol</a></div>',
+          { status: 200, headers: { "Content-Type": "text/html" } },
+        );
+      }
+      networkHit = true;
+      throw new Error("Should have used pageCache");
+    };
+
+    const cachedResult = await lookupHeader(
+      "custom_symbol_unknown",
+      trackingFetch as unknown as typeof fetch,
+    );
+    expect(cachedResult.found).toBe(true);
+    expect(cachedResult.header).toBe("<custom_hdr>");
+    expect(networkHit).toBe(false);
   });
 
   it("should return not_found for non-existent symbols with no search results", async () => {

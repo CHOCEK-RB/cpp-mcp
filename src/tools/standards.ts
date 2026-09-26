@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
+import { pageCache } from "../cache.js";
 import { CPP_STANDARD_HEADERS, SYMBOL_MAP } from "../data/headers.js";
-import { isValidCppReferenceUrl } from "./page.js";
+import { isValidCppReferenceUrl, USER_AGENT } from "./page.js";
 import { searchCppreference } from "./search.js";
 
 export const CPP_STANDARDS = [
@@ -62,9 +63,23 @@ const HISTORICAL_SYMBOLS: Record<string, DeprecationRecord> = {
     removedIn: "C++17",
     standard: "C++",
   },
+  random_shuffle: {
+    since: "C++98",
+    deprecatedIn: "C++14",
+    removedIn: "C++17",
+    standard: "C++",
+  },
   "std::bind1st": { since: "C++98", deprecatedIn: "C++11", removedIn: "C++17", standard: "C++" },
+  bind1st: { since: "C++98", deprecatedIn: "C++11", removedIn: "C++17", standard: "C++" },
   "std::bind2nd": { since: "C++98", deprecatedIn: "C++11", removedIn: "C++17", standard: "C++" },
+  bind2nd: { since: "C++98", deprecatedIn: "C++11", removedIn: "C++17", standard: "C++" },
   "std::raw_storage_iterator": {
+    since: "C++98",
+    deprecatedIn: "C++17",
+    removedIn: "C++20",
+    standard: "C++",
+  },
+  raw_storage_iterator: {
     since: "C++98",
     deprecatedIn: "C++17",
     removedIn: "C++20",
@@ -207,7 +222,12 @@ export async function checkCppStandard(
     : undefined;
 
   // 1. Check historical removals database
-  const historical = HISTORICAL_SYMBOLS[symbol] || HISTORICAL_SYMBOLS[symbol.toLowerCase()];
+  const bareSymbol = symbol.replace(/^std::/i, "");
+  const historical =
+    HISTORICAL_SYMBOLS[symbol] ||
+    HISTORICAL_SYMBOLS[symbol.toLowerCase()] ||
+    HISTORICAL_SYMBOLS[`std::${bareSymbol}`] ||
+    HISTORICAL_SYMBOLS[bareSymbol];
   if (historical) {
     let status: StandardCheckResult["status"] = "supported";
     if (targetStandard) {
@@ -280,7 +300,11 @@ export async function checkCppStandard(
       }
     }
 
-    const macro = FEATURE_TEST_MACROS[symbol];
+    const cleanSymbol = symbol.replace(/^std::/i, "");
+    const macro =
+      FEATURE_TEST_MACROS[symbol] ||
+      FEATURE_TEST_MACROS[`std::${cleanSymbol}`] ||
+      FEATURE_TEST_MACROS[cleanSymbol];
     return {
       symbol,
       standard: staticStandard,
@@ -300,16 +324,23 @@ export async function checkCppStandard(
     const searchResult = await searchCppreference(symbol, fetchFn);
     const targetUrl = searchResult.result_urls[0];
     if (targetUrl && isValidCppReferenceUrl(targetUrl)) {
-      const pageResponse = await fetchFn(targetUrl, {
-        headers: {
-          "User-Agent": "cpp-mcp/1.0.0 (+https://github.com/CHOCEK-RB/cpp-mcp)",
-          Accept: "text/html,application/xhtml+xml",
-        },
-        signal: AbortSignal.timeout(15_000),
-      });
+      let html = await pageCache.get(targetUrl);
+      if (!html) {
+        const pageResponse = await fetchFn(targetUrl, {
+          headers: {
+            "User-Agent": USER_AGENT,
+            Accept: "text/html,application/xhtml+xml",
+          },
+          signal: AbortSignal.timeout(15_000),
+        });
 
-      if (pageResponse.ok) {
-        const html = await pageResponse.text();
+        if (pageResponse.ok) {
+          html = await pageResponse.text();
+          await pageCache.set(targetUrl, html);
+        }
+      }
+
+      if (html) {
         const parsed = parseStandardVersionsFromHtml(html);
         const resolvedSince = parsed.since || "C++98";
 

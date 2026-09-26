@@ -97,8 +97,9 @@ export function auditCodeSnippet(code: string): Array<{
     });
   }
 
-  // Pattern 3: Manual delete or raw pointer deletion
-  if (/\bdelete\b/.test(code) && !/\bdelete\[\]\b/.test(code)) {
+  // Pattern 3: Manual delete or raw pointer deletion (including when delete[] is also present)
+  const hasSingleDelete = /\bdelete\b/.test(code.replace(/delete\s*\[\s*\]/g, ""));
+  if (hasSingleDelete) {
     findings.push({
       ruleId: "MEM50-CPP",
       cwe: "CWE-416",
@@ -110,17 +111,36 @@ export function auditCodeSnippet(code: string): Array<{
     });
   }
 
-  // Pattern 4: Throw in destructor
-  if (/~[a-zA-Z0-9_]+\s*\([^)]*\)[^{]*\{[^}]*\bthrow\b/.test(code)) {
-    findings.push({
-      ruleId: "ERR53-CPP",
-      cwe: "CWE-398",
-      severity: "High",
-      vulnerability: "Immediate std::terminate during Stack Unwinding",
-      issue: "Throwing an exception from inside a destructor.",
-      recommendation:
-        "Destructors must be noexcept. Catch and handle or suppress exceptions internally.",
-    });
+  // Pattern 4: Throw in destructor (supports nested inner blocks)
+  const dtorMatch = code.match(/~[a-zA-Z0-9_]+\s*\([^)]*\)[^{]*\{/);
+  if (dtorMatch && dtorMatch.index !== undefined) {
+    const afterOpenBrace = code.slice(dtorMatch.index + dtorMatch[0].length);
+    let depth = 1;
+    let dtorBody = "";
+    for (let i = 0; i < afterOpenBrace.length; i++) {
+      const ch = afterOpenBrace[i];
+      if (ch === "{") depth++;
+      else if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          dtorBody = afterOpenBrace.slice(0, i);
+          break;
+        }
+      }
+    }
+    if (depth > 0) dtorBody = afterOpenBrace;
+
+    if (/\bthrow\b/.test(dtorBody)) {
+      findings.push({
+        ruleId: "ERR53-CPP",
+        cwe: "CWE-398",
+        severity: "High",
+        vulnerability: "Immediate std::terminate during Stack Unwinding",
+        issue: "Throwing an exception from inside a destructor.",
+        recommendation:
+          "Destructors must be noexcept. Catch and handle or suppress exceptions internally.",
+      });
+    }
   }
 
   // Pattern 5: Strict aliasing reinterpret_cast

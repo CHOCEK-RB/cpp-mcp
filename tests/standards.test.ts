@@ -97,6 +97,19 @@ describe("checkCppStandard", () => {
     expect(autoPtrC99.status).toBe("unsupported");
   });
 
+  it("should correctly identify deprecated and removed historical symbols without std:: prefix", async () => {
+    const shuffle = await checkCppStandard("random_shuffle", "c++17");
+    expect(shuffle.status).toBe("removed");
+    expect(shuffle.since).toBe("C++98");
+    expect(shuffle.source).toBe("static_index");
+  });
+
+  it("should resolve feature test macros for bare symbol names", async () => {
+    const span = await checkCppStandard("span", "c++20");
+    expect(span.status).toBe("supported");
+    expect(span.featureTestMacro?.macro).toBe("__cpp_lib_span");
+  });
+
   it("should verify C++23 features like std::print and std::expected", async () => {
     const printCpp20 = await checkCppStandard("std::print", "c++20");
     expect(printCpp20.status).toBe("unsupported");

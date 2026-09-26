@@ -2,7 +2,7 @@ import * as cheerio from "cheerio";
 import { type SearchResultPayload, searchCache } from "../cache.js";
 
 export const BASE_URL = "https://en.cppreference.com";
-export const USER_AGENT = "cpp-mcp/1.0.0 (+https://github.com/CHOCEK-RB/cpp-mcp)";
+export const USER_AGENT = "cpp-mcp/1.1.1 (+https://github.com/CHOCEK-RB/cpp-mcp)";
 export const MAX_SEARCH_RESULTS = 5;
 export const HTTP_TIMEOUT_MS = 15_000;
 
