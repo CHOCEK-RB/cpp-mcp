@@ -125,6 +125,26 @@ Checks which C or C++ language standard version introduced, deprecated, or remov
 
 ---
 
+## Resources Catalog
+
+The server exposes read-only MCP resources providing zero-overhead offline datasets:
+
+- **`cppref://headers`**: Complete inventory of all ISO C and C++ standard library headers with categories and declared symbols.
+- **`cppref://headers/{name}`**: Detailed specification, declared symbols, and standard revisions for a specific header (e.g. `cppref://headers/vector`, `cppref://headers/ranges`, `cppref://headers/print`).
+- **`cppref://standards`**: Chronological standards timeline (C++98 to C++26, C89 to C23) and official feature test macros.
+
+---
+
+## Prompts Catalog
+
+Pre-engineered prompt templates for AI clients:
+
+- **`cpp_explain_symbol`**: Structured explanation of a C/C++ symbol covering required header, language availability, time/space complexity, and idiomatic modern code example.
+- **`cpp_modernize_code`**: Upgrades legacy C or C++ code into modern idiomatic C++ (C++20/C++23) using RAII, `std::ranges`, `std::string_view`, and `std::print`.
+- **`cpp_diagnose_compiler_error`**: Diagnoses compiler diagnostic output, pinpointing missing `#include` headers, standard flag discrepancies (`-std=c++20`), or concept constraints.
+
+---
+
 ## Quickstart
 
 Run directly without manual installation:
