@@ -179,4 +179,87 @@ export function registerResources(server: McpServer): void {
       };
     },
   );
+
+  // Resource 6: C++ Modules Guide Index
+  server.registerResource(
+    "cpp_modules_guide_index",
+    "cppref://modules",
+    {
+      description:
+        "Architectural catalog and best practice guidelines for C++20, C++23, and C++26 Modules (syntax, import std, partitions, GMF, CMake).",
+      mimeType: "application/json",
+    },
+    async () => {
+      const { MODULE_GUIDES } = await import("../data/modules_guide.js");
+      const summaryList = MODULE_GUIDES.map((g) => ({
+        id: g.id,
+        title: g.title,
+        standard: g.standard,
+        summary: g.summary,
+      }));
+
+      return {
+        contents: [
+          {
+            uri: "cppref://modules",
+            text: JSON.stringify(summaryList, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    },
+  );
+
+  // Resource 7: C++ Modules Topic Detail
+  server.registerResource(
+    "cpp_modules_topic_detail",
+    new ResourceTemplate("cppref://modules/{topic}", { list: undefined }),
+    {
+      description:
+        "Full architectural specification, rules, and code patterns for a specific C++ module topic (e.g. 'import-std', 'partitions', 'cmake-build-systems').",
+      mimeType: "application/json",
+    },
+    async (uri: URL, variables: { [key: string]: string | string[] | undefined }) => {
+      const { MODULE_GUIDE_BY_ID, MODULE_GUIDES } = await import("../data/modules_guide.js");
+      const { normalizeTopicId } = await import("../tools/modules.js");
+      const rawTopic = String(variables.topic || "");
+      const normalized = normalizeTopicId(rawTopic);
+      const topicEntry =
+        MODULE_GUIDE_BY_ID.get(rawTopic.toLowerCase()) ||
+        MODULE_GUIDE_BY_ID.get(normalized) ||
+        MODULE_GUIDES.find(
+          (g) =>
+            g.id.toLowerCase().includes(normalized) ||
+            g.aliases.some((a) => a.toLowerCase().includes(normalized)),
+        );
+
+      if (!topicEntry) {
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              text: JSON.stringify(
+                {
+                  error: `Module topic '${rawTopic}' not found. Available topics: ${MODULE_GUIDES.map((g) => g.id).join(", ")}.`,
+                },
+                null,
+                2,
+              ),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            text: JSON.stringify(topicEntry, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    },
+  );
 }
