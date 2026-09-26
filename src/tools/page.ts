@@ -52,7 +52,7 @@ export async function getCppreferencePage(
     startIndex = parsedCursor;
   }
 
-  let fullMarkdown = pageCache.get(url);
+  let fullMarkdown = await pageCache.get(url);
 
   if (!fullMarkdown) {
     const response = await fetchFn(url, {
@@ -101,7 +101,7 @@ export async function getCppreferencePage(
 
     const cleanHtml = content.html() || "";
     fullMarkdown = turndownService.turndown(cleanHtml).trim();
-    pageCache.set(url, fullMarkdown);
+    await pageCache.set(url, fullMarkdown);
   }
 
   const endIndex = Math.min(startIndex + PAGE_SIZE, fullMarkdown.length);
