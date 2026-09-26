@@ -23,10 +23,10 @@
     "llm"
   ],
   "bin": {
-    "cpp-mcp": "./dist/index.js"
+    "cpp-mcp": "dist/index.js"
   },
   "files": [
-    "dist"
+    "dist/index.js"
   ],
   "scripts": {
     "build": "bun build src/index.ts --target node --outfile dist/index.js --banner '#!/usr/bin/env node'",
@@ -40,7 +40,9 @@
     "check:publint": "publint --strict",
     "test": "bun test",
     "test:coverage": "bun test --coverage",
-    "sync:headers": "bun scripts/sync-headers.ts"
+    "sync:headers": "bun scripts/sync-headers.ts",
+    "compile": "bun build --compile --minify ./src/index.ts --outfile dist/bin/cpp-mcp",
+    "compile:all": "bun run scripts/compile-binaries.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.1",
