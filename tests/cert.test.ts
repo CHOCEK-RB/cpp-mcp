@@ -102,6 +102,33 @@ class ResourceHolder {
     expect(res.codeAuditFindings?.some((f) => f.ruleId === "ERR53-CPP")).toBe(true);
   });
 
+  test("should filter rules by new categories STR and INT", () => {
+    const strRes = checkSecureCoding({ category: "STR" });
+    expect(strRes.found).toBe(true);
+    expect(strRes.matches?.length).toBe(4);
+    expect(strRes.matches?.some((m) => m.id === "STR50-CPP")).toBe(true);
+
+    const intRes = checkSecureCoding({ category: "INT" });
+    expect(intRes.found).toBe(true);
+    expect(intRes.matches?.length).toBe(1);
+    expect(intRes.matches?.[0]?.id).toBe("INT50-CPP");
+  });
+
+  test("should retrieve newly synced rule STR50-CPP with solution", () => {
+    const res = checkSecureCoding({ rule_id: "STR50-CPP" });
+    expect(res.found).toBe(true);
+    expect(res.rule?.id).toBe("STR50-CPP");
+    expect(res.rule?.category).toBe("STR");
+    expect(res.rule?.title).toContain("Guarantee that storage for strings has sufficient space");
+    expect(res.rule?.compliantSolution).toContain("std::string");
+  });
+
+  test("should have all 83 SEI CERT C++ rules in the synced catalog", () => {
+    const res = checkSecureCoding();
+    expect(res.found).toBe(true);
+    expect(res.totalRules).toBe(83);
+  });
+
   test("should return not found for unknown rule ID", () => {
     const res = checkSecureCoding({ rule_id: "XYZ999-CPP" });
     expect(res.found).toBe(false);
@@ -111,7 +138,7 @@ class ResourceHolder {
   test("should return catalog overview when no parameters are provided", () => {
     const res = checkSecureCoding();
     expect(res.found).toBe(true);
-    expect(res.totalRules).toBeGreaterThanOrEqual(20);
+    expect(res.totalRules).toBeGreaterThanOrEqual(80);
   });
 
   test("should register check_secure_coding in createServer", () => {

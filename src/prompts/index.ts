@@ -231,10 +231,10 @@ Modularization Guidelines:
       argsSchema: {
         code: z.string().min(1).describe("The C++ source code to audit for security flaws"),
         category: z
-          .enum(["MEM", "EXP", "CTR", "ERR", "CON", "OOP", "MSC", "DCL", "FIO"])
+          .enum(["MEM", "EXP", "CTR", "ERR", "CON", "OOP", "MSC", "DCL", "FIO", "STR", "INT"])
           .optional()
           .describe(
-            "Specific CERT category to focus on (e.g. 'MEM' for memory, 'CON' for concurrency)",
+            "Specific CERT category to focus on (e.g. 'MEM' for memory, 'CON' for concurrency, 'STR' for strings, 'INT' for integers)",
           ),
       },
     },
