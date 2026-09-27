@@ -29,6 +29,10 @@ flowchart TD
         Server --> T8["get_cpp_tooling_guide"]
         Server --> T9["check_compiler_support"]
         Server --> T10["demangle_symbol"]
+        Server --> T11["search_code_symbols"]
+        Server --> T12["analyze_code_symbol"]
+        Server --> T13["get_project_details"]
+        Server --> T14["get_code_diagnostics"]
     end
 
     subgraph Primitives ["MCP Native Primitives"]
@@ -419,6 +423,48 @@ Inspects C/C++ workspace build configuration, automatically detects build system
   }
   ```
 
+### 14. `get_code_diagnostics`
+
+Retrieves live C/C++ compilation diagnostics (syntax errors, type mismatches, missing headers, unused variables, and compiler warnings) powered by `clangd` LSP and the project compilation database. Supports inspecting saved files or testing in-memory code snippets with multi-line caret pointers.
+
+- **Parameters**:
+  - `file` (`string`, optional): Source or header file to analyze (e.g. `"src/main.cpp"`). If omitted, returns diagnostics across all tracked project files.
+  - `code` (`string`, optional): In-memory source code to check without modifying disk.
+  - `workspaceDir` (`string`, optional): Project root directory.
+  - `severity` (`string`, optional): Filter diagnostics (`"all"`, `"error"`, `"warning"`). Defaults to `"all"`.
+  - `waitTimeout` (`number`, optional): Maximum seconds to wait for clangd AST parsing (default: `3`).
+
+- **Output Example**:
+  ```json
+  {
+    "success": true,
+    "workspaceDir": "/home/user/project",
+    "buildSystem": "xmake",
+    "totalErrors": 1,
+    "totalWarnings": 0,
+    "files": [
+      {
+        "file": "src/main.cpp",
+        "errorCount": 1,
+        "warningCount": 0,
+        "diagnostics": [
+          {
+            "file": "src/main.cpp",
+            "line": 42,
+            "character": 12,
+            "endLine": 42,
+            "endCharacter": 24,
+            "severity": "error",
+            "message": "use of undeclared identifier 'my_variable'",
+            "source": "clang",
+            "snippet": "  41 | int a = 10;\n> 42 | my_variable = 20;\n     | ^~~~~~~~~~~\n  43 | return a;"
+          }
+        ]
+      }
+    ]
+  }
+  ```
+
 ---
 
 ## Resources Catalog
@@ -591,6 +637,12 @@ cpp-mcp code-analyze "Calculator::add"
 
 # Disambiguate identical symbols or forward declarations via file and line hints
 cpp-mcp code-analyze "__tb_element_t" --workspace /path/to/project --file include/element.h --line 182
+
+# Check compiler errors and warnings with live AST diagnostics and caret pointers
+cpp-mcp code-diagnostics
+cpp-mcp code-diagnostics src/main.cpp
+cpp-mcp code-diagnostics src/main.cpp --severity error
+cpp-mcp code-diagnostics src/main.cpp --code "int x = undeclared_var;" --json
 
 # Raw or JSON output for shell scripting and automation
 cpp-mcp code-search Vec2 --raw

@@ -4,6 +4,7 @@ import pkg from "../package.json" with { type: "json" };
 import { isExecutableAvailable, resolveProjectBuildInfo } from "./project/xmake.js";
 import { checkSecureCoding } from "./tools/cert.js";
 import { analyzeCodeSymbol } from "./tools/code-analyzer.js";
+import { getCodeDiagnostics } from "./tools/code-diagnostics.js";
 import { searchCodeSymbols } from "./tools/code-search.js";
 import { sessionManager } from "./tools/code-session-manager.js";
 import { type CompilerName, checkCompilerSupport } from "./tools/compiler-support.js";
@@ -29,6 +30,7 @@ Commands:
   project [dir]                     Inspect workspace build configuration, compile_commands, and tools
   code-search <query>               Search symbols in workspace code (clangd + xmake/CMake)
   code-analyze <symbol>             Analyze symbol definition, hierarchy, and usage
+  code-diagnostics [file]           Inspect live compiler errors and warnings via clangd
   compiler <feature> [options]      Check compiler support matrix (GCC, Clang, MSVC, Apple Clang)
   demangle <symbol|->               Demangle Itanium or MSVC mangled symbols (or stdin)
   cert <rule_id|cwe|category>       Audit against SEI CERT C++ rules and CWEs
@@ -40,9 +42,11 @@ Commands:
 Options:
   --json                            Output response in raw JSON format
   --raw                             Print only primary scalar value (e.g. only header name)
-  --workspace <dir>                 Project root directory for code-search and code-analyze
-  --file <path>                     Source file path for symbol disambiguation
+  --workspace <dir>                 Project root directory for code-search, code-analyze, and diagnostics
+  --file <path>                     Source file path for symbol disambiguation or diagnostics
   --line <num>                      Line number (1-indexed) for symbol disambiguation
+  --severity <level>                Filter diagnostics (all, error, warning)
+  --code <code>                     Inline code snippet to check without saving to disk
   --compiler <name>                 Compiler name for compatibility checks (gcc, clang, msvc, apple_clang)
   --version <ver>                   Compiler version to evaluate against feature requirement
   -v, --version                     Print version and exit
@@ -85,6 +89,8 @@ export async function runCli(args: string[]): Promise<number> {
   let flagWorkspace: string | undefined;
   let flagFile: string | undefined;
   let flagLine: number | undefined;
+  let flagSeverity: string | undefined;
+  let flagCode: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -109,6 +115,14 @@ export async function runCli(args: string[]): Promise<number> {
     }
     if (arg === "--line" && i + 1 < args.length) {
       flagLine = Number.parseInt(args[++i] ?? "0", 10);
+      continue;
+    }
+    if (arg === "--severity" && i + 1 < args.length) {
+      flagSeverity = args[++i];
+      continue;
+    }
+    if (arg === "--code" && i + 1 < args.length) {
+      flagCode = args[++i];
       continue;
     }
     if (!arg.startsWith("-")) {
@@ -548,6 +562,70 @@ export async function runCli(args: string[]): Promise<number> {
           }
         }
         return 0;
+      }
+
+      case "code-diagnostics":
+      case "diagnostics":
+      case "check": {
+        const targetFile = target || flagFile;
+        const res = await getCodeDiagnostics({
+          file: targetFile,
+          code: flagCode,
+          workspaceDir: flagWorkspace,
+          severity: flagSeverity as "all" | "error" | "warning" | undefined,
+        });
+
+        if (isJson) {
+          console.log(JSON.stringify(res, null, 2));
+          return res.success ? (res.totalErrors > 0 ? 1 : 0) : 1;
+        }
+
+        if (!res.success) {
+          console.error(res.error || "Failed to retrieve code diagnostics.");
+          return 1;
+        }
+
+        if (res.totalErrors === 0 && res.totalWarnings === 0) {
+          if (targetFile) {
+            console.log(`✓ No errors or warnings found in ${targetFile}`);
+          } else {
+            console.log("✓ No errors or warnings found across tracked workspace files.");
+          }
+          return 0;
+        }
+
+        console.log(
+          `Found ${res.totalErrors} error(s) and ${res.totalWarnings} warning(s) (workspace: ${res.workspaceDir}):\n`,
+        );
+
+        for (const fileSummary of res.files) {
+          if (fileSummary.diagnostics.length === 0) continue;
+          console.log(
+            `File: ${fileSummary.file} (${fileSummary.errorCount} errors, ${fileSummary.warningCount} warnings)`,
+          );
+          for (const diag of fileSummary.diagnostics) {
+            const sevTag =
+              diag.severity === "error"
+                ? "ERROR"
+                : diag.severity === "warning"
+                  ? "WARNING"
+                  : "INFO";
+            console.log(
+              `  [${sevTag}] L${diag.line}:${diag.character} - ${diag.message} (${diag.source})`,
+            );
+            if (diag.snippet) {
+              console.log(
+                diag.snippet
+                  .split("\n")
+                  .map((l) => `    ${l}`)
+                  .join("\n"),
+              );
+            }
+          }
+          console.log();
+        }
+
+        return res.totalErrors > 0 ? 1 : 0;
       }
 
       default: {

@@ -10,6 +10,7 @@ import { registerPrompts } from "./prompts/index.js";
 import { registerResources } from "./resources/index.js";
 import { checkSecureCoding } from "./tools/cert.js";
 import { analyzeCodeSymbol } from "./tools/code-analyzer.js";
+import { getCodeDiagnostics } from "./tools/code-diagnostics.js";
 import { searchCodeSymbols } from "./tools/code-search.js";
 import { sessionManager } from "./tools/code-session-manager.js";
 import { checkCompilerSupport } from "./tools/compiler-support.js";
@@ -701,6 +702,73 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error inspecting project details: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "get_code_diagnostics",
+    {
+      description:
+        "Retrieve live C/C++ compilation diagnostics (errors, warnings) using clangd LSP and project compilation database. Supports checking saved files or in-memory code snippets with line snippets and caret indicators.",
+      inputSchema: {
+        file: z
+          .string()
+          .optional()
+          .describe(
+            "Source or header file path to analyze (e.g. 'src/main.cpp'). If omitted, returns diagnostics across all tracked project files.",
+          ),
+        code: z
+          .string()
+          .optional()
+          .describe(
+            "Optional in-memory source code to check without saving to disk. Requires 'file' to determine path and file type.",
+          ),
+        workspaceDir: z
+          .string()
+          .optional()
+          .describe(
+            "Project root directory containing xmake.lua, CMakeLists.txt, or compile_commands.json. Defaults to cwd.",
+          ),
+        severity: z
+          .enum(["all", "error", "warning"])
+          .optional()
+          .describe("Filter diagnostics by severity level (default: 'all')."),
+        waitTimeout: z
+          .number()
+          .optional()
+          .describe(
+            "Maximum seconds to wait for clangd to parse and publish diagnostics (default: 3).",
+          ),
+      },
+    },
+    async ({ file, code, workspaceDir, severity, waitTimeout }) => {
+      try {
+        const result = await getCodeDiagnostics({
+          file,
+          code,
+          workspaceDir,
+          severity,
+          waitTimeout,
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error retrieving code diagnostics: ${error instanceof Error ? error.message : String(error)}`,
             },
           ],
         };
