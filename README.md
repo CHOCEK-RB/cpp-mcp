@@ -15,37 +15,28 @@ Model Context Protocol (MCP) server that empowers AI coding assistants with auth
 ## Architecture
 
 ```mermaid
-flowchart TD
-    Client["AI Client\n(Antigravity / Claude / VS Code / Zed)"] -- stdio / JSON-RPC --> Server["cpp-mcp Server"]
+flowchart TB
+    Client["AI Clients\n(Antigravity / Claude / VS Code / Cursor / Zed)"] -->|stdio · JSON-RPC| Server["cpp-mcp Server"]
 
-    subgraph Tools ["Tools Catalog"]
-        Server --> T1["search_cppreference"]
-        Server --> T2["get_cppreference_page"]
-        Server --> T3["lookup_header"]
-        Server --> T4["check_cpp_standard"]
-        Server --> T5["get_guideline"]
-        Server --> T6["get_cpp_modules_guide"]
-        Server --> T7["check_secure_coding"]
-        Server --> T8["get_cpp_tooling_guide"]
-        Server --> T9["check_compiler_support"]
-        Server --> T10["demangle_symbol"]
-        Server --> T11["search_code_symbols"]
-        Server --> T12["analyze_code_symbol"]
-        Server --> T13["get_project_details"]
-        Server --> T14["get_code_diagnostics"]
-        Server --> T15["rename_code_symbol"]
+    subgraph Tools ["18 MCP Tools by Functional Domain"]
+        direction LR
+        D1["Reference & Standards\n• search_cppreference\n• get_cppreference_page\n• lookup_header\n• check_cpp_standard"]
+        D2["Safety & Guidelines\n• check_secure_coding (CERT)\n• get_guideline (Core Guidelines)\n• get_cpp_modules_guide\n• get_cpp_tooling_guide"]
+        D3["Semantic Intelligence (AST)\n• search_code_symbols\n• analyze_code_symbol\n• rename_code_symbol\n• get_code_diagnostics\n• get_project_details"]
+        D4["Developer Productivity\n• format_code (clang-format)\n• scaffold_project (xmake / CMake)\n• explain_compiler_error\n• demangle_symbol\n• check_compiler_support"]
     end
 
-    subgraph Primitives ["MCP Native Primitives"]
-        Server --> Res["Resources (cppref://...)"]
-        Server --> Prm["Prompts (cpp_explain_symbol...)"]
+    subgraph Backends ["Execution & Storage Engines"]
+        direction LR
+        Cache[("Tiered Cache\nL1 Memory + L2 Disk")]
+        LSP["clangd LSP & xmake\nAST & Compilation DB"]
+        Web["cppreference.com\nHTTPS Scraper"]
     end
 
-    subgraph Storage ["Tiered Storage & Fallback"]
-        T1 & T2 & T3 & T4 --> Cache[("TieredCache\n(L1 LRU Memory + L2 Disk with TTL)")]
-        T3 & T4 & T5 & T6 & T7 & T8 & T9 & T10 --> StaticIdx[("Curated Engines & Datasets\n(Guidelines, Modules, CERT, Tooling, Compiler Support, Demangler)")]
-        Cache -- Miss --> Web["cppreference.com\n(HTTPS Scraper + Sanitizer)"]
-    end
+    Server --> Tools
+    D1 --> Cache
+    D3 --> LSP
+    Cache -.->|Cache Miss| Web
 ```
 
 ---
@@ -54,6 +45,10 @@ flowchart TD
 
 - **Authoritative C/C++ Lookup**: Instant access to standard headers, containers, algorithms, keywords, and C++20/23/26 features.
 - **Semantic Code Intelligence (xmake + clangd LSP)**: Deep AST understanding of your local codebase with automatic compilation database generation via `xmake`, symbol search, type inheritance, call hierarchies, and usage examples (`search_code_symbols`, `analyze_code_symbol`).
+- **Live Compiler Diagnostics & AST Renaming**: Real-time error detection with caret pointers (`^~~~`), AST-based safe symbol renaming across all workspace files, and automated header tracking (`get_code_diagnostics`, `rename_code_symbol`).
+- **C/C++ Code Formatter**: Instant in-memory and file formatting via `clang-format` with project `.clang-format` auto-discovery, standard presets (`LLVM`, `Google`), line ranges, and unified diff preview (`format_code`).
+- **Smart C++ Project Scaffolding**: One-command project bootstrapping with modern `xmake` / `CMake`, C++11-26 standards, Catch2/GTest/doctest, C++20 modules, Qt6, CUDA, `.clang-format`, and `.clangd` LSP configurations (`scaffold_project`).
+- **Intelligent Compiler & Linker Error Explainer**: Translates intimidating template cascades, unsatisfied C++20 concepts, missing vtables, and undefined references into plain English root causes, simplified signatures, and concrete code fixes (`explain_compiler_error`).
 - **C++20/23/26 Modules Architecture**: Dedicated offline guide and best practices for `import std;`, interface & internal partitions, CMake 3.28+ (`FILE_SET CXX_MODULES`), and header migration (`get_cpp_modules_guide`).
 - **Modern C/C++ Tooling Ecosystem**: In-depth recipes and starter configs for `xmake` (Lua build system with native C++20 modules), `clang-format`, `clang-tidy`, and runtime sanitizers (`get_cpp_tooling_guide`).
 - **SEI CERT C++ Security Standard**: Complete catalog of 83 official rules with CWE mappings, heuristic auditing, and compliant fixes for memory safety, concurrency, strings, integers, and UB prevention (`check_secure_coding`).
@@ -505,6 +500,107 @@ Performs AST-level semantic symbol renaming across all workspace files powered b
   }
   ```
 
+### 16. `format_code`
+
+Formats C/C++ source code snippets or files using `clang-format`. Ideal for formatting AI-generated code before writing to disk, ensuring strict compliance with the workspace `.clang-format` or standard presets (`LLVM`, `Google`, `Chromium`, `Mozilla`, `WebKit`, `Microsoft`).
+
+- **Parameters**:
+  - `code` (`string`, optional): In-memory C/C++ code snippet to format.
+  - `file` (`string`, optional): Relative or absolute path to a file on disk.
+  - `workspace` (`string`, optional): Workspace directory to look for `.clang-format`.
+  - `style` (`string`, optional, default `"file"`): Format style preset or custom YAML string.
+  - `fallback_style` (`string`, optional, default `"LLVM"`): Fallback preset if `.clang-format` is not found.
+  - `apply` (`boolean`, optional, default `false`): If true, updates file on disk; otherwise outputs diff preview.
+  - `start_line` / `end_line` (`number`, optional): 1-indexed line range to format only a sub-region.
+
+- **Output Example**:
+  ```json
+  {
+    "formatted": true,
+    "changed": true,
+    "formattedCode": "int main() {\n  int a = 1;\n  return a;\n}\n",
+    "diff": "--- a/main.cpp\n+++ b/main.cpp\n@@ -1,1 +1,4 @@\n- int main(){int a=1;return a;}\n+ int main() {\n+   int a = 1;\n+   return a;\n+ }",
+    "applied": false
+  }
+  ```
+
+### 17. `scaffold_project`
+
+Bootstraps a modern, production-ready C++ project configured with build systems (`xmake` or `CMake`), C++ standards (`11` through `26`), unit testing (`Catch2`, `GoogleTest`, `doctest`), package managers (`xrepo`, `vcpkg`, `conan`), and intelligent LSP configurations (`.clang-format`, `.clangd`).
+
+- **Parameters**:
+  - `project_name` (`string`, required): Project name (e.g. `"my_awesome_app"`).
+  - `target_dir` (`string`, optional): Target directory for scaffolding (default: `./<project_name>`).
+  - `build_system` (`string`, optional, default `"xmake"`): Build system (`"xmake"` or `"cmake"`).
+  - `project_type` (`string`, optional, default `"executable"`): Type of project (`"executable"`, `"library"`, `"header-only"`, `"cxx-modules"`, `"qt"`, `"cuda"`).
+  - `cpp_standard` (`string`, optional, default `"20"`): C++ standard (`"11"`, `"14"`, `"17"`, `"20"`, `"23"`, `"26"`).
+  - `test_framework` (`string`, optional, default `"catch2"`): Test framework (`"catch2"`, `"gtest"`, `"doctest"`, `"none"`).
+  - `package_manager` (`string`, optional): Package manager (`"xrepo"`, `"vcpkg"`, `"conan"`, `"none"`).
+  - `init_clang_tools` (`boolean`, optional, default `true`): Generates `.clang-format` and `.clangd`.
+  - `init_git` (`boolean`, optional, default `false`): Initializes local git repository.
+  - `dry_run` (`boolean`, optional, default `false`): Previews generated file tree without writing to disk.
+  - `overwrite` (`boolean`, optional, default `false`): Allows overwriting existing non-empty directory.
+
+- **Output Example**:
+  ```json
+  {
+    "success": true,
+    "projectName": "my_app",
+    "projectDir": "/home/user/my_app",
+    "buildSystem": "xmake",
+    "projectType": "executable",
+    "cppStandard": "20",
+    "testFramework": "catch2",
+    "filesCreated": [
+      "xmake.lua",
+      ".clang-format",
+      ".clangd",
+      ".gitignore",
+      "README.md",
+      "include/my_app/my_app.hpp",
+      "src/my_app.cpp",
+      "src/main.cpp",
+      "tests/test_main.cpp"
+    ],
+    "nextSteps": [
+      "cd my_app",
+      "xmake",
+      "xmake run",
+      "xmake test",
+      "xmake project -k compile_commands"
+    ]
+  }
+  ```
+
+### 18. `explain_compiler_error`
+
+Analyzes and explains complex, multi-page C++ compiler and linker errors in plain language. Demangles linker symbols, strips intimidating STL template expansion noise, pinpoints unsatisfied C++20 concepts, identifies missing vtables/destructors, and provides concrete remediation code.
+
+- **Parameters**:
+  - `error` (`string`, required): Compiler or linker error text (GCC, Clang, or MSVC).
+  - `compiler` (`string`, optional, default `"auto"`): Compiler flavor hint (`"gcc"`, `"clang"`, `"msvc"`, or `"auto"`).
+  - `code_snippet` (`string`, optional): Source code context around the failure point.
+  - `workspace_dir` (`string`, optional): Project root directory.
+
+- **Output Example**:
+  ```json
+  {
+    "success": true,
+    "category": "linker_undefined_reference",
+    "detectedCompiler": "gcc",
+    "summary": "Linker error: undefined reference to 'Calculator::add(int, int)'.",
+    "rootCause": "The declaration for 'Calculator::add(int, int)' was visible during compilation, but its compiled object code was not found during linking.",
+    "remediation": "1. Missing source file: Check if the .cpp containing 'Calculator::add' is included in your build.\n2. Template in .cpp: If 'add' is a template function, define it in the header.",
+    "demangledSymbols": [
+      {
+        "mangled": "_ZN10Calculator3addEii",
+        "demangled": "Calculator::add(int, int)"
+      }
+    ],
+    "simplifiedError": "main.cpp:(.text+0x15): undefined reference to `Calculator::add(int, int)'"
+  }
+  ```
+
 ---
 
 ## Resources Catalog
@@ -727,6 +823,20 @@ cpp-mcp standard std::span C++20
 cpp-mcp tooling xmake
 cpp-mcp tooling xmake cxx-modules
 cpp-mcp tooling xmake toolchains
+
+# Format in-memory snippet or source files via clang-format
+cpp-mcp code-format --code "int main(){int a=1;return a;}"
+cpp-mcp code-format src/main.cpp --apply
+
+# Scaffold a new modern C++ project (xmake/CMake, C++20/23, Catch2/GTest, .clangd)
+cpp-mcp scaffold my_app
+cpp-mcp scaffold my_lib --type library --std 23 --test gtest
+cpp-mcp scaffold my_mod --type cxx-modules --std 20 --dry-run
+cpp-mcp scaffold my_cmake_app --build cmake --test catch2
+
+# Explain complex compiler errors, template explosions, or linker traces
+cpp-mcp explain-error "main.cpp:8:5: error: 'vector' was not declared in this scope"
+cat build.log | cpp-mcp explain-error -
 ```
 
 ---

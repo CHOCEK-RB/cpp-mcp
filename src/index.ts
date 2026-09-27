@@ -11,15 +11,18 @@ import { registerResources } from "./resources/index.js";
 import { checkSecureCoding } from "./tools/cert.js";
 import { analyzeCodeSymbol } from "./tools/code-analyzer.js";
 import { getCodeDiagnostics } from "./tools/code-diagnostics.js";
+import { formatCode } from "./tools/code-formatter.js";
 import { renameCodeSymbol } from "./tools/code-renamer.js";
 import { searchCodeSymbols } from "./tools/code-search.js";
 import { sessionManager } from "./tools/code-session-manager.js";
 import { checkCompilerSupport } from "./tools/compiler-support.js";
 import { demangleSymbol } from "./tools/demangle.js";
+import { explainCompilerError } from "./tools/error-explainer.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
 import { getCppModulesGuide } from "./tools/modules.js";
 import { getCppreferencePage } from "./tools/page.js";
+import { scaffoldProject } from "./tools/project-scaffold.js";
 import { searchCppreference } from "./tools/search.js";
 import { checkCppStandard } from "./tools/standards.js";
 import { getCppToolingGuide } from "./tools/tooling.js";
@@ -844,6 +847,314 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error renaming symbol: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "format_code",
+    {
+      description:
+        "Format C/C++ source code or files using clang-format. Supports in-memory code snippets, project-specific .clang-format styles, standard presets (LLVM, Google, Chromium, Mozilla, WebKit, Microsoft), line ranges, and atomic disk application.",
+      inputSchema: {
+        code: z
+          .string()
+          .optional()
+          .describe(
+            "C/C++ code snippet to format in-memory. Ideal for formatting generated code before writing to disk.",
+          ),
+        file: z
+          .string()
+          .optional()
+          .describe(
+            "Path to a C/C++ source or header file to format (.cpp, .hpp, .c, .h, .cxx, .ixx, .mpp).",
+          ),
+        workspace: z
+          .string()
+          .optional()
+          .describe(
+            "Root workspace directory used to locate the project's .clang-format configuration file.",
+          ),
+        style: z
+          .string()
+          .optional()
+          .default("file")
+          .describe(
+            "Coding style preset ('file' to use project .clang-format, 'LLVM', 'Google', 'Chromium', 'Mozilla', 'WebKit', 'Microsoft', or custom YAML string). Defaults to 'file'.",
+          ),
+        fallback_style: z
+          .string()
+          .optional()
+          .default("LLVM")
+          .describe(
+            "Fallback style if no .clang-format is found when style='file'. Defaults to 'LLVM'.",
+          ),
+        apply: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe(
+            "If true and 'file' is provided, writes formatted changes directly to disk. Defaults to false (dry-run preview with unified diff).",
+          ),
+        start_line: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe("Optional 1-indexed starting line number to format only a sub-region."),
+        end_line: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe("Optional 1-indexed ending line number to format only a sub-region."),
+      },
+    },
+    async ({ code, file, workspace, style, fallback_style, apply, start_line, end_line }) => {
+      try {
+        if (
+          (start_line !== undefined && end_line === undefined) ||
+          (start_line === undefined && end_line !== undefined)
+        ) {
+          return {
+            isError: true,
+            content: [
+              {
+                type: "text" as const,
+                text: "Error: Both 'start_line' and 'end_line' must be provided when specifying a format range.",
+              },
+            ],
+          };
+        }
+
+        if (start_line !== undefined && end_line !== undefined && start_line > end_line) {
+          return {
+            isError: true,
+            content: [
+              {
+                type: "text" as const,
+                text: `Error: 'start_line' (${start_line}) cannot be greater than 'end_line' (${end_line}).`,
+              },
+            ],
+          };
+        }
+
+        const range =
+          start_line !== undefined && end_line !== undefined
+            ? { startLine: start_line, endLine: end_line }
+            : undefined;
+
+        const result = await formatCode({
+          code,
+          file,
+          workspace,
+          style,
+          fallbackStyle: fallback_style,
+          apply,
+          range,
+        });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error formatting code: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "scaffold_project",
+    {
+      description:
+        "Scaffold a modern C++ project with best-practice configurations (xmake/CMake, C++11-26, Catch2/GTest/doctest, .clang-format, .clangd LSP, and git).",
+      inputSchema: {
+        project_name: z
+          .string()
+          .min(1)
+          .describe("Name of the project (alphanumeric, underscores, hyphens, and dots)."),
+        target_dir: z
+          .string()
+          .optional()
+          .describe(
+            "Directory where the project should be created. Defaults to './<project_name>'.",
+          ),
+        build_system: z
+          .enum(["xmake", "cmake"])
+          .optional()
+          .default("xmake")
+          .describe("Build system to use ('xmake' or 'cmake'). Defaults to 'xmake'."),
+        project_type: z
+          .enum(["executable", "library", "header-only", "cxx-modules", "qt", "cuda"])
+          .optional()
+          .default("executable")
+          .describe(
+            "Type of C++ project ('executable', 'library', 'header-only', 'cxx-modules', 'qt', 'cuda'). Defaults to 'executable'.",
+          ),
+        cpp_standard: z
+          .enum(["11", "14", "17", "20", "23", "26"])
+          .optional()
+          .default("20")
+          .describe("C++ standard version ('11', '14', '17', '20', '23', '26'). Defaults to '20'."),
+        test_framework: z
+          .enum(["catch2", "gtest", "doctest", "none"])
+          .optional()
+          .default("catch2")
+          .describe(
+            "Unit test framework ('catch2', 'gtest', 'doctest', 'none'). Defaults to 'catch2'.",
+          ),
+        package_manager: z
+          .enum(["xrepo", "vcpkg", "conan", "none"])
+          .optional()
+          .describe(
+            "Package manager ('xrepo', 'vcpkg', 'conan', 'none'). Defaults to 'xrepo' for xmake or 'none' for cmake.",
+          ),
+        init_clang_tools: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe(
+            "Whether to generate .clang-format and .clangd LSP configurations. Defaults to true.",
+          ),
+        init_git: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe(
+            "Whether to initialize a git repository in the target directory. Defaults to false.",
+          ),
+        dry_run: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe(
+            "If true, returns file tree and previews without writing to disk. Defaults to false.",
+          ),
+        overwrite: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe(
+            "If true, allows writing into an existing non-empty directory. Defaults to false.",
+          ),
+      },
+    },
+    async ({
+      project_name,
+      target_dir,
+      build_system,
+      project_type,
+      cpp_standard,
+      test_framework,
+      package_manager,
+      init_clang_tools,
+      init_git,
+      dry_run,
+      overwrite,
+    }) => {
+      try {
+        const result = await scaffoldProject({
+          projectName: project_name,
+          targetDir: target_dir,
+          buildSystem: build_system,
+          projectType: project_type,
+          cppStandard: cpp_standard,
+          testFramework: test_framework,
+          packageManager: package_manager,
+          initClangTools: init_clang_tools,
+          initGit: init_git,
+          dryRun: dry_run,
+          overwrite,
+        });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error scaffolding project: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "explain_compiler_error",
+    {
+      description:
+        "Explain complex C++ compiler and linker errors in plain language (massive template/SFINAE backtraces, unsatisfied C++20 concepts, undefined references, vtable issues, module resolution failures).",
+      inputSchema: {
+        error: z
+          .string()
+          .min(1)
+          .describe(
+            "Compiler error output or linker error trace (GCC, Clang, or MSVC error text).",
+          ),
+        compiler: z
+          .enum(["gcc", "clang", "msvc", "auto"])
+          .optional()
+          .default("auto")
+          .describe(
+            "Compiler flavor hint ('gcc', 'clang', 'msvc', or 'auto' to auto-detect). Defaults to 'auto'.",
+          ),
+        code_snippet: z
+          .string()
+          .optional()
+          .describe("Optional source code context around the error location."),
+        workspace_dir: z.string().optional().describe("Optional workspace root directory."),
+      },
+    },
+    async ({ error, compiler, code_snippet, workspace_dir }) => {
+      try {
+        const result = await explainCompilerError({
+          error,
+          compiler,
+          codeSnippet: code_snippet,
+          workspaceDir: workspace_dir,
+        });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error explaining compiler error: ${err instanceof Error ? err.message : String(err)}`,
             },
           ],
         };

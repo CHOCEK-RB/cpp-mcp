@@ -5,14 +5,29 @@ import { isExecutableAvailable, resolveProjectBuildInfo } from "./project/xmake.
 import { checkSecureCoding } from "./tools/cert.js";
 import { analyzeCodeSymbol } from "./tools/code-analyzer.js";
 import { getCodeDiagnostics } from "./tools/code-diagnostics.js";
+import { formatCode } from "./tools/code-formatter.js";
 import { renameCodeSymbol } from "./tools/code-renamer.js";
 import { searchCodeSymbols } from "./tools/code-search.js";
 import { sessionManager } from "./tools/code-session-manager.js";
 import { type CompilerName, checkCompilerSupport } from "./tools/compiler-support.js";
 import { demangleSymbol } from "./tools/demangle.js";
+import { explainCompilerError } from "./tools/error-explainer.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
 import { getCppModulesGuide } from "./tools/modules.js";
+import {
+  type BuildSystem,
+  type CppStandard,
+  type PackageManager,
+  type ProjectType,
+  scaffoldProject,
+  type TestFramework,
+  VALID_BUILD_SYSTEMS,
+  VALID_CPP_STANDARDS,
+  VALID_PACKAGE_MANAGERS,
+  VALID_PROJECT_TYPES,
+  VALID_TEST_FRAMEWORKS,
+} from "./tools/project-scaffold.js";
 import { searchCppreference } from "./tools/search.js";
 import { checkCppStandard } from "./tools/standards.js";
 import { getCppToolingGuide } from "./tools/tooling.js";
@@ -33,6 +48,9 @@ Commands:
   code-analyze <symbol>             Analyze symbol definition, hierarchy, and usage
   code-diagnostics [file]           Inspect live compiler errors and warnings via clangd
   code-rename <symbol> <new_name>   Rename symbol across project using AST analysis (clangd)
+  code-format [file]                Format C/C++ source code or file via clang-format (--style, --apply)
+  scaffold <name>                   Scaffold modern C++ project (xmake/CMake, C++20, Catch2, clangd)
+  explain-error <text|->            Explain complex C++ compiler or linker errors (or pipe via stdin)
   compiler <feature> [options]      Check compiler support matrix (GCC, Clang, MSVC, Apple Clang)
   demangle <symbol|->               Demangle Itanium or MSVC mangled symbols (or stdin)
   cert <rule_id|cwe|category>       Audit against SEI CERT C++ rules and CWEs
@@ -43,14 +61,25 @@ Commands:
 
 Options:
   --json                            Output response in raw JSON format
-  --raw                             Print only primary scalar value (e.g. only header name)
-  --workspace <dir>                 Project root directory for code-search, code-analyze, diagnostics, and rename
-  --file <path>                     Source file path for symbol disambiguation, diagnostics, or rename
+  --raw                             Print only primary scalar value (e.g. only header name or formatted code)
+  --workspace <dir>                 Project root directory for code tools and .clang-format lookup
+  --file <path>                     Source file path for symbol disambiguation, diagnostics, rename, or format
   --line <num>                      Line number (1-indexed) for symbol disambiguation or rename
-  --apply                           Apply rename changes directly to disk (default is dry-run preview)
-  --dry-run                         Preview rename diff without modifying files (default)
+  --lines <start:end>               Line range (1-indexed) to format only a sub-region
+  --style <name>                    Format style ('file', 'LLVM', 'Google', 'Chromium', 'Mozilla', 'WebKit')
+  --apply                           Apply rename or format changes directly to disk (default is dry-run preview)
+  --dry-run                         Preview changes without modifying files (default)
+  --dir <path>                      Target directory for scaffolded project (default: ./<name>)
+  --build <xmake|cmake>             Build system for scaffolding (default: xmake)
+  --type <type>                     Project type (executable, library, header-only, cxx-modules, qt, cuda)
+  --std <version>                   C++ standard for scaffolding (11, 14, 17, 20, 23, 26)
+  --test <framework>                Test framework (catch2, gtest, doctest, none)
+  --pm, --package-manager <name>    Package manager (xrepo, vcpkg, conan, none)
+  --git                             Initialize git repository during scaffold
+  --no-clang                        Disable generation of .clang-format and .clangd
+  --force, --overwrite              Overwrite existing non-empty directory during scaffold
   --severity <level>                Filter diagnostics (all, error, warning)
-  --code <code>                     Inline code snippet to check without saving to disk
+  --code <code>                     Inline code snippet to check or format without saving to disk
   --compiler <name>                 Compiler name for compatibility checks (gcc, clang, msvc, apple_clang)
   --version <ver>                   Compiler version to evaluate against feature requirement
   -v, --version                     Print version and exit
@@ -59,16 +88,48 @@ Options:
 When executed without arguments, cpp-mcp runs as an MCP stdio server.`);
 }
 
-async function readStdin(): Promise<string> {
+async function readStdin(timeoutMs?: number): Promise<string> {
   return new Promise((resolve) => {
     let data = "";
-    process.stdin.setEncoding("utf-8");
-    process.stdin.on("data", (chunk) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+      process.stdin.off("data", onData);
+      process.stdin.off("end", onEnd);
+      process.stdin.off("error", onError);
+    };
+
+    const onData = (chunk: string | Buffer) => {
       data += chunk;
-    });
-    process.stdin.on("end", () => {
+    };
+
+    const onEnd = () => {
+      cleanup();
       resolve(data);
-    });
+    };
+
+    const onError = () => {
+      cleanup();
+      resolve(data);
+    };
+
+    if (timeoutMs && timeoutMs > 0) {
+      timer = setTimeout(() => {
+        cleanup();
+        resolve(data);
+      }, timeoutMs);
+    }
+
+    process.stdin.setEncoding("utf-8");
+    process.stdin.on("data", onData);
+    process.stdin.on("end", onEnd);
+    process.stdin.on("error", onError);
+
+    if (process.stdin.readableEnded) {
+      cleanup();
+      resolve(data);
+    }
   });
 }
 
@@ -95,7 +156,19 @@ export async function runCli(args: string[]): Promise<number> {
   let flagLine: number | undefined;
   let flagSeverity: string | undefined;
   let flagCode: string | undefined;
+  let flagStyle: string | undefined;
+  let flagLines: string | undefined;
   let flagApply = false;
+  let flagDir: string | undefined;
+  let flagBuildSystem: string | undefined;
+  let flagProjectType: string | undefined;
+  let flagCppStd: string | undefined;
+  let flagTest: string | undefined;
+  let flagPackageManager: string | undefined;
+  let flagNoClang = false;
+  let flagGit = false;
+  let flagForce = false;
+  let flagDryRun = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -107,7 +180,44 @@ export async function runCli(args: string[]): Promise<number> {
       continue;
     }
     if (arg === "--dry-run") {
+      flagDryRun = true;
       flagApply = false;
+      continue;
+    }
+    if (arg === "--git") {
+      flagGit = true;
+      continue;
+    }
+    if (arg === "--no-clang") {
+      flagNoClang = true;
+      continue;
+    }
+    if (arg === "--force" || arg === "--overwrite") {
+      flagForce = true;
+      continue;
+    }
+    if (arg === "--dir" && i + 1 < args.length) {
+      flagDir = args[++i];
+      continue;
+    }
+    if ((arg === "--build" || arg === "--build-system") && i + 1 < args.length) {
+      flagBuildSystem = args[++i];
+      continue;
+    }
+    if (arg === "--type" && i + 1 < args.length) {
+      flagProjectType = args[++i];
+      continue;
+    }
+    if (arg === "--std" && i + 1 < args.length) {
+      flagCppStd = args[++i];
+      continue;
+    }
+    if (arg === "--test" && i + 1 < args.length) {
+      flagTest = args[++i];
+      continue;
+    }
+    if ((arg === "--pm" || arg === "--package-manager") && i + 1 < args.length) {
+      flagPackageManager = args[++i];
       continue;
     }
     if (arg === "--compiler" && i + 1 < args.length) {
@@ -136,6 +246,14 @@ export async function runCli(args: string[]): Promise<number> {
     }
     if (arg === "--code" && i + 1 < args.length) {
       flagCode = args[++i];
+      continue;
+    }
+    if (arg === "--style" && i + 1 < args.length) {
+      flagStyle = args[++i];
+      continue;
+    }
+    if (arg === "--lines" && i + 1 < args.length) {
+      flagLines = args[++i];
       continue;
     }
     if (!arg.startsWith("-")) {
@@ -787,6 +905,261 @@ export async function runCli(args: string[]): Promise<number> {
         if (res.dryRun) {
           console.log("Tip: Run with --apply to write changes to files on disk.");
         }
+        return 0;
+      }
+
+      case "code-format":
+      case "format": {
+        let codeInput = flagCode;
+        let fileInput = target || flagFile;
+
+        // If target is "-" or piped stdin
+        if (target === "-" || (!target && !flagCode && !flagFile && !process.stdin.isTTY)) {
+          codeInput = await readStdin(target === "-" ? undefined : 50);
+          fileInput = undefined;
+        }
+
+        if (!codeInput && !fileInput) {
+          console.error(
+            "Error: 'code-format' requires a file path, --code snippet, or piped stdin.",
+          );
+          return 1;
+        }
+
+        let range: { startLine: number; endLine: number } | undefined;
+        if (flagLines) {
+          const parts = flagLines.split(/[:-]/).map((n) => Number.parseInt(n, 10));
+          const start = parts[0];
+          const end = parts[1];
+          if (
+            parts.length !== 2 ||
+            start === undefined ||
+            end === undefined ||
+            Number.isNaN(start) ||
+            Number.isNaN(end)
+          ) {
+            console.error(
+              `Error: Invalid --lines format '${flagLines}'. Expected '<start>:<end>' (e.g. --lines 5:20).`,
+            );
+            return 1;
+          }
+          if (start < 1 || end < 1 || start > end) {
+            console.error(
+              `Error: Invalid range '${flagLines}'. Start line must be >= 1 and <= end line.`,
+            );
+            return 1;
+          }
+          range = { startLine: start, endLine: end };
+        }
+
+        const res = await formatCode({
+          code: codeInput,
+          file: fileInput,
+          workspace: flagWorkspace,
+          style: flagStyle,
+          apply: flagApply,
+          range,
+        });
+
+        if (isJson) {
+          console.log(JSON.stringify(res, null, 2));
+          return res.formatted ? 0 : 1;
+        }
+
+        if (!res.formatted) {
+          console.error(`Format error: ${res.error || "Unknown formatting error"}`);
+          return 1;
+        }
+
+        if (isRaw) {
+          if (res.formattedCode) process.stdout.write(res.formattedCode);
+          return 0;
+        }
+
+        if (codeInput && !fileInput) {
+          if (res.formattedCode) {
+            console.log(res.formattedCode);
+          }
+          return 0;
+        }
+
+        if (res.applied) {
+          console.log(`✓ Formatted and applied changes to '${res.file}'.`);
+          if (res.diff) console.log(`\n${res.diff}`);
+          return 0;
+        }
+
+        if (!res.changed) {
+          console.log(`'${res.file}' is already well-formatted.`);
+          return 0;
+        }
+
+        console.log(`Format Preview (Dry Run) for '${res.file}':\n`);
+        if (res.diff) console.log(res.diff);
+        console.log(`\nTip: Run with --apply to write formatting changes to disk.`);
+        return 0;
+      }
+
+      case "scaffold":
+      case "init": {
+        const projectName = target || positionalArgs[1];
+        if (!projectName) {
+          console.error(
+            "Error: 'scaffold' command requires a project name (e.g. 'cpp-mcp scaffold my_project').",
+          );
+          return 1;
+        }
+
+        if (flagBuildSystem && !VALID_BUILD_SYSTEMS.has(flagBuildSystem)) {
+          console.error(
+            `Error: Invalid build system '${flagBuildSystem}'. Supported: ${Array.from(VALID_BUILD_SYSTEMS).join(", ")}.`,
+          );
+          return 1;
+        }
+        if (flagProjectType && !VALID_PROJECT_TYPES.has(flagProjectType)) {
+          console.error(
+            `Error: Invalid project type '${flagProjectType}'. Supported: ${Array.from(VALID_PROJECT_TYPES).join(", ")}.`,
+          );
+          return 1;
+        }
+        if (flagCppStd && !VALID_CPP_STANDARDS.has(flagCppStd)) {
+          console.error(
+            `Error: Invalid C++ standard '${flagCppStd}'. Supported: ${Array.from(VALID_CPP_STANDARDS).join(", ")}.`,
+          );
+          return 1;
+        }
+        if (flagTest && !VALID_TEST_FRAMEWORKS.has(flagTest)) {
+          console.error(
+            `Error: Invalid test framework '${flagTest}'. Supported: ${Array.from(VALID_TEST_FRAMEWORKS).join(", ")}.`,
+          );
+          return 1;
+        }
+        if (flagPackageManager && !VALID_PACKAGE_MANAGERS.has(flagPackageManager)) {
+          console.error(
+            `Error: Invalid package manager '${flagPackageManager}'. Supported: ${Array.from(VALID_PACKAGE_MANAGERS).join(", ")}.`,
+          );
+          return 1;
+        }
+
+        const res = await scaffoldProject({
+          projectName,
+          targetDir: flagDir,
+          buildSystem: flagBuildSystem as BuildSystem | undefined,
+          projectType: flagProjectType as ProjectType | undefined,
+          cppStandard: flagCppStd as CppStandard | undefined,
+          testFramework: flagTest as TestFramework | undefined,
+          packageManager: flagPackageManager as PackageManager | undefined,
+          initClangTools: !flagNoClang,
+          initGit: flagGit,
+          dryRun: flagDryRun,
+          overwrite: flagForce,
+        });
+
+        if (isJson) {
+          console.log(JSON.stringify(res, null, 2));
+          return res.success ? 0 : 1;
+        }
+
+        if (isRaw) {
+          console.log(res.projectDir);
+          return 0;
+        }
+
+        if (flagDryRun) {
+          console.log(`Dry-run scaffold preview for '${res.projectName}':\n`);
+          console.log(`Files to be created in ${res.projectDir}:`);
+          for (const f of res.filesCreated) {
+            console.log(`  - ${f}`);
+          }
+          return 0;
+        }
+
+        console.log(`✓ Scaffolded C++ project '${res.projectName}' successfully!`);
+        console.log(`  Location:       ${res.projectDir}`);
+        console.log(`  Build System:   ${res.buildSystem}`);
+        console.log(`  Standard:       C++${res.cppStandard}`);
+        console.log(`  Type:           ${res.projectType}`);
+        console.log(`  Test Framework: ${res.testFramework}`);
+        if (res.gitInitialized) {
+          console.log(`  Git:            Initialized`);
+        }
+        console.log(`\nCreated ${res.filesCreated.length} file(s):`);
+        for (const f of res.filesCreated) {
+          console.log(`  + ${f}`);
+        }
+        console.log(`\nNext steps:`);
+        for (const step of res.nextSteps) {
+          console.log(`  $ ${step}`);
+        }
+        return 0;
+      }
+
+      case "explain-error":
+      case "explain": {
+        let errorToExplain = target;
+        if (target === "-" || (!target && !process.stdin.isTTY)) {
+          errorToExplain = await readStdin(target === "-" ? undefined : 50);
+        }
+
+        if (!errorToExplain?.trim()) {
+          console.error(
+            "Error: 'explain-error' command requires compiler error text or piped stdin (e.g. 'cat build.log | cpp-mcp explain-error -').",
+          );
+          return 1;
+        }
+
+        const res = await explainCompilerError({
+          error: errorToExplain,
+          compiler: flagCompiler as "gcc" | "clang" | "msvc" | "auto" | undefined,
+          codeSnippet: flagCode,
+          workspaceDir: flagWorkspace,
+        });
+
+        if (isJson) {
+          console.log(JSON.stringify(res, null, 2));
+          return res.success ? 0 : 1;
+        }
+
+        if (isRaw) {
+          console.log(res.summary);
+          return 0;
+        }
+
+        console.log(
+          `Diagnostic Analysis (${res.detectedCompiler.toUpperCase()} | ${res.category}):`,
+        );
+        if (res.location) {
+          const locStr = `${res.location.file}${res.location.line ? `:${res.location.line}` : ""}${res.location.column ? `:${res.location.column}` : ""}`;
+          console.log(`Location:     ${locStr}`);
+        }
+        if (res.codeSnippet) {
+          console.log(`\nCode Context:\n${res.codeSnippet}`);
+        }
+        console.log(`Summary:      ${res.summary}`);
+        console.log(`\nRoot Cause:\n${res.rootCause}`);
+        console.log(`\nRemediation:\n${res.remediation}`);
+
+        if (res.suggestedHeaders && res.suggestedHeaders.length > 0) {
+          console.log(`\nSuggested Headers:`);
+          for (const h of res.suggestedHeaders) {
+            console.log(`  #include ${h}`);
+          }
+        }
+
+        if (res.demangledSymbols && res.demangledSymbols.length > 0) {
+          console.log(`\nDemangled Symbols:`);
+          for (const s of res.demangledSymbols) {
+            console.log(`  ${s.mangled} -> ${s.demangled}`);
+          }
+        }
+
+        if (res.pitfalls && res.pitfalls.length > 0) {
+          console.log(`\nCommon Pitfalls:`);
+          for (const p of res.pitfalls) {
+            console.log(`  - ${p}`);
+          }
+        }
+
         return 0;
       }
 
