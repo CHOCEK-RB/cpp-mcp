@@ -27,6 +27,7 @@ flowchart TD
         Server --> T6["get_cpp_modules_guide"]
         Server --> T7["check_secure_coding"]
         Server --> T8["get_cpp_tooling_guide"]
+        Server --> T9["check_compiler_support"]
     end
 
     subgraph Primitives ["MCP Native Primitives"]
@@ -36,7 +37,7 @@ flowchart TD
 
     subgraph Storage ["Tiered Storage & Fallback"]
         T1 & T2 & T3 & T4 --> Cache[("TieredCache\n(L1 LRU Memory + L2 Disk with TTL)")]
-        T3 & T4 & T5 & T6 & T7 & T8 --> StaticIdx[("Curated Engines & Datasets\n(Guidelines, Modules, CERT, Tooling)")]
+        T3 & T4 & T5 & T6 & T7 & T8 & T9 --> StaticIdx[("Curated Engines & Datasets\n(Guidelines, Modules, CERT, Tooling, Compiler Support)")]
         Cache -- Miss --> Web["cppreference.com\n(HTTPS Scraper + Sanitizer)"]
     end
 ```
@@ -251,6 +252,44 @@ Retrieves documentation, directives, CLI commands, and production starter config
   }
   ```
 
+### 9. `check_compiler_support`
+
+Evaluates minimum compiler versions (GCC, Clang, MSVC, Apple Clang) required for modern C++ language and standard library features across C++17, C++20, C++23, and C++26. Optionally evaluates whether a specific compiler and version is compatible.
+
+- **Parameters**:
+  - `feature` (`string`, optional): Feature name, library symbol, or keyword (e.g. `"std::print"`, `"std::expected"`, `"import std"`, `"std::generator"`, `"deducing this"`, `"reflection"`).
+  - `standard` (`string`, optional): Filter features by C++ standard version (`"C++20"`, `"C++23"`, `"C++26"`, `"C++17"`).
+  - `compiler` (`string`, optional): Target compiler family (`"gcc"`, `"clang"`, `"msvc"`, `"apple_clang"`).
+  - `version` (`string` | `number`, optional): User's compiler version (e.g. `"13.2"`, `"16.0"`, `17`).
+
+- **Output Example**:
+  ```json
+  {
+    "found": true,
+    "entry": {
+      "id": "std-print",
+      "name": "std::print & std::println",
+      "standard": "C++23",
+      "paper": "P2093R14",
+      "macro": "__cpp_lib_print",
+      "header": "<print>",
+      "compilers": {
+        "gcc": "13",
+        "clang": "17",
+        "msvc": "19.38",
+        "apple_clang": "15.0"
+      }
+    },
+    "compatibility": {
+      "compiler": "gcc",
+      "userVersion": "12.2",
+      "minVersion": "13",
+      "compatible": false,
+      "message": "Incompatible: gcc 12.2 is older than the required 13."
+    }
+  }
+  ```
+
 ---
 
 ## Resources Catalog
@@ -268,6 +307,8 @@ The server exposes read-only MCP resources providing zero-overhead offline datas
 - **`cppref://cert/{id}`**: Detailed SEI CERT rule specification with risk assessment, noncompliant code, and compliant solution.
 - **`cppref://tooling`**: Catalog of modern C/C++ developer tools (`xmake`, `clang-format`, `clang-tidy`, runtime sanitizers).
 - **`cppref://tooling/{tool}`**: In-depth documentation, CLI commands, and production starter configurations for a specific tool.
+- **`cppref://compiler-support`**: Comprehensive compiler support matrix (GCC, Clang, MSVC, Apple Clang) for modern C++ features.
+- **`cppref://compiler-support/{feature}`**: Detailed compiler support matrix, WG21 paper, and feature test macro for a specific feature.
 
 ---
 
@@ -282,6 +323,7 @@ Pre-engineered prompt templates for AI clients:
 - **`cpp_modularize_code`**: Converts classic C++ headers and translation units into modern C++20/C++23/C++26 Modules with primary interface units, partitions, GMF macro isolation, and CMake 3.28+ build configuration.
 - **`cpp_security_audit`**: Audits C++ code against the SEI CERT C++ Coding Standard and MITRE CWEs, identifying memory safety, concurrency races, and object lifetime violations with secure remediations.
 - **`cpp_generate_tooling_config`**: Generates production-grade, authoritative configuration files for modern C/C++ developer tools (`xmake.lua`, `.clang-format`, `.clang-tidy`, sanitizer flags) tailored to project requirements.
+- **`cpp_check_compiler_compatibility`**: Evaluates whether target C++ features will compile on specific compiler toolchain versions (GCC, Clang, MSVC, Apple Clang), proposing polyfills, fallback libraries, and feature test guards.
 
 ---
 
