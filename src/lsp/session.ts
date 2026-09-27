@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { EventEmitter } from "node:events";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { LspClient } from "./client.js";
@@ -6,10 +7,12 @@ import type {
   CallHierarchyIncomingCall,
   CallHierarchyItem,
   CallHierarchyOutgoingCall,
+  Diagnostic,
   DocumentSymbol,
   Hover,
   Location,
   Position,
+  PublishDiagnosticsParams,
   SymbolInformation,
   TypeHierarchyItem,
 } from "./types.js";
@@ -21,15 +24,18 @@ export interface ClangdSessionOptions {
   backgroundIndex?: boolean;
 }
 
-export class ClangdSession {
+export class ClangdSession extends EventEmitter {
   private process: ChildProcess | null = null;
   private client: LspClient | null = null;
   private initialized = false;
   private rootUri: string;
   private compileCommandsDir: string;
   private clangdPath: string;
+  private diagnosticsMap = new Map<string, Diagnostic[]>();
+  private openDocuments = new Map<string, number>();
 
   constructor(options: ClangdSessionOptions = {}) {
+    super();
     const wsDir = path.resolve(options.workspaceDir || process.cwd());
     this.rootUri = pathToFileURL(wsDir).toString();
     this.compileCommandsDir = path.resolve(
@@ -61,6 +67,18 @@ export class ClangdSession {
 
     this.client = new LspClient(this.process.stdout, this.process.stdin);
 
+    this.client.on("notification", (msg: { method?: string; params?: unknown }) => {
+      if (msg.method === "textDocument/publishDiagnostics") {
+        const params = msg.params as PublishDiagnosticsParams;
+        if (params?.uri) {
+          const diags = params.diagnostics || [];
+          this.diagnosticsMap.set(params.uri, diags);
+          this.emit("diagnostics", params);
+          this.emit(`diagnostics:${params.uri}`, diags);
+        }
+      }
+    });
+
     // Drain stderr to prevent 64KB OS pipe buffer saturation and deadlock
     this.process.stderr?.resume();
 
@@ -72,6 +90,10 @@ export class ClangdSession {
         rootUri: this.rootUri,
         capabilities: {
           textDocument: {
+            publishDiagnostics: {
+              relatedInformation: true,
+              versionSupport: true,
+            },
             hover: {
               contentFormat: ["markdown", "plaintext"],
             },
@@ -118,6 +140,7 @@ export class ClangdSession {
    */
   public openDocument(uri: string, languageId: string, text: string, version = 1): void {
     if (!this.client) throw new Error("Clangd session is not running");
+    this.openDocuments.set(uri, version);
     this.client.notify("textDocument/didOpen", {
       textDocument: {
         uri,
@@ -126,6 +149,74 @@ export class ClangdSession {
         text,
       },
     });
+  }
+
+  /**
+   * Opens or updates a document in clangd. If already open, sends didChange; otherwise didOpen.
+   */
+  public openOrUpdateDocument(uri: string, languageId: string, text: string): void {
+    if (!this.client) throw new Error("Clangd session is not running");
+    const currentVersion = this.openDocuments.get(uri);
+    if (currentVersion === undefined) {
+      this.openDocuments.set(uri, 1);
+      this.client.notify("textDocument/didOpen", {
+        textDocument: {
+          uri,
+          languageId,
+          version: 1,
+          text,
+        },
+      });
+    } else {
+      const nextVersion = currentVersion + 1;
+      this.openDocuments.set(uri, nextVersion);
+      this.client.notify("textDocument/didChange", {
+        textDocument: {
+          uri,
+          version: nextVersion,
+        },
+        contentChanges: [{ text }],
+      });
+    }
+  }
+
+  /**
+   * Waits for diagnostics on a specific document URI.
+   */
+  public async waitForDiagnostics(uri: string, timeoutMs = 2000): Promise<Diagnostic[]> {
+    if (!this.client) throw new Error("Clangd session is not running");
+
+    return new Promise<Diagnostic[]>((resolve) => {
+      let resolved = false;
+      const onDiag = (diags: Diagnostic[]) => {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timer);
+          this.removeListener(`diagnostics:${uri}`, onDiag);
+          resolve(diags);
+        }
+      };
+
+      const timer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          this.removeListener(`diagnostics:${uri}`, onDiag);
+          resolve(this.diagnosticsMap.get(uri) || []);
+        }
+      }, timeoutMs);
+
+      this.once(`diagnostics:${uri}`, onDiag);
+    });
+  }
+
+  /**
+   * Returns cached diagnostics for a given URI or all tracked files.
+   */
+  public getCachedDiagnostics(uri?: string): Diagnostic[] | Map<string, Diagnostic[]> {
+    if (uri) {
+      return this.diagnosticsMap.get(uri) || [];
+    }
+    return new Map(this.diagnosticsMap);
   }
 
   /**
@@ -305,6 +396,9 @@ export class ClangdSession {
       this.process = null;
     }
 
+    this.diagnosticsMap.clear();
+    this.openDocuments.clear();
+    this.removeAllListeners();
     this.initialized = false;
   }
 }
