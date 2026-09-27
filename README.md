@@ -56,6 +56,7 @@ flowchart TD
 - **Tiered Cache with TTL**: Blazing-fast L1 memory LRU cache backed by persistent L2 disk cache (`~/.cache/cpp-mcp/`).
 - **MCP Resources & Prompts**: Zero-token offline resources (`cppref://headers`, `cppref://modules`, `cppref://cert`, `cppref://tooling`, `cppref://guidelines`) and diagnostic prompt templates.
 - **Standalone Binaries & Zero Setup**: Self-contained native single-file binaries (no Node or Bun required) or instant execution via `npx` / `bunx`.
+- **Direct CLI Mode**: Run instant queries directly in your shell or build scripts (`xmake`, `Makefile`, `bash`) without an MCP client (e.g. `cpp-mcp header std::span`, `cpp-mcp demangle _Z3fooi`).
 - **Noise Elimination**: Strips MediaWiki navigation menus, edit buttons, login prompts, and notices before LLM consumption.
 - **Cursor Pagination**: Transparently handles oversized documentation pages in 16 KB chunks.
 
@@ -457,6 +458,34 @@ If you downloaded the precompiled binary from [GitHub Releases](https://github.c
     }
   }
 }
+```
+
+---
+
+## Direct CLI Usage (No MCP Client Required)
+
+`cpp-mcp` doubles as a standalone command-line developer utility that integrates into build scripts (`xmake`, `Makefile`, `bash`) without requiring an LLM:
+
+```bash
+# Fast header lookup (returns <span>)
+cpp-mcp header std::span --raw
+
+# Demangle Itanium or MSVC symbols directly (or pipe via stdin)
+cpp-mcp demangle "_Z3fooi"
+cat build.log | cpp-mcp demangle -
+
+# Check compiler support for modern features
+cpp-mcp compiler std-print --compiler gcc --version 13.1
+
+# Inspect SEI CERT rules or C++ Core Guidelines
+cpp-mcp cert MEM50-CPP
+cpp-mcp guideline F.16
+
+# Check standard availability and feature test macros
+cpp-mcp standard std::span C++20
+
+# Structured JSON output for shell pipelines and automation
+cpp-mcp header std::span --json
 ```
 
 ---

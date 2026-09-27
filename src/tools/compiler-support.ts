@@ -7,10 +7,12 @@ import {
   type CompilerVersions,
 } from "../data/compiler_support.js";
 
+export type CompilerName = "gcc" | "clang" | "msvc" | "apple_clang";
+
 export interface CheckCompilerSupportParams {
   feature?: string;
   standard?: string;
-  compiler?: "gcc" | "clang" | "msvc" | "apple_clang";
+  compiler?: CompilerName;
   version?: string | number;
 }
 
