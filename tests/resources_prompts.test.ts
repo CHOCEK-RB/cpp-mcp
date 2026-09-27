@@ -218,6 +218,12 @@ describe("MCP Resources & Prompts", () => {
     expect(result.messages[0].content.text).toContain("SEI CERT C++");
     expect(result.messages[0].content.text).toContain("CWE");
     expect(result.messages[0].content.text).toContain("category MEM");
+
+    const strResult = await handler({
+      code: "char buf[10]; std::cin >> buf;",
+      category: "STR",
+    });
+    expect(strResult.messages[0].content.text).toContain("category STR");
   });
 
   it("should return complete tooling catalog for cppref://tooling", async () => {
