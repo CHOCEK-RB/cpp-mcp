@@ -18,12 +18,12 @@ Model Context Protocol (MCP) server that empowers AI coding assistants with auth
 flowchart TB
     Client["AI Clients\n(Antigravity / Claude / VS Code / Cursor / Zed)"] -->|stdio · JSON-RPC| Server["cpp-mcp Server"]
 
-    subgraph Tools ["19 MCP Tools by Functional Domain"]
+    subgraph Tools ["20 MCP Tools by Functional Domain"]
         direction LR
         D1["Reference & Standards\n• search_cppreference\n• get_cppreference_page\n• lookup_header\n• check_cpp_standard"]
         D2["Safety & Guidelines\n• check_secure_coding (CERT)\n• get_guideline (Core Guidelines)\n• get_cpp_modules_guide\n• get_cpp_tooling_guide"]
         D3["Semantic Intelligence (AST)\n• search_code_symbols\n• analyze_code_symbol\n• rename_code_symbol\n• get_code_diagnostics\n• get_project_details"]
-        D4["Developer Productivity\n• format_code (clang-format)\n• generate_documentation (clang-doc)\n• scaffold_project (xmake / CMake)\n• explain_compiler_error\n• demangle_symbol\n• check_compiler_support"]
+        D4["Developer Productivity\n• format_code (clang-format)\n• generate_documentation (clang-doc)\n• generate_compilation_database\n• scaffold_project (xmake / CMake)\n• explain_compiler_error\n• demangle_symbol\n• check_compiler_support"]
     end
 
     subgraph Backends ["Execution & Storage Engines"]
@@ -48,6 +48,7 @@ flowchart TB
 - **Live Compiler Diagnostics & AST Renaming**: Real-time error detection with caret pointers (`^~~~`), AST-based safe symbol renaming across all workspace files, and automated header tracking (`get_code_diagnostics`, `rename_code_symbol`).
 - **C/C++ Code Formatter**: Instant in-memory and file formatting via `clang-format` with project `.clang-format` auto-discovery, standard presets (`LLVM`, `Google`), line ranges, and unified diff preview (`format_code`).
 - **C/C++ Documentation Generator (clang-doc)**: Generates comprehensive API documentation from source code and Doxygen comments in Markdown, HTML, JSON, or YAML with compilation database integration and public API filtering (`generate_documentation`).
+- **Independent Compilation Database Generator**: Automatically resolves, generates, or synthesizes `compile_commands.json` across CMake, xmake, Meson, Bear, or synthetic mode without a build system, unlocking clangd LSP and clang-doc (`generate_compilation_database`).
 - **Smart C++ Project Scaffolding**: One-command project bootstrapping with modern `xmake` / `CMake`, C++11-26 standards, Catch2/GTest/doctest, C++20 modules, Qt6, CUDA, `.clang-format`, and `.clangd` LSP configurations (`scaffold_project`).
 - **Intelligent Compiler & Linker Error Explainer**: Translates intimidating template cascades, unsatisfied C++20 concepts, missing vtables, and undefined references into plain English root causes, simplified signatures, and concrete code fixes (`explain_compiler_error`).
 - **C++20/23/26 Modules Architecture**: Dedicated offline guide and best practices for `import std;`, interface & internal partitions, CMake 3.28+ (`FILE_SET CXX_MODULES`), and header migration (`get_cpp_modules_guide`).
@@ -641,6 +642,36 @@ Generates technical API documentation directly from C/C++ source code and Doxyge
   }
   ```
 
+### 20. `generate_compilation_database`
+
+Generates, resolves, or synthesizes a `compile_commands.json` database for C/C++ projects. Supports CMake (`-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`), xmake (`xmake project -k compile_commands`), Meson (`meson setup`), Bear (`bear -- make`), or synthetic filesystem scanning without a build system. Automatically unlocks clangd LSP and clang-doc for any repository.
+
+- **Parameters**:
+  - `workspace` (`string`, optional): Project workspace root containing build files or C/C++ source code.
+  - `build_system` (`string`, optional, default `"auto"`): Generator mode: `"auto"`, `"cmake"`, `"xmake"`, `"meson"`, `"bear"`, or `"synthetic"`.
+  - `build_dir` (`string`, optional, default `"build"`): Build output directory.
+  - `compiler` (`string`, optional): Compiler executable for synthetic generation (e.g. `"clang++"`, `"g++"`).
+  - `std` (`string`, optional, default `"c++20"`): C/C++ standard flag for synthetic generation.
+  - `include_dirs` (`string[]`, optional): Additional include directories.
+  - `symlink_to_root` (`boolean`, optional, default `true`): Links or copies the generated database to the workspace root.
+  - `dry_run` (`boolean`, optional, default `false`): Previews generation without writing files.
+
+- **Output Example**:
+  ```json
+  {
+    "success": true,
+    "buildSystem": "cmake",
+    "compileCommandsPath": "/home/user/project/compile_commands.json",
+    "entryCount": 12,
+    "rootLinked": true,
+    "filesIndexed": [
+      "src/main.cpp",
+      "src/math.cpp"
+    ],
+    "summary": "Successfully generated compile_commands.json via CMake (12 entries)."
+  }
+  ```
+
 ---
 
 ## Resources Catalog
@@ -804,6 +835,11 @@ If you downloaded the precompiled binary from [GitHub Releases](https://github.c
 # Inspect project build configuration, compilation database, and host tools
 cpp-mcp project
 cpp-mcp project /path/to/project --json
+
+# Generate compile_commands.json (CMake, xmake, Meson, Bear, or synthetic scan)
+cpp-mcp compile-db
+cpp-mcp compile-db /path/to/project --build-system cmake
+cpp-mcp compile-db --build-system synthetic --std c++20
 
 # Search code symbols in your workspace (auto-detects xmake/CMake and spawns clangd)
 cpp-mcp code-search Vec2

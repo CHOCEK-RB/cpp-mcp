@@ -15,6 +15,7 @@ import { formatCode } from "./tools/code-formatter.js";
 import { renameCodeSymbol } from "./tools/code-renamer.js";
 import { searchCodeSymbols } from "./tools/code-search.js";
 import { sessionManager } from "./tools/code-session-manager.js";
+import { generateCompilationDatabase } from "./tools/compile-db.js";
 import { checkCompilerSupport } from "./tools/compiler-support.js";
 import { demangleSymbol } from "./tools/demangle.js";
 import { generateDocumentation } from "./tools/doc-generator.js";
@@ -1235,6 +1236,102 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error generating documentation: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "generate_compilation_database",
+    {
+      description:
+        "Generate or resolve a compile_commands.json database for C/C++ projects (CMake, xmake, Meson, Bear, or synthetic mode without a build system). Unlocks clangd semantic intelligence and clang-doc.",
+      inputSchema: {
+        workspace: z
+          .string()
+          .optional()
+          .describe(
+            "Project workspace directory containing build files or C/C++ source code (defaults to current directory).",
+          ),
+        build_system: z
+          .enum(["auto", "cmake", "xmake", "meson", "bear", "synthetic"])
+          .optional()
+          .default("auto")
+          .describe(
+            "Build system generator to use: 'auto', 'cmake', 'xmake', 'meson', 'bear', or 'synthetic' (default: 'auto').",
+          ),
+        build_dir: z
+          .string()
+          .optional()
+          .describe(
+            "Directory for build artifacts and compile_commands.json (defaults to 'build').",
+          ),
+        compiler: z
+          .string()
+          .optional()
+          .describe("Compiler executable for synthetic generation (e.g. 'clang++', 'g++')."),
+        std: z
+          .string()
+          .optional()
+          .default("c++20")
+          .describe("C/C++ standard flag for synthetic generation (e.g. 'c++20', 'c++17')."),
+        include_dirs: z
+          .array(z.string())
+          .optional()
+          .describe("Additional include directories for synthetic generation."),
+        symlink_to_root: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe(
+            "Link or copy the generated compile_commands.json to workspace root for automatic clangd discovery.",
+          ),
+        dry_run: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe("Preview generation without writing files to disk."),
+      },
+    },
+    async ({
+      workspace,
+      build_system,
+      build_dir,
+      compiler,
+      std,
+      include_dirs,
+      symlink_to_root,
+      dry_run,
+    }) => {
+      try {
+        const result = await generateCompilationDatabase({
+          workspace,
+          buildSystem: build_system,
+          buildDir: build_dir,
+          compiler,
+          std,
+          includeDirs: include_dirs,
+          symlinkToRoot: symlink_to_root,
+          dryRun: dry_run,
+        });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error generating compilation database: ${err instanceof Error ? err.message : String(err)}`,
             },
           ],
         };

@@ -9,6 +9,11 @@ import { formatCode } from "./tools/code-formatter.js";
 import { renameCodeSymbol } from "./tools/code-renamer.js";
 import { searchCodeSymbols } from "./tools/code-search.js";
 import { sessionManager } from "./tools/code-session-manager.js";
+import {
+  type BuildSystemName,
+  generateCompilationDatabase,
+  VALID_COMPILE_DB_SYSTEMS,
+} from "./tools/compile-db.js";
 import { type CompilerName, checkCompilerSupport } from "./tools/compiler-support.js";
 import { demangleSymbol } from "./tools/demangle.js";
 import { type DocFormat, generateDocumentation } from "./tools/doc-generator.js";
@@ -53,6 +58,7 @@ Commands:
   scaffold <name>                   Scaffold modern C++ project (xmake/CMake, C++20, Catch2, clangd)
   explain-error <text|->            Explain complex C++ compiler or linker errors (or pipe via stdin)
   docs [files...]                   Generate API documentation via clang-doc (--format, --output)
+  compile-db [dir]                  Generate compile_commands.json (auto, CMake, xmake, Meson, Bear, synthetic)
   compiler <feature> [options]      Check compiler support matrix (GCC, Clang, MSVC, Apple Clang)
   demangle <symbol|->               Demangle Itanium or MSVC mangled symbols (or stdin)
   cert <rule_id|cwe|category>       Audit against SEI CERT C++ rules and CWEs
@@ -73,8 +79,11 @@ Options:
   --dry-run                         Preview changes without modifying files (default)
   --dir <path>                      Target directory for scaffolded project (default: ./<name>)
   --build <xmake|cmake>             Build system for scaffolding (default: xmake)
+  --build-system <system>           Build system for compile-db ('auto', 'cmake', 'xmake', 'meson', 'bear', 'synthetic')
+  --build-dir <dir>                 Build directory for compile_commands.json (default: 'build')
+  --no-root-link                    Do not copy/link compile_commands.json to workspace root
   --type <type>                     Project type (executable, library, header-only, cxx-modules, qt, cuda)
-  --std <version>                   C++ standard for scaffolding (11, 14, 17, 20, 23, 26)
+  --std <version>                   C++ standard for scaffolding/compile-db (11, 14, 17, 20, 23, 26)
   --test <framework>                Test framework (catch2, gtest, doctest, none)
   --pm, --package-manager <name>    Package manager (xrepo, vcpkg, conan, none)
   --git                             Initialize git repository during scaffold
@@ -167,6 +176,8 @@ export async function runCli(args: string[]): Promise<number> {
   let flagApply = false;
   let flagDir: string | undefined;
   let flagBuildSystem: string | undefined;
+  let flagBuildDir: string | undefined;
+  let flagNoRootLink = false;
   let flagProjectType: string | undefined;
   let flagCppStd: string | undefined;
   let flagTest: string | undefined;
@@ -228,6 +239,14 @@ export async function runCli(args: string[]): Promise<number> {
     }
     if ((arg === "--build" || arg === "--build-system") && i + 1 < args.length) {
       flagBuildSystem = args[++i];
+      continue;
+    }
+    if (arg === "--build-dir" && i + 1 < args.length) {
+      flagBuildDir = args[++i];
+      continue;
+    }
+    if (arg === "--no-root-link") {
+      flagNoRootLink = true;
       continue;
     }
     if (arg === "--type" && i + 1 < args.length) {
@@ -1245,6 +1264,64 @@ export async function runCli(args: string[]): Promise<number> {
         if (res.previewMarkdown) {
           console.log("\nDocumentation Preview (index.md):");
           console.log(res.previewMarkdown);
+        }
+        return 0;
+      }
+
+      case "compile-db":
+      case "compiledb":
+      case "generate-compile-commands": {
+        if (flagBuildSystem && !VALID_COMPILE_DB_SYSTEMS.has(flagBuildSystem)) {
+          console.error(
+            `Error: Invalid --build-system '${flagBuildSystem}'. Supported: ${Array.from(VALID_COMPILE_DB_SYSTEMS).join(", ")}.`,
+          );
+          return 1;
+        }
+
+        const workspaceTarget = positionalArgs[1] || flagWorkspace || target || process.cwd();
+        const res = await generateCompilationDatabase({
+          workspace: workspaceTarget,
+          buildSystem: flagBuildSystem as BuildSystemName | undefined,
+          buildDir: flagBuildDir,
+          compiler: flagCompiler,
+          std: flagCppStd,
+          symlinkToRoot: !flagNoRootLink,
+          dryRun: flagDryRun,
+        });
+
+        if (isJson) {
+          console.log(JSON.stringify(res, null, 2));
+          return res.success ? 0 : 1;
+        }
+
+        if (isRaw) {
+          console.log(res.compileCommandsPath || "");
+          return res.success ? 0 : 1;
+        }
+
+        if (!res.success) {
+          console.error(`Error: ${res.summary}`);
+          if (res.error) {
+            console.error(`\n${res.error}`);
+          }
+          return 1;
+        }
+
+        console.log("Compilation Database Generated:");
+        console.log(`Build System: ${res.buildSystem.toUpperCase()}`);
+        console.log(`Path:         ${res.compileCommandsPath}`);
+        console.log(`Total Units:  ${res.entryCount} compilation unit(s)`);
+        if (res.rootLinked) {
+          console.log("Root Link:    Copied/linked to workspace root");
+        }
+        if (res.filesIndexed.length > 0) {
+          console.log("\nIndexed Files:");
+          for (const f of res.filesIndexed.slice(0, 10)) {
+            console.log(`  + ${f}`);
+          }
+          if (res.filesIndexed.length > 10) {
+            console.log(`  ... and ${res.filesIndexed.length - 10} more files`);
+          }
         }
         return 0;
       }
