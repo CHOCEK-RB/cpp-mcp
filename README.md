@@ -18,18 +18,18 @@ Model Context Protocol (MCP) server that empowers AI coding assistants with auth
 flowchart TB
     Client["AI Clients\n(Antigravity / Claude / VS Code / Cursor / Zed)"] -->|stdio · JSON-RPC| Server["cpp-mcp Server"]
 
-    subgraph Tools ["18 MCP Tools by Functional Domain"]
+    subgraph Tools ["22 MCP Tools by Functional Domain"]
         direction LR
         D1["Reference & Standards\n• search_cppreference\n• get_cppreference_page\n• lookup_header\n• check_cpp_standard"]
         D2["Safety & Guidelines\n• check_secure_coding (CERT)\n• get_guideline (Core Guidelines)\n• get_cpp_modules_guide\n• get_cpp_tooling_guide"]
         D3["Semantic Intelligence (AST)\n• search_code_symbols\n• analyze_code_symbol\n• rename_code_symbol\n• get_code_diagnostics\n• get_project_details"]
-        D4["Developer Productivity\n• format_code (clang-format)\n• scaffold_project (xmake / CMake)\n• explain_compiler_error\n• demangle_symbol\n• check_compiler_support"]
+        D4["Developer Productivity\n• format_code (clang-format)\n• generate_documentation (clang-doc)\n• reorder_struct_fields (clang-reorder-fields)\n• trace_preprocessor (pp-trace)\n• generate_compilation_database\n• scaffold_project (xmake / CMake)\n• explain_compiler_error\n• demangle_symbol\n• check_compiler_support"]
     end
 
     subgraph Backends ["Execution & Storage Engines"]
         direction LR
         Cache[("Tiered Cache\nL1 Memory + L2 Disk")]
-        LSP["clangd LSP & xmake\nAST & Compilation DB"]
+        LSP["clangd LSP & clang-doc\nAST & Compilation DB"]
         Web["cppreference.com\nHTTPS Scraper"]
     end
 
@@ -47,6 +47,10 @@ flowchart TB
 - **Semantic Code Intelligence (xmake + clangd LSP)**: Deep AST understanding of your local codebase with automatic compilation database generation via `xmake`, symbol search, type inheritance, call hierarchies, and usage examples (`search_code_symbols`, `analyze_code_symbol`).
 - **Live Compiler Diagnostics & AST Renaming**: Real-time error detection with caret pointers (`^~~~`), AST-based safe symbol renaming across all workspace files, and automated header tracking (`get_code_diagnostics`, `rename_code_symbol`).
 - **C/C++ Code Formatter**: Instant in-memory and file formatting via `clang-format` with project `.clang-format` auto-discovery, standard presets (`LLVM`, `Google`), line ranges, and unified diff preview (`format_code`).
+- **C/C++ Documentation Generator (clang-doc)**: Generates comprehensive API documentation from source code and Doxygen comments in Markdown, HTML, JSON, or YAML with compilation database integration and public API filtering (`generate_documentation`).
+- **Semantic Field Reordering (clang-reorder-fields)**: Optimizes struct/class memory layout and padding while automatically rewriting member declarations, constructor initializer lists, aggregate initializers, and C++20 designated initializers across the entire codebase (`reorder_struct_fields`).
+- **Preprocessor Tracer (pp-trace)**: Streams and aggregates the Clang preprocessor callback dump into a compact report of macro definitions, `#include` chains, `#if`/`#ifdef` branch decisions, pragmas, and C++20 module imports, filtered to project files by default (`trace_preprocessor`).
+- **Independent Compilation Database Generator**: Automatically resolves, generates, or synthesizes `compile_commands.json` across CMake, xmake, Meson, Bear, or synthetic mode without a build system, unlocking clangd LSP and clang-doc (`generate_compilation_database`).
 - **Smart C++ Project Scaffolding**: One-command project bootstrapping with modern `xmake` / `CMake`, C++11-26 standards, Catch2/GTest/doctest, C++20 modules, Qt6, CUDA, `.clang-format`, and `.clangd` LSP configurations (`scaffold_project`).
 - **Intelligent Compiler & Linker Error Explainer**: Translates intimidating template cascades, unsatisfied C++20 concepts, missing vtables, and undefined references into plain English root causes, simplified signatures, and concrete code fixes (`explain_compiler_error`).
 - **C++20/23/26 Modules Architecture**: Dedicated offline guide and best practices for `import std;`, interface & internal partitions, CMake 3.28+ (`FILE_SET CXX_MODULES`), and header migration (`get_cpp_modules_guide`).
@@ -601,6 +605,141 @@ Analyzes and explains complex, multi-page C++ compiler and linker errors in plai
   }
   ```
 
+### 19. `generate_documentation`
+
+Generates technical API documentation directly from C/C++ source code and Doxygen-style comments using LLVM `clang-doc`. Produces clean Markdown, standalone HTML sites, or structured JSON trees with inheritance, member types, function signatures, and return descriptions.
+
+> **Non-destructive output:** files are generated in a temporary staging directory and then published to `output_dir`. Only files produced by clang-doc during a previous run, tracked in `<output_dir>/.cpp-mcp-docs.json`, are cleaned up, so hand-written documents that share the target extension are preserved. A failed clang-doc run leaves `output_dir` untouched.
+
+- **Parameters**:
+  - `workspace` (`string`, optional): Project workspace root containing `compile_commands.json`, `xmake.lua`, or `CMakeLists.txt`.
+  - `files` (`string[]`, optional): Specific source or header files to document.
+  - `output_dir` (`string`, optional, default `"docs/api"`): Output directory for generated documentation files.
+  - `format` (`string`, optional, default `"md"`): Output format (`"md"`, `"html"`, `"json"`, or `"yaml"`).
+  - `public_only` (`boolean`, optional, default `false`): Document only public declarations.
+  - `doxygen_only` (`boolean`, optional, default `false`): Parse only Doxygen-style comments.
+  - `dry_run` (`boolean`, optional, default `false`): Previews execution without writing files.
+
+- **Output Example**:
+  ```json
+  {
+    "success": true,
+    "tool": "clang-doc (v22.1.8)",
+    "version": "22.1.8",
+    "format": "md",
+    "outputDir": "/home/user/project/docs/api",
+    "totalFiles": 4,
+    "filesGenerated": [
+      {
+        "relativePath": "index.md",
+        "absolutePath": "/home/user/project/docs/api/index.md",
+        "sizeBytes": 128
+      },
+      {
+        "relativePath": "geometry/Point.md",
+        "absolutePath": "/home/user/project/docs/api/geometry/Point.md",
+        "sizeBytes": 512
+      }
+    ],
+    "summary": "Successfully generated 4 documentation file(s) in MD format into '/home/user/project/docs/api'.",
+    "previewMarkdown": "# C/C++ Reference\n\n* Namespace: [geometry](geometry)\n..."
+  }
+  ```
+
+### 20. `generate_compilation_database`
+
+Generates, resolves, or synthesizes a `compile_commands.json` database for C/C++ projects. Supports CMake (`-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`), xmake (`xmake project -k compile_commands`), Meson (`meson setup`), Bear (`bear -- make`), or synthetic filesystem scanning without a build system. Automatically unlocks clangd LSP and clang-doc for any repository.
+
+- **Parameters**:
+  - `workspace` (`string`, optional): Project workspace root containing build files or C/C++ source code.
+  - `build_system` (`string`, optional, default `"auto"`): Generator mode: `"auto"`, `"cmake"`, `"xmake"`, `"meson"`, `"bear"`, or `"synthetic"`.
+  - `build_dir` (`string`, optional, default `"build"`): Build output directory.
+  - `compiler` (`string`, optional): Compiler executable for synthetic generation (e.g. `"clang++"`, `"g++"`).
+  - `std` (`string`, optional, default `"c++20"`): C/C++ standard flag for synthetic generation.
+  - `include_dirs` (`string[]`, optional): Additional include directories.
+  - `symlink_to_root` (`boolean`, optional, default `true`): Links or copies the generated database to the workspace root.
+  - `dry_run` (`boolean`, optional, default `false`): Previews generation without writing files.
+
+- **Output Example**:
+  ```json
+  {
+    "success": true,
+    "buildSystem": "cmake",
+    "compileCommandsPath": "/home/user/project/compile_commands.json",
+    "entryCount": 12,
+    "rootLinked": true,
+    "filesIndexed": [
+      "src/main.cpp",
+      "src/math.cpp"
+    ],
+    "summary": "Successfully generated compile_commands.json via CMake (12 entries)."
+  }
+  ```
+
+### 21. `reorder_struct_fields`
+
+Reorders fields in C/C++ structs and classes using `clang-reorder-fields`. Optimizes memory layout and padding, and automatically synchronizes all field definitions, constructor initializer lists, aggregate initializers, and C++20 designated initializers across the codebase.
+
+- **Parameters**:
+  - `record_name` (`string`, required): Fully-qualified name of the struct or class (e.g. `"Foo"` or `"::bar::Foo"`).
+  - `fields_order` (`string[]`, required): Desired order of field names (e.g. `["z", "w", "y", "x"]`).
+  - `workspace` (`string`, optional): Workspace directory containing source files or `compile_commands.json`.
+  - `files` (`string[]`, optional): Specific source or header files to inspect and update.
+  - `extra_args` (`string[]`, optional): Additional compiler flags (e.g. `["-std=c++20"]`).
+  - `apply` (`boolean`, optional, default `false`): When `true`, writes changes directly to disk. When `false` (default), returns preview diff.
+
+- **Output Example**:
+  ```json
+  {
+    "success": true,
+    "recordName": "Data",
+    "fieldsOrder": ["b", "a", "c"],
+    "dryRun": true,
+    "totalFiles": 2,
+    "modifiedFiles": [
+      "include/data.h",
+      "src/main.c"
+    ],
+    "unifiedDiff": "--- a/include/data.h\n+++ b/include/data.h\n@@ -2,3 +2,3 @@\n+ double b;\n  char a;\n- double b;\n  int c;",
+    "warnings": [],
+    "summary": "[DRY-RUN / PREVIEW] Successfully reordered fields in 'Data' (b, a, c) across 2 file(s)."
+  }
+  ```
+
+### 22. `trace_preprocessor`
+
+Traces the C/C++ preprocessor with `pp-trace` (clang-tools-extra) and returns a compact, filtered report instead of the raw multi-megabyte YAML callback dump. Summarizes macro definitions/undefinitions, `#include` directives, conditional compilation branch decisions (`#if`/`#ifdef`/`#elif`/`#else`), pragmas, and C++20 module imports. By default only events from project files are reported, keeping standard-library noise out.
+
+- **Parameters**:
+  - `file` (`string`, required): Source file to trace (absolute, or relative to `workspace`).
+  - `workspace` (`string`, optional): Workspace directory used to locate `compile_commands.json` (passed to `pp-trace -p`).
+  - `callbacks` (`string[]`, optional): Restrict tracing to specific callback names or globs (e.g. `["MacroDefined", "MacroExpands"]`).
+  - `extra_args` (`string[]`, optional): Additional compiler flags (e.g. `["-std=c++20", "-Iinclude"]`).
+  - `max_events` (`number`, optional, default `500`): Maximum number of raw events retained when `include_events` is enabled.
+  - `include_events` (`boolean`, optional, default `false`): Include the capped raw callback event list in the output.
+  - `user_files_only` (`boolean`, optional, default `true`): Report only events from project files, filtering out system headers and `<built-in>` locations.
+
+- **Output Example**:
+  ```json
+  {
+    "success": true,
+    "source": "/home/user/project/src/main.cpp",
+    "tool": { "name": "pp-trace", "path": "/usr/bin/pp-trace", "version": "22.1.8" },
+    "summary": {
+      "totalEvents": 309135,
+      "userEvents": 6,
+      "truncated": false,
+      "counts": { "MacroDefined": 1, "MacroExpands": 1, "InclusionDirective": 1, "If": 1, "Endif": 1, "EndOfMainFile": 1 }
+    },
+    "macros": [{ "name": "MAX", "action": "define", "file": "/home/user/project/src/main.cpp", "loc": "/home/user/project/src/main.cpp:1:9" }],
+    "includes": [{ "fileName": "vector", "angled": true, "searchPath": "/usr/include/c++/22" }],
+    "conditionals": [{ "kind": "If", "loc": "/home/user/project/src/main.cpp:2:2", "conditionValue": false }],
+    "pragmas": [],
+    "modules": [],
+    "warnings": []
+  }
+  ```
+
 ---
 
 ## Resources Catalog
@@ -765,6 +904,11 @@ If you downloaded the precompiled binary from [GitHub Releases](https://github.c
 cpp-mcp project
 cpp-mcp project /path/to/project --json
 
+# Generate compile_commands.json (CMake, xmake, Meson, Bear, or synthetic scan)
+cpp-mcp compile-db
+cpp-mcp compile-db /path/to/project --build-system cmake
+cpp-mcp compile-db --build-system synthetic --std c++20
+
 # Search code symbols in your workspace (auto-detects xmake/CMake and spawns clangd)
 cpp-mcp code-search Vec2
 cpp-mcp code-search "tb_vector" --workspace /path/to/project
@@ -786,6 +930,16 @@ cpp-mcp code-diagnostics src/main.cpp --code "int x = undeclared_var;" --json
 cpp-mcp code-rename "calculate_total" "compute_total"
 cpp-mcp code-rename "calculate_total" "compute_total" --apply
 cpp-mcp code-rename "Calculator::add" "sum" --workspace /path/to/project --json
+
+# Reorder struct/class fields to optimize memory layout & padding (clang-reorder-fields)
+cpp-mcp reorder-fields "Foo" "z,w,y,x"
+cpp-mcp reorder-fields "::bar::Foo" "z,w,y,x" --apply
+cpp-mcp reorder-fields "Data" "b,a,c" --file src/data.h --apply
+
+# Trace the preprocessor: macros, includes, and #if branches (pp-trace)
+cpp-mcp trace-preprocessor src/main.cpp
+cpp-mcp trace-preprocessor src/main.cpp --callbacks MacroDefined,MacroExpands --std c++20
+cpp-mcp trace-preprocessor src/main.cpp --include-events --max-events 50 --json
 
 # Raw or JSON output for shell scripting and automation
 cpp-mcp code-search Vec2 --raw
@@ -837,7 +991,18 @@ cpp-mcp scaffold my_cmake_app --build cmake --test catch2
 # Explain complex compiler errors, template explosions, or linker traces
 cpp-mcp explain-error "main.cpp:8:5: error: 'vector' was not declared in this scope"
 cat build.log | cpp-mcp explain-error -
+
+# Generate API documentation via clang-doc (Markdown, HTML, JSON, YAML)
+cpp-mcp docs --format md --output docs/api
+cpp-mcp docs include/geometry.hpp --public
+cpp-mcp docs --dry-run --json
 ```
+
+### Command Reference & Aliases
+
+Run `cpp-mcp <command>` for any of: `header`, `query`, `search`, `standard`, `guideline`, `cert`, `module`, `tooling`, `compiler`, `demangle`, `project`, `code-search`, `code-analyze`, `code-diagnostics`, `code-rename`, `code-format`, `scaffold`, `explain-error`, `docs`, `compile-db`, `reorder-fields`, `trace-preprocessor`.
+
+`query` looks up the ISO header for a symbol and falls back to a cppreference search when the symbol is unknown. Several commands accept short aliases: `code-diagnostics` (`diagnostics`, `check`), `code-rename` (`rename`), `code-format` (`format`), `scaffold` (`init`), `explain-error` (`explain`), `docs` (`generate-docs`, `clang-doc`), `compile-db` (`compiledb`, `generate-compile-commands`), `reorder-fields` (`reorder`), and `trace-preprocessor` (`trace-pp`, `pretrace`).
 
 ---
 
@@ -850,6 +1015,19 @@ The workspace semantic engine is built specifically for modern C/C++ workflows:
 3. **Lightweight Clangd Client**: Spawns `clangd` as a child process using raw JSON-RPC over `stdio` with standard `Content-Length` framing, without heavyweight LSP library overhead.
 4. **Cold-Start Preloading**: Upon initialization, primary translation units from `compile_commands.json` are automatically preloaded (`textDocument/didOpen`), ensuring early symbol queries hit memory AST immediately instead of returning empty results.
 5. **Robust Process Lifecycle**: Drains `stderr` continuously to avoid 64 KB kernel pipe deadlocks, pools concurrent initialization requests to prevent duplicate orphan processes, and binds termination handlers (`SIGINT`, `SIGTERM`, `exit`) to ensure zero zombie `clangd` instances.
+
+---
+
+## Environment Variables
+
+| Variable | Description |
+|---|---|
+| `CPP_MCP_CACHE_DISABLE` | Set to `true` or `1` to disable the L2 on-disk cache (memory-only). |
+| `CPP_MCP_CACHE_DIR` | Overrides the base cache directory (default `~/.cache/cpp-mcp/`). |
+| `XDG_CACHE_HOME` | Used to derive the cache directory when `CPP_MCP_CACHE_DIR` is unset. |
+| `CLANGD_PATH` | Overrides the `clangd` executable used by the semantic tools. |
+| `CLANGD_QUERY_DRIVER` | Compiler driver(s) clangd may query for builtin system includes (gcc, cross-toolchains). Comma- or whitespace-separated; passed as `--query-driver`. |
+| `CLANG_FORMAT_PATH` | Overrides the `clang-format` executable used by `format_code` / `cpp-mcp code-format`. |
 
 ---
 
@@ -874,7 +1052,7 @@ bun test --coverage  # Run test suite with coverage
 bun run build        # Compile self-contained bundle into dist/
 bun run compile      # Build native standalone binary (dist/bin/cpp-mcp)
 bun run compile:all  # Cross-compile native binaries for 5 platform targets
-bun run check:publint# Validate package distribution standards
+bun run check:publint # Validate package distribution standards
 ```
 
 ---

@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { Position, TextEdit, WorkspaceEdit } from "../lsp/types.js";
+import { openFileInSession } from "./code-document.js";
 import { sessionManager } from "./code-session-manager.js";
 
 export interface CodeRenameOptions {
@@ -266,11 +267,10 @@ export async function renameCodeSymbol(options: CodeRenameOptions): Promise<Code
     try {
       const localFilePath = fileURLToPath(targetUri);
       if (existsSync(localFilePath)) {
-        const fileContent = await fs.readFile(localFilePath, "utf-8");
-        const ext = path.extname(localFilePath).toLowerCase();
-        const langId = ext === ".c" ? "c" : "cpp";
-        session.openOrUpdateDocument(targetUri, langId, fileContent);
-        await new Promise((r) => setTimeout(r, 100));
+        const opened = await openFileInSession(session, targetUri, localFilePath);
+        if (opened) {
+          await new Promise((r) => setTimeout(r, 100));
+        }
       }
     } catch {
       // Fallback to background index

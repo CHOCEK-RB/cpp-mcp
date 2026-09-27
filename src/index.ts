@@ -15,13 +15,17 @@ import { formatCode } from "./tools/code-formatter.js";
 import { renameCodeSymbol } from "./tools/code-renamer.js";
 import { searchCodeSymbols } from "./tools/code-search.js";
 import { sessionManager } from "./tools/code-session-manager.js";
+import { generateCompilationDatabase } from "./tools/compile-db.js";
 import { checkCompilerSupport } from "./tools/compiler-support.js";
 import { demangleSymbol } from "./tools/demangle.js";
+import { generateDocumentation } from "./tools/doc-generator.js";
 import { explainCompilerError } from "./tools/error-explainer.js";
+import { reorderStructFields } from "./tools/field-reorderer.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
 import { getCppModulesGuide } from "./tools/modules.js";
 import { getCppreferencePage } from "./tools/page.js";
+import { tracePreprocessor } from "./tools/preprocessor-tracer.js";
 import { scaffoldProject } from "./tools/project-scaffold.js";
 import { searchCppreference } from "./tools/search.js";
 import { checkCppStandard } from "./tools/standards.js";
@@ -529,7 +533,7 @@ export function createServer(): McpServer {
     },
     async ({ symbol, strip_params }) => {
       try {
-        const result = demangleSymbol({
+        const result = await demangleSymbol({
           symbol,
           strip_params,
         });
@@ -1155,6 +1159,344 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error explaining compiler error: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "generate_documentation",
+    {
+      description:
+        "Generate API documentation from C/C++ source code using clang-doc (Markdown, HTML, JSON, YAML). Extracts Doxygen comments, types, and inheritance.",
+      inputSchema: {
+        workspace: z
+          .string()
+          .optional()
+          .describe(
+            "Project workspace directory containing compile_commands.json, xmake.lua, or CMakeLists.txt (defaults to current directory).",
+          ),
+        files: z
+          .array(z.string())
+          .optional()
+          .describe("Optional specific source or header files to document."),
+        output_dir: z
+          .string()
+          .optional()
+          .default("docs/api")
+          .describe("Destination output directory (default: 'docs/api')."),
+        format: z
+          .enum(["md", "html", "json", "yaml"])
+          .optional()
+          .default("md")
+          .describe(
+            "Documentation output format: 'md', 'html', 'json', or 'yaml'. Defaults to 'md'.",
+          ),
+        public_only: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe("Document only public declarations."),
+        doxygen_only: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe("Parse only Doxygen-style comments."),
+        dry_run: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe("Preview generation without writing files to disk."),
+      },
+    },
+    async ({ workspace, files, output_dir, format, public_only, doxygen_only, dry_run }) => {
+      try {
+        const result = await generateDocumentation({
+          workspace,
+          files,
+          outputDir: output_dir,
+          format,
+          publicOnly: public_only,
+          doxygenOnly: doxygen_only,
+          dryRun: dry_run,
+        });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error generating documentation: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "generate_compilation_database",
+    {
+      description:
+        "Generate or resolve a compile_commands.json database for C/C++ projects (CMake, xmake, Meson, Bear, or synthetic mode without a build system). Unlocks clangd semantic intelligence and clang-doc.",
+      inputSchema: {
+        workspace: z
+          .string()
+          .optional()
+          .describe(
+            "Project workspace directory containing build files or C/C++ source code (defaults to current directory).",
+          ),
+        build_system: z
+          .enum(["auto", "cmake", "xmake", "meson", "bear", "synthetic"])
+          .optional()
+          .default("auto")
+          .describe(
+            "Build system generator to use: 'auto', 'cmake', 'xmake', 'meson', 'bear', or 'synthetic' (default: 'auto').",
+          ),
+        build_dir: z
+          .string()
+          .optional()
+          .describe(
+            "Directory for build artifacts and compile_commands.json (defaults to 'build').",
+          ),
+        compiler: z
+          .string()
+          .optional()
+          .describe("Compiler executable for synthetic generation (e.g. 'clang++', 'g++')."),
+        std: z
+          .string()
+          .optional()
+          .default("c++20")
+          .describe("C/C++ standard flag for synthetic generation (e.g. 'c++20', 'c++17')."),
+        include_dirs: z
+          .array(z.string())
+          .optional()
+          .describe("Additional include directories for synthetic generation."),
+        symlink_to_root: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe(
+            "Link or copy the generated compile_commands.json to workspace root for automatic clangd discovery.",
+          ),
+        dry_run: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe("Preview generation without writing files to disk."),
+      },
+    },
+    async ({
+      workspace,
+      build_system,
+      build_dir,
+      compiler,
+      std,
+      include_dirs,
+      symlink_to_root,
+      dry_run,
+    }) => {
+      try {
+        const result = await generateCompilationDatabase({
+          workspace,
+          buildSystem: build_system,
+          buildDir: build_dir,
+          compiler,
+          std,
+          includeDirs: include_dirs,
+          symlinkToRoot: symlink_to_root,
+          dryRun: dry_run,
+        });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error generating compilation database: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "reorder_struct_fields",
+    {
+      description:
+        "Reorder fields in C/C++ structs and classes using clang-reorder-fields. Optimizes memory layout and padding, and automatically updates field declarations, constructor initializer lists, aggregate initializers, and C++20 designated initializers across the codebase.",
+      inputSchema: {
+        record_name: z
+          .string()
+          .describe(
+            "Fully-qualified name of the struct or class to reorder (e.g. 'Foo' or '::bar::Foo').",
+          ),
+        fields_order: z
+          .array(z.string())
+          .describe("The desired order of field names (e.g. ['z', 'w', 'y', 'x'])."),
+        workspace: z
+          .string()
+          .optional()
+          .describe(
+            "Workspace directory containing source files or compile_commands.json (defaults to current directory).",
+          ),
+        files: z
+          .array(z.string())
+          .optional()
+          .describe("Optional specific source or header files to inspect and update."),
+        extra_args: z
+          .array(z.string())
+          .optional()
+          .describe("Additional compiler arguments (e.g. ['-std=c++20'])."),
+        apply: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe(
+            "When true, writes rewritten changes to disk. When false (default), returns preview diff.",
+          ),
+      },
+    },
+    async ({ record_name, fields_order, workspace, files, extra_args, apply }) => {
+      try {
+        const result = await reorderStructFields({
+          recordName: record_name,
+          fieldsOrder: fields_order,
+          workspace,
+          files,
+          extraArgs: extra_args,
+          apply,
+        });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error reordering fields: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "trace_preprocessor",
+    {
+      description:
+        "Trace C/C++ preprocessor activity with clang-tools-extra's pp-trace. Returns an aggregated summary of macro definitions/undefinitions, #include directives, conditional branches (#if/#ifdef/#elif), pragmas, and module imports, filtering out system-header noise by default.",
+      inputSchema: {
+        file: z
+          .string()
+          .describe(
+            "Path to the C/C++ source file to trace (absolute or relative to 'workspace').",
+          ),
+        workspace: z
+          .string()
+          .optional()
+          .describe(
+            "Workspace directory used to resolve the file and locate compile_commands.json (defaults to current directory).",
+          ),
+        callbacks: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Restrict tracing to specific pp-trace callbacks or globs (e.g. ['MacroDefined', 'MacroExpands']).",
+          ),
+        extra_args: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Additional compiler arguments forwarded via --extra-arg (e.g. ['-std=c++20', '-Iinclude']).",
+          ),
+        max_events: z
+          .number()
+          .int()
+          .optional()
+          .default(500)
+          .describe(
+            "Maximum number of raw events retained when 'include_events' is true (default 500, max 10000).",
+          ),
+        include_events: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe("When true, also return the raw callback events (capped by 'max_events')."),
+        user_files_only: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe(
+            "Filter out events from system headers and virtual files, keeping only project code (default true).",
+          ),
+      },
+    },
+    async ({
+      file,
+      workspace,
+      callbacks,
+      extra_args,
+      max_events,
+      include_events,
+      user_files_only,
+    }) => {
+      try {
+        const result = await tracePreprocessor({
+          file,
+          workspace,
+          callbacks,
+          extraArgs: extra_args,
+          maxEvents: max_events,
+          includeEvents: include_events,
+          userFilesOnly: user_files_only,
+        });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error tracing preprocessor: ${err instanceof Error ? err.message : String(err)}`,
             },
           ],
         };
