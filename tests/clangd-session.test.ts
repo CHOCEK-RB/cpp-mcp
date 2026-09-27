@@ -6,7 +6,12 @@ import os from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
 import { pathToFileURL } from "node:url";
-import { ClangdSession, encodeLspMessage, LspMessageParser } from "../src/lsp/index.js";
+import {
+  ClangdSession,
+  type ClangdSessionOptions,
+  encodeLspMessage,
+  LspMessageParser,
+} from "../src/lsp/index.js";
 import { isExecutableAvailable } from "../src/project/xmake.js";
 
 /** Minimal fake of a spawned clangd child process for lifecycle tests (no real binary). */
@@ -216,6 +221,71 @@ describe("ClangdSession lifecycle without a real clangd", () => {
     expect(fake.killed).toBe(true);
     expect(session.isRunning()).toBe(false);
 
+    await session.close();
+  });
+});
+
+describe("ClangdSession query driver configuration", () => {
+  let tempDir: string;
+  let previousQueryDriver: string | undefined;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "clangd-query-driver-test-"));
+    previousQueryDriver = process.env.CLANGD_QUERY_DRIVER;
+    delete process.env.CLANGD_QUERY_DRIVER;
+  });
+
+  afterEach(async () => {
+    if (previousQueryDriver === undefined) {
+      delete process.env.CLANGD_QUERY_DRIVER;
+    } else {
+      process.env.CLANGD_QUERY_DRIVER = previousQueryDriver;
+    }
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  function makeSession(options: Partial<ClangdSessionOptions> = {}) {
+    const fake = new FakeChildProcess();
+    wireFakeClangd(fake);
+    let args: string[] = [];
+    const session = new ClangdSession({
+      workspaceDir: tempDir,
+      spawnProcess: (_command, spawnedArgs) => {
+        args = spawnedArgs;
+        return fake.asChildProcess();
+      },
+      ...options,
+    });
+    return { session, getArgs: () => args };
+  }
+
+  it("should pass configured compilers via --query-driver", async () => {
+    const { session, getArgs } = makeSession({
+      queryDriver: ["/usr/bin/g++", "/opt/arm/bin/*-g++"],
+    });
+
+    await session.start();
+
+    expect(getArgs()).toContain("--query-driver=/usr/bin/g++,/opt/arm/bin/*-g++");
+    await session.close();
+  });
+
+  it("should read the query driver from CLANGD_QUERY_DRIVER", async () => {
+    process.env.CLANGD_QUERY_DRIVER = "/usr/bin/clang++, /usr/bin/g++";
+    const { session, getArgs } = makeSession();
+
+    await session.start();
+
+    expect(getArgs()).toContain("--query-driver=/usr/bin/clang++,/usr/bin/g++");
+    await session.close();
+  });
+
+  it("should omit --query-driver when not configured", async () => {
+    const { session, getArgs } = makeSession();
+
+    await session.start();
+
+    expect(getArgs().some((arg) => arg.startsWith("--query-driver"))).toBe(false);
     await session.close();
   });
 });
