@@ -1,6 +1,7 @@
 // src/cli.ts
 // Direct CLI mode for cpp-mcp without an MCP client.
 import pkg from "../package.json" with { type: "json" };
+import { isExecutableAvailable, resolveProjectBuildInfo } from "./project/xmake.js";
 import { checkSecureCoding } from "./tools/cert.js";
 import { analyzeCodeSymbol } from "./tools/code-analyzer.js";
 import { searchCodeSymbols } from "./tools/code-search.js";
@@ -25,6 +26,7 @@ Commands:
   header <symbol>                   Lookup standard header for a symbol (e.g. std::span -> <span>)
   query <symbol|concept>            Comprehensive lookup across headers and documentation
   search <query>                    Search cppreference.com for documentation and URLs
+  project [dir]                     Inspect workspace build configuration, compile_commands, and tools
   code-search <query>               Search symbols in workspace code (clangd + xmake/CMake)
   code-analyze <symbol>             Analyze symbol definition, hierarchy, and usage
   compiler <feature> [options]      Check compiler support matrix (GCC, Clang, MSVC, Apple Clang)
@@ -39,6 +41,8 @@ Options:
   --json                            Output response in raw JSON format
   --raw                             Print only primary scalar value (e.g. only header name)
   --workspace <dir>                 Project root directory for code-search and code-analyze
+  --file <path>                     Source file path for symbol disambiguation
+  --line <num>                      Line number (1-indexed) for symbol disambiguation
   --compiler <name>                 Compiler name for compatibility checks (gcc, clang, msvc, apple_clang)
   --version <ver>                   Compiler version to evaluate against feature requirement
   -v, --version                     Print version and exit
@@ -424,6 +428,47 @@ export async function runCli(args: string[]): Promise<number> {
           console.log(`${i + 1}. ${res.result_urls[i]}`);
         }
         return 0;
+      }
+
+      case "project": {
+        const ws = target || flagWorkspace || process.cwd();
+        const info = await resolveProjectBuildInfo({ workspaceDir: ws });
+        const [hasClangd, hasXmake] = await Promise.all([
+          isExecutableAvailable("clangd"),
+          isExecutableAvailable("xmake"),
+        ]);
+        const fullInfo = {
+          ...info,
+          toolchain: {
+            clangd: hasClangd,
+            xmake: hasXmake,
+          },
+        };
+
+        if (isJson) {
+          console.log(JSON.stringify(fullInfo, null, 2));
+          return 0;
+        }
+
+        console.log("C/C++ Project Build Details:");
+        console.log(`Build System:        ${fullInfo.buildSystem}`);
+        console.log(`Root Directory:      ${fullInfo.rootDir}`);
+        if (fullInfo.compileCommandsPath) {
+          console.log(`Compilation DB:      ${fullInfo.compileCommandsPath}`);
+        }
+        if (fullInfo.entryCount !== undefined) {
+          console.log(`Translation Units:   ${fullInfo.entryCount}`);
+        }
+        if (fullInfo.generated) {
+          console.log("Auto-Generated:      yes (via xmake)");
+        }
+        console.log("Toolchain Status:");
+        console.log(`  clangd:            ${hasClangd ? "available" : "not found in PATH"}`);
+        console.log(`  xmake:             ${hasXmake ? "available" : "not found in PATH"}`);
+        if (fullInfo.error) {
+          console.log(`Note:                ${fullInfo.error}`);
+        }
+        return fullInfo.found ? 0 : 1;
       }
 
       case "code-search": {

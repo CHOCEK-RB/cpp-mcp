@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
 import { runCli } from "./cli.js";
+import { isExecutableAvailable, resolveProjectBuildInfo } from "./project/xmake.js";
 import { registerPrompts } from "./prompts/index.js";
 import { registerResources } from "./resources/index.js";
 import { checkSecureCoding } from "./tools/cert.js";
@@ -641,6 +642,65 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error analyzing code symbol: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "get_project_details",
+    {
+      description:
+        "Inspect C/C++ workspace build configuration, detected build system (xmake, CMake, compile_commands.json), indexed compilation units, and toolchain availability (clangd, xmake).",
+      inputSchema: {
+        workspaceDir: z
+          .string()
+          .optional()
+          .describe(
+            "Project root directory containing xmake.lua, CMakeLists.txt, or compile_commands.json. Defaults to cwd.",
+          ),
+        autoGenerate: z
+          .boolean()
+          .optional()
+          .describe(
+            "Automatically generate compile_commands.json via xmake if missing (default: true).",
+          ),
+      },
+    },
+    async ({ workspaceDir, autoGenerate }) => {
+      try {
+        const info = await resolveProjectBuildInfo({ workspaceDir, autoGenerate });
+        const [hasClangd, hasXmake] = await Promise.all([
+          isExecutableAvailable("clangd"),
+          isExecutableAvailable("xmake"),
+        ]);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  ...info,
+                  toolchain: {
+                    clangd: hasClangd,
+                    xmake: hasXmake,
+                  },
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error inspecting project details: ${error instanceof Error ? error.message : String(error)}`,
             },
           ],
         };

@@ -17,7 +17,7 @@ Model Context Protocol (MCP) server that empowers AI coding assistants with auth
 ```mermaid
 flowchart TD
     Client["AI Client\n(Antigravity / Claude / VS Code / Zed)"] -- stdio / JSON-RPC --> Server["cpp-mcp Server"]
-    
+
     subgraph Tools ["Tools Catalog"]
         Server --> T1["search_cppreference"]
         Server --> T2["get_cppreference_page"]
@@ -229,6 +229,7 @@ Audits C++ code for security vulnerabilities, undefined behavior (UB), and safet
 ### 8. `get_cpp_tooling_guide`
 
 Retrieves documentation, directives, CLI commands, and production starter configurations for modern C/C++ developer tools:
+
 - **`xmake`**: Lua-based build utility with zero-configuration C++20/C++23 module scanning and integrated packages (`add_requires`).
 - **`clang-format`**: Unified styling with pointer alignment, include sorting, and bracket placements.
 - **`clang-tidy`**: Strict static analysis check profiles (`modernize-*`, `bugprone-*`, `cert-*`).
@@ -343,10 +344,10 @@ Searches for C++ symbols (classes, structs, functions, methods, variables) acros
 
 ### 12. `analyze_code_symbol`
 
-Performs deep multi-dimensional semantic analysis of a C++ symbol in your project: definition, declaration, hover signature, docstrings, inheritance hierarchy (base and derived classes), call hierarchy (incoming and outgoing calls), class members, and usage examples.
+Performs deep multi-dimensional semantic analysis of a C++ symbol in your project: definition, declaration, hover signature, docstrings, inheritance hierarchy (base and derived classes), call hierarchy (incoming and outgoing calls), class/struct members, and live usage examples.
 
 - **Parameters**:
-  - `symbol` (`string`, required): Symbol name or qualified name to analyze (e.g. `"Calculator::add"`, `"Vec2"`).
+  - `symbol` (`string`, required): Symbol name or qualified name to analyze (e.g. `"Calculator::add"`, `"Vec2"`, `"tb_hash_map_init"`).
   - `workspaceDir` (`string`, optional): Project root directory.
   - `file` (`string`, optional): Source file path hint for disambiguation.
   - `line` (`number`, optional): Line number hint (1-indexed) for disambiguation.
@@ -356,25 +357,65 @@ Performs deep multi-dimensional semantic analysis of a C++ symbol in your projec
   ```json
   {
     "found": true,
-    "symbol": "Vec2",
-    "kind": "struct",
-    "signature": "struct Vec2",
-    "documentation": "2D Vector representation",
+    "symbol": "tb_hash_map_init",
+    "kind": "function",
+    "signature": "tb_hash_map_ref_t tb_hash_map_init(tb_size_t bucket_size, tb_element_t element_name, tb_element_t element_data)",
+    "documentation": "init hash map\n@param bucket_size the hash bucket size...\n@return the hash map",
     "declaration": {
-      "file": "/workspace/project/include/vector_math.hpp",
-      "line": 5,
-      "character": 10
+      "file": "/workspace/project/include/hash_map.h",
+      "line": 107,
+      "character": 25
     },
     "definition": {
-      "file": "/workspace/project/include/vector_math.hpp",
-      "line": 5,
-      "character": 10
+      "file": "/workspace/project/include/hash_map.h",
+      "line": 107,
+      "character": 25
     },
-    "members": [
-      { "name": "x", "kind": "field", "line": 6 },
-      { "name": "y", "kind": "field", "line": 7 },
-      { "name": "length_sq", "kind": "method", "line": 8 }
+    "callHierarchy": {
+      "incomingCalls": [
+        {
+          "from": {
+            "name": "tb_string_pool_init",
+            "kind": "function",
+            "file": "/workspace/project/src/string_pool.c",
+            "line": 55
+          },
+          "callCount": 1
+        }
+      ],
+      "outgoingCalls": []
+    },
+    "usageExamples": [
+      {
+        "file": "/workspace/project/src/string_pool.c",
+        "line": 67,
+        "preview": "pool->cache = tb_hash_map_init(0, tb_element_str(bcase), tb_element_size());"
+      }
     ]
+  }
+  ```
+
+### 13. `get_project_details`
+
+Inspects C/C++ workspace build configuration, automatically detects build system (`xmake`, `CMake`, or pre-existing `compile_commands.json`), counts indexed translation units, and verifies host toolchain availability (`clangd`, `xmake`).
+
+- **Parameters**:
+  - `workspaceDir` (`string`, optional): Project root directory containing `xmake.lua`, `CMakeLists.txt`, or `compile_commands.json` (defaults to current working directory).
+  - `autoGenerate` (`boolean`, optional): Automatically run `xmake project -k compile_commands` if `compile_commands.json` is missing (default: `true`).
+
+- **Output Example**:
+  ```json
+  {
+    "found": true,
+    "buildSystem": "xmake",
+    "rootDir": "/home/user/project",
+    "compileCommandsPath": "/home/user/project/compile_commands.json",
+    "entryCount": 378,
+    "generated": true,
+    "toolchain": {
+      "clangd": true,
+      "xmake": true
+    }
   }
   ```
 
@@ -531,37 +572,73 @@ If you downloaded the precompiled binary from [GitHub Releases](https://github.c
 
 ## Direct CLI Usage (No MCP Client Required)
 
-`cpp-mcp` doubles as a standalone command-line developer utility that integrates into build scripts (`xmake`, `Makefile`, `bash`) without requiring an LLM:
+`cpp-mcp` doubles as a standalone command-line developer utility that integrates into terminals, CI/CD pipelines, and build scripts (`xmake`, `Makefile`, `bash`) without requiring an LLM or MCP client:
+
+### 1. Workspace & Semantic Code Intelligence (xmake + clangd)
+
+```bash
+# Inspect project build configuration, compilation database, and host tools
+cpp-mcp project
+cpp-mcp project /path/to/project --json
+
+# Search code symbols in your workspace (auto-detects xmake/CMake and spawns clangd)
+cpp-mcp code-search Vec2
+cpp-mcp code-search "tb_vector" --workspace /path/to/project
+
+# Deep semantic analysis of a symbol (signature, doxygen, callers, struct fields, usage)
+cpp-mcp code-analyze "tb_hash_map_init" --workspace /path/to/project
+cpp-mcp code-analyze "Calculator::add"
+
+# Disambiguate identical symbols or forward declarations via file and line hints
+cpp-mcp code-analyze "__tb_element_t" --workspace /path/to/project --file include/element.h --line 182
+
+# Raw or JSON output for shell scripting and automation
+cpp-mcp code-search Vec2 --raw
+cpp-mcp code-analyze "tb_hash_map_init" --json
+```
+
+### 2. Standard Reference, Tooling & Compiler Verification
 
 ```bash
 # Fast header lookup (returns <span>)
 cpp-mcp header std::span --raw
 
-# Search code symbols in your local project (clangd + xmake/CMake)
-cpp-mcp code-search Vec2
-cpp-mcp code-search Calculator --workspace /path/to/project
+# Comprehensive symbol search across cppreference
+cpp-mcp search "std::priority_queue"
 
-# Deep semantic analysis of a project symbol (signatures, hierarchy, examples)
-cpp-mcp code-analyze Vec2
-cpp-mcp code-analyze Calculator::add
-
-# Demangle Itanium or MSVC symbols directly (or pipe via stdin)
+# Demangle Itanium or MSVC symbols directly (or pipe logs via stdin)
 cpp-mcp demangle "_Z3fooi"
 cat build.log | cpp-mcp demangle -
 
-# Check compiler support for modern features
+# Check compiler support matrix (GCC, Clang, MSVC, Apple Clang)
 cpp-mcp compiler std-print --compiler gcc --version 13.1
 
-# Inspect SEI CERT rules or C++ Core Guidelines
+# Audit against SEI CERT C++ rules and CWE security vulnerabilities
 cpp-mcp cert MEM50-CPP
+cpp-mcp cert STR50-CPP --json
+
+# Lookup C++ Core Guidelines rules, enforcement, and rationale
 cpp-mcp guideline F.16
+cpp-mcp guideline "RAII"
 
 # Check standard availability and feature test macros
 cpp-mcp standard std::span C++20
 
-# Structured JSON output for shell pipelines and automation
-cpp-mcp header std::span --json
+# Modern C++ tooling starter recipes (xmake, clang-format, clang-tidy)
+cpp-mcp tooling xmake
 ```
+
+---
+
+## Semantic Architecture (xmake + clangd LSP)
+
+The workspace semantic engine is built specifically for modern C/C++ workflows:
+
+1. **Auto-Discovery**: Detects `xmake.lua`, `CMakeLists.txt`, or existing `compile_commands.json` in candidate directories (`.`, `build/`, `.vscode/`, `.xmake/`).
+2. **xmake Generator**: If an `xmake` project lacks a compilation database, `cpp-mcp` automatically runs `xmake project -k compile_commands` to produce a pristine `compile_commands.json` in seconds.
+3. **Lightweight Clangd Client**: Spawns `clangd` as a child process using raw JSON-RPC over `stdio` with standard `Content-Length` framing, without heavyweight LSP library overhead.
+4. **Cold-Start Preloading**: Upon initialization, primary translation units from `compile_commands.json` are automatically preloaded (`textDocument/didOpen`), ensuring early symbol queries hit memory AST immediately instead of returning empty results.
+5. **Robust Process Lifecycle**: Drains `stderr` continuously to avoid 64 KB kernel pipe deadlocks, pools concurrent initialization requests to prevent duplicate orphan processes, and binds termination handlers (`SIGINT`, `SIGTERM`, `exit`) to ensure zero zombie `clangd` instances.
 
 ---
 

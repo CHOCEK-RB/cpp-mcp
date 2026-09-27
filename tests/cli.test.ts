@@ -279,6 +279,24 @@ describe("Direct CLI Mode", () => {
     }
   });
 
+  it("should inspect project build details via project command", async () => {
+    let output = "";
+    const origLog = console.log;
+    console.log = (msg: string) => {
+      output += `${msg}\n`;
+    };
+
+    try {
+      const code = await runCli(["project", "--json"]);
+      expect(code).toBe(0);
+      const parsed = JSON.parse(output);
+      expect(parsed.buildSystem).toBeDefined();
+      expect(parsed.toolchain).toBeDefined();
+    } finally {
+      console.log = origLog;
+    }
+  });
+
   it("should execute directly via CLI process invocation", () => {
     const proc = Bun.spawnSync(["bun", "src/index.ts", "header", "std::span", "--raw"]);
     expect(proc.exitCode).toBe(0);

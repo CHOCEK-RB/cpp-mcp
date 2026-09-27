@@ -154,5 +154,6 @@ describe("McpServer setup", () => {
     const tools = server._registeredTools;
     expect(tools.search_code_symbols).toBeDefined();
     expect(tools.analyze_code_symbol).toBeDefined();
+    expect(tools.get_project_details).toBeDefined();
   });
 });
