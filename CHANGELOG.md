@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/CHOCEK-RB/cpp-mcp/compare/cpp-mcp-v1.6.0...cpp-mcp-v1.7.0) (2026-09-27)
+
+
+### Features
+
+* clangd session hardening and clang toolchain integration ([#53](https://github.com/CHOCEK-RB/cpp-mcp/issues/53)) ([41010db](https://github.com/CHOCEK-RB/cpp-mcp/commit/41010db0fd45053a1ebdb9a9e116bbbf99d62be2))
+
 ## [1.6.0](https://github.com/CHOCEK-RB/cpp-mcp/compare/cpp-mcp-v1.5.0...cpp-mcp-v1.6.0) (2026-09-27)
 
 
