@@ -17,6 +17,7 @@ import { searchCodeSymbols } from "./tools/code-search.js";
 import { sessionManager } from "./tools/code-session-manager.js";
 import { checkCompilerSupport } from "./tools/compiler-support.js";
 import { demangleSymbol } from "./tools/demangle.js";
+import { explainCompilerError } from "./tools/error-explainer.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
 import { getCppModulesGuide } from "./tools/modules.js";
@@ -1097,6 +1098,63 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error scaffolding project: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "explain_compiler_error",
+    {
+      description:
+        "Explain complex C++ compiler and linker errors in plain language (massive template/SFINAE backtraces, unsatisfied C++20 concepts, undefined references, vtable issues, module resolution failures).",
+      inputSchema: {
+        error: z
+          .string()
+          .min(1)
+          .describe(
+            "Compiler error output or linker error trace (GCC, Clang, or MSVC error text).",
+          ),
+        compiler: z
+          .enum(["gcc", "clang", "msvc", "auto"])
+          .optional()
+          .default("auto")
+          .describe(
+            "Compiler flavor hint ('gcc', 'clang', 'msvc', or 'auto' to auto-detect). Defaults to 'auto'.",
+          ),
+        code_snippet: z
+          .string()
+          .optional()
+          .describe("Optional source code context around the error location."),
+        workspace_dir: z.string().optional().describe("Optional workspace root directory."),
+      },
+    },
+    async ({ error, compiler, code_snippet, workspace_dir }) => {
+      try {
+        const result = await explainCompilerError({
+          error,
+          compiler,
+          codeSnippet: code_snippet,
+          workspaceDir: workspace_dir,
+        });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error explaining compiler error: ${err instanceof Error ? err.message : String(err)}`,
             },
           ],
         };

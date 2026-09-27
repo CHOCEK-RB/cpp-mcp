@@ -11,6 +11,7 @@ import { searchCodeSymbols } from "./tools/code-search.js";
 import { sessionManager } from "./tools/code-session-manager.js";
 import { type CompilerName, checkCompilerSupport } from "./tools/compiler-support.js";
 import { demangleSymbol } from "./tools/demangle.js";
+import { explainCompilerError } from "./tools/error-explainer.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
 import { getCppModulesGuide } from "./tools/modules.js";
@@ -49,6 +50,7 @@ Commands:
   code-rename <symbol> <new_name>   Rename symbol across project using AST analysis (clangd)
   code-format [file]                Format C/C++ source code or file via clang-format (--style, --apply)
   scaffold <name>                   Scaffold modern C++ project (xmake/CMake, C++20, Catch2, clangd)
+  explain-error <text|->            Explain complex C++ compiler or linker errors (or pipe via stdin)
   compiler <feature> [options]      Check compiler support matrix (GCC, Clang, MSVC, Apple Clang)
   demangle <symbol|->               Demangle Itanium or MSVC mangled symbols (or stdin)
   cert <rule_id|cwe|category>       Audit against SEI CERT C++ rules and CWEs
@@ -86,16 +88,48 @@ Options:
 When executed without arguments, cpp-mcp runs as an MCP stdio server.`);
 }
 
-async function readStdin(): Promise<string> {
+async function readStdin(timeoutMs?: number): Promise<string> {
   return new Promise((resolve) => {
     let data = "";
-    process.stdin.setEncoding("utf-8");
-    process.stdin.on("data", (chunk) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+      process.stdin.off("data", onData);
+      process.stdin.off("end", onEnd);
+      process.stdin.off("error", onError);
+    };
+
+    const onData = (chunk: string | Buffer) => {
       data += chunk;
-    });
-    process.stdin.on("end", () => {
+    };
+
+    const onEnd = () => {
+      cleanup();
       resolve(data);
-    });
+    };
+
+    const onError = () => {
+      cleanup();
+      resolve(data);
+    };
+
+    if (timeoutMs && timeoutMs > 0) {
+      timer = setTimeout(() => {
+        cleanup();
+        resolve(data);
+      }, timeoutMs);
+    }
+
+    process.stdin.setEncoding("utf-8");
+    process.stdin.on("data", onData);
+    process.stdin.on("end", onEnd);
+    process.stdin.on("error", onError);
+
+    if (process.stdin.readableEnded) {
+      cleanup();
+      resolve(data);
+    }
   });
 }
 
@@ -881,7 +915,7 @@ export async function runCli(args: string[]): Promise<number> {
 
         // If target is "-" or piped stdin
         if (target === "-" || (!target && !flagCode && !flagFile && !process.stdin.isTTY)) {
-          codeInput = await readStdin();
+          codeInput = await readStdin(target === "-" ? undefined : 50);
           fileInput = undefined;
         }
 
@@ -1057,6 +1091,75 @@ export async function runCli(args: string[]): Promise<number> {
         for (const step of res.nextSteps) {
           console.log(`  $ ${step}`);
         }
+        return 0;
+      }
+
+      case "explain-error":
+      case "explain": {
+        let errorToExplain = target;
+        if (target === "-" || (!target && !process.stdin.isTTY)) {
+          errorToExplain = await readStdin(target === "-" ? undefined : 50);
+        }
+
+        if (!errorToExplain?.trim()) {
+          console.error(
+            "Error: 'explain-error' command requires compiler error text or piped stdin (e.g. 'cat build.log | cpp-mcp explain-error -').",
+          );
+          return 1;
+        }
+
+        const res = await explainCompilerError({
+          error: errorToExplain,
+          compiler: flagCompiler as "gcc" | "clang" | "msvc" | "auto" | undefined,
+          codeSnippet: flagCode,
+          workspaceDir: flagWorkspace,
+        });
+
+        if (isJson) {
+          console.log(JSON.stringify(res, null, 2));
+          return res.success ? 0 : 1;
+        }
+
+        if (isRaw) {
+          console.log(res.summary);
+          return 0;
+        }
+
+        console.log(
+          `Diagnostic Analysis (${res.detectedCompiler.toUpperCase()} | ${res.category}):`,
+        );
+        if (res.location) {
+          const locStr = `${res.location.file}${res.location.line ? `:${res.location.line}` : ""}${res.location.column ? `:${res.location.column}` : ""}`;
+          console.log(`Location:     ${locStr}`);
+        }
+        if (res.codeSnippet) {
+          console.log(`\nCode Context:\n${res.codeSnippet}`);
+        }
+        console.log(`Summary:      ${res.summary}`);
+        console.log(`\nRoot Cause:\n${res.rootCause}`);
+        console.log(`\nRemediation:\n${res.remediation}`);
+
+        if (res.suggestedHeaders && res.suggestedHeaders.length > 0) {
+          console.log(`\nSuggested Headers:`);
+          for (const h of res.suggestedHeaders) {
+            console.log(`  #include ${h}`);
+          }
+        }
+
+        if (res.demangledSymbols && res.demangledSymbols.length > 0) {
+          console.log(`\nDemangled Symbols:`);
+          for (const s of res.demangledSymbols) {
+            console.log(`  ${s.mangled} -> ${s.demangled}`);
+          }
+        }
+
+        if (res.pitfalls && res.pitfalls.length > 0) {
+          console.log(`\nCommon Pitfalls:`);
+          for (const p of res.pitfalls) {
+            console.log(`  - ${p}`);
+          }
+        }
+
         return 0;
       }
 
