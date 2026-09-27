@@ -15,40 +15,28 @@ Model Context Protocol (MCP) server that empowers AI coding assistants with auth
 ## Architecture
 
 ```mermaid
-flowchart TD
-    Client["AI Client\n(Antigravity / Claude / VS Code / Zed)"] -- stdio / JSON-RPC --> Server["cpp-mcp Server"]
+flowchart TB
+    Client["AI Clients\n(Antigravity / Claude / VS Code / Cursor / Zed)"] -->|stdio · JSON-RPC| Server["cpp-mcp Server"]
 
-    subgraph Tools ["Tools Catalog"]
-        Server --> T1["search_cppreference"]
-        Server --> T2["get_cppreference_page"]
-        Server --> T3["lookup_header"]
-        Server --> T4["check_cpp_standard"]
-        Server --> T5["get_guideline"]
-        Server --> T6["get_cpp_modules_guide"]
-        Server --> T7["check_secure_coding"]
-        Server --> T8["get_cpp_tooling_guide"]
-        Server --> T9["check_compiler_support"]
-        Server --> T10["demangle_symbol"]
-        Server --> T11["search_code_symbols"]
-        Server --> T12["analyze_code_symbol"]
-        Server --> T13["get_project_details"]
-        Server --> T14["get_code_diagnostics"]
-        Server --> T15["rename_code_symbol"]
-        Server --> T16["format_code"]
-        Server --> T17["scaffold_project"]
-        Server --> T18["explain_compiler_error"]
+    subgraph Tools ["18 MCP Tools by Functional Domain"]
+        direction LR
+        D1["Reference & Standards\n• search_cppreference\n• get_cppreference_page\n• lookup_header\n• check_cpp_standard"]
+        D2["Safety & Guidelines\n• check_secure_coding (CERT)\n• get_guideline (Core Guidelines)\n• get_cpp_modules_guide\n• get_cpp_tooling_guide"]
+        D3["Semantic Intelligence (AST)\n• search_code_symbols\n• analyze_code_symbol\n• rename_code_symbol\n• get_code_diagnostics\n• get_project_details"]
+        D4["Developer Productivity\n• format_code (clang-format)\n• scaffold_project (xmake / CMake)\n• explain_compiler_error\n• demangle_symbol\n• check_compiler_support"]
     end
 
-    subgraph Primitives ["MCP Native Primitives"]
-        Server --> Res["Resources (cppref://...)"]
-        Server --> Prm["Prompts (cpp_explain_symbol...)"]
+    subgraph Backends ["Execution & Storage Engines"]
+        direction LR
+        Cache[("Tiered Cache\nL1 Memory + L2 Disk")]
+        LSP["clangd LSP & xmake\nAST & Compilation DB"]
+        Web["cppreference.com\nHTTPS Scraper"]
     end
 
-    subgraph Storage ["Tiered Storage & Fallback"]
-        T1 & T2 & T3 & T4 --> Cache[("TieredCache\n(L1 LRU Memory + L2 Disk with TTL)")]
-        T3 & T4 & T5 & T6 & T7 & T8 & T9 & T10 --> StaticIdx[("Curated Engines & Datasets\n(Guidelines, Modules, CERT, Tooling, Compiler Support, Demangler)")]
-        Cache -- Miss --> Web["cppreference.com\n(HTTPS Scraper + Sanitizer)"]
-    end
+    Server --> Tools
+    D1 --> Cache
+    D3 --> LSP
+    Cache -.->|Cache Miss| Web
 ```
 
 ---
