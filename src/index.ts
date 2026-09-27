@@ -4,6 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
+import { runCli } from "./cli.js";
 import { registerPrompts } from "./prompts/index.js";
 import { registerResources } from "./resources/index.js";
 import { checkSecureCoding } from "./tools/cert.js";
@@ -17,6 +18,7 @@ import { searchCppreference } from "./tools/search.js";
 import { checkCppStandard } from "./tools/standards.js";
 import { getCppToolingGuide } from "./tools/tooling.js";
 
+export { runCli } from "./cli.js";
 export const SERVER_NAME = "cpp-mcp";
 export const SERVER_VERSION = pkg.version;
 
@@ -553,8 +555,24 @@ const isDirectExecution =
       entryArg.includes("cpp-mcp")));
 
 if (isDirectExecution) {
-  main().catch((err) => {
-    console.error("Fatal error starting cpp-mcp server:", err);
-    process.exit(1);
-  });
+  const args = typeof process !== "undefined" ? process.argv.slice(2) : [];
+  const isStdioMode =
+    args.length === 0 ||
+    args.includes("--stdio") ||
+    args[0] === "stdio" ||
+    args.includes("--transport");
+
+  if (!isStdioMode) {
+    runCli(args)
+      .then((code) => process.exit(code))
+      .catch((err) => {
+        console.error("Fatal CLI error:", err);
+        process.exit(1);
+      });
+  } else {
+    main().catch((err) => {
+      console.error("Fatal error starting cpp-mcp server:", err);
+      process.exit(1);
+    });
+  }
 }
