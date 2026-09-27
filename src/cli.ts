@@ -14,6 +14,19 @@ import { demangleSymbol } from "./tools/demangle.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
 import { getCppModulesGuide } from "./tools/modules.js";
+import {
+  type BuildSystem,
+  type CppStandard,
+  type PackageManager,
+  type ProjectType,
+  scaffoldProject,
+  type TestFramework,
+  VALID_BUILD_SYSTEMS,
+  VALID_CPP_STANDARDS,
+  VALID_PACKAGE_MANAGERS,
+  VALID_PROJECT_TYPES,
+  VALID_TEST_FRAMEWORKS,
+} from "./tools/project-scaffold.js";
 import { searchCppreference } from "./tools/search.js";
 import { checkCppStandard } from "./tools/standards.js";
 import { getCppToolingGuide } from "./tools/tooling.js";
@@ -35,6 +48,7 @@ Commands:
   code-diagnostics [file]           Inspect live compiler errors and warnings via clangd
   code-rename <symbol> <new_name>   Rename symbol across project using AST analysis (clangd)
   code-format [file]                Format C/C++ source code or file via clang-format (--style, --apply)
+  scaffold <name>                   Scaffold modern C++ project (xmake/CMake, C++20, Catch2, clangd)
   compiler <feature> [options]      Check compiler support matrix (GCC, Clang, MSVC, Apple Clang)
   demangle <symbol|->               Demangle Itanium or MSVC mangled symbols (or stdin)
   cert <rule_id|cwe|category>       Audit against SEI CERT C++ rules and CWEs
@@ -53,6 +67,15 @@ Options:
   --style <name>                    Format style ('file', 'LLVM', 'Google', 'Chromium', 'Mozilla', 'WebKit')
   --apply                           Apply rename or format changes directly to disk (default is dry-run preview)
   --dry-run                         Preview changes without modifying files (default)
+  --dir <path>                      Target directory for scaffolded project (default: ./<name>)
+  --build <xmake|cmake>             Build system for scaffolding (default: xmake)
+  --type <type>                     Project type (executable, library, header-only, cxx-modules, qt, cuda)
+  --std <version>                   C++ standard for scaffolding (11, 14, 17, 20, 23, 26)
+  --test <framework>                Test framework (catch2, gtest, doctest, none)
+  --pm, --package-manager <name>    Package manager (xrepo, vcpkg, conan, none)
+  --git                             Initialize git repository during scaffold
+  --no-clang                        Disable generation of .clang-format and .clangd
+  --force, --overwrite              Overwrite existing non-empty directory during scaffold
   --severity <level>                Filter diagnostics (all, error, warning)
   --code <code>                     Inline code snippet to check or format without saving to disk
   --compiler <name>                 Compiler name for compatibility checks (gcc, clang, msvc, apple_clang)
@@ -102,6 +125,16 @@ export async function runCli(args: string[]): Promise<number> {
   let flagStyle: string | undefined;
   let flagLines: string | undefined;
   let flagApply = false;
+  let flagDir: string | undefined;
+  let flagBuildSystem: string | undefined;
+  let flagProjectType: string | undefined;
+  let flagCppStd: string | undefined;
+  let flagTest: string | undefined;
+  let flagPackageManager: string | undefined;
+  let flagNoClang = false;
+  let flagGit = false;
+  let flagForce = false;
+  let flagDryRun = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -113,7 +146,44 @@ export async function runCli(args: string[]): Promise<number> {
       continue;
     }
     if (arg === "--dry-run") {
+      flagDryRun = true;
       flagApply = false;
+      continue;
+    }
+    if (arg === "--git") {
+      flagGit = true;
+      continue;
+    }
+    if (arg === "--no-clang") {
+      flagNoClang = true;
+      continue;
+    }
+    if (arg === "--force" || arg === "--overwrite") {
+      flagForce = true;
+      continue;
+    }
+    if (arg === "--dir" && i + 1 < args.length) {
+      flagDir = args[++i];
+      continue;
+    }
+    if ((arg === "--build" || arg === "--build-system") && i + 1 < args.length) {
+      flagBuildSystem = args[++i];
+      continue;
+    }
+    if (arg === "--type" && i + 1 < args.length) {
+      flagProjectType = args[++i];
+      continue;
+    }
+    if (arg === "--std" && i + 1 < args.length) {
+      flagCppStd = args[++i];
+      continue;
+    }
+    if (arg === "--test" && i + 1 < args.length) {
+      flagTest = args[++i];
+      continue;
+    }
+    if ((arg === "--pm" || arg === "--package-manager") && i + 1 < args.length) {
+      flagPackageManager = args[++i];
       continue;
     }
     if (arg === "--compiler" && i + 1 < args.length) {
@@ -893,6 +963,100 @@ export async function runCli(args: string[]): Promise<number> {
         console.log(`Format Preview (Dry Run) for '${res.file}':\n`);
         if (res.diff) console.log(res.diff);
         console.log(`\nTip: Run with --apply to write formatting changes to disk.`);
+        return 0;
+      }
+
+      case "scaffold":
+      case "init": {
+        const projectName = target || positionalArgs[1];
+        if (!projectName) {
+          console.error(
+            "Error: 'scaffold' command requires a project name (e.g. 'cpp-mcp scaffold my_project').",
+          );
+          return 1;
+        }
+
+        if (flagBuildSystem && !VALID_BUILD_SYSTEMS.has(flagBuildSystem)) {
+          console.error(
+            `Error: Invalid build system '${flagBuildSystem}'. Supported: ${Array.from(VALID_BUILD_SYSTEMS).join(", ")}.`,
+          );
+          return 1;
+        }
+        if (flagProjectType && !VALID_PROJECT_TYPES.has(flagProjectType)) {
+          console.error(
+            `Error: Invalid project type '${flagProjectType}'. Supported: ${Array.from(VALID_PROJECT_TYPES).join(", ")}.`,
+          );
+          return 1;
+        }
+        if (flagCppStd && !VALID_CPP_STANDARDS.has(flagCppStd)) {
+          console.error(
+            `Error: Invalid C++ standard '${flagCppStd}'. Supported: ${Array.from(VALID_CPP_STANDARDS).join(", ")}.`,
+          );
+          return 1;
+        }
+        if (flagTest && !VALID_TEST_FRAMEWORKS.has(flagTest)) {
+          console.error(
+            `Error: Invalid test framework '${flagTest}'. Supported: ${Array.from(VALID_TEST_FRAMEWORKS).join(", ")}.`,
+          );
+          return 1;
+        }
+        if (flagPackageManager && !VALID_PACKAGE_MANAGERS.has(flagPackageManager)) {
+          console.error(
+            `Error: Invalid package manager '${flagPackageManager}'. Supported: ${Array.from(VALID_PACKAGE_MANAGERS).join(", ")}.`,
+          );
+          return 1;
+        }
+
+        const res = await scaffoldProject({
+          projectName,
+          targetDir: flagDir,
+          buildSystem: flagBuildSystem as BuildSystem | undefined,
+          projectType: flagProjectType as ProjectType | undefined,
+          cppStandard: flagCppStd as CppStandard | undefined,
+          testFramework: flagTest as TestFramework | undefined,
+          packageManager: flagPackageManager as PackageManager | undefined,
+          initClangTools: !flagNoClang,
+          initGit: flagGit,
+          dryRun: flagDryRun,
+          overwrite: flagForce,
+        });
+
+        if (isJson) {
+          console.log(JSON.stringify(res, null, 2));
+          return res.success ? 0 : 1;
+        }
+
+        if (isRaw) {
+          console.log(res.projectDir);
+          return 0;
+        }
+
+        if (flagDryRun) {
+          console.log(`Dry-run scaffold preview for '${res.projectName}':\n`);
+          console.log(`Files to be created in ${res.projectDir}:`);
+          for (const f of res.filesCreated) {
+            console.log(`  - ${f}`);
+          }
+          return 0;
+        }
+
+        console.log(`✓ Scaffolded C++ project '${res.projectName}' successfully!`);
+        console.log(`  Location:       ${res.projectDir}`);
+        console.log(`  Build System:   ${res.buildSystem}`);
+        console.log(`  Standard:       C++${res.cppStandard}`);
+        console.log(`  Type:           ${res.projectType}`);
+        console.log(`  Test Framework: ${res.testFramework}`);
+        if (res.gitInitialized) {
+          console.log(`  Git:            Initialized`);
+        }
+        console.log(`\nCreated ${res.filesCreated.length} file(s):`);
+        for (const f of res.filesCreated) {
+          console.log(`  + ${f}`);
+        }
+        console.log(`\nNext steps:`);
+        for (const step of res.nextSteps) {
+          console.log(`  $ ${step}`);
+        }
         return 0;
       }
 
