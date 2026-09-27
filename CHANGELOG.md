@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/CHOCEK-RB/cpp-mcp/compare/v1.2.0...v1.3.0) (2026-09-27)
+
+
+### Features
+
+* add direct CLI mode, cert sync, demangler, and compiler support ([#29](https://github.com/CHOCEK-RB/cpp-mcp/issues/29)) ([523bdcc](https://github.com/CHOCEK-RB/cpp-mcp/commit/523bdccba6056e370dc751658a080b31fb0c7993))
+
 ## [1.2.0](https://github.com/CHOCEK-RB/cpp-mcp/compare/v1.1.1...v1.2.0) (2026-09-26)
 
 
