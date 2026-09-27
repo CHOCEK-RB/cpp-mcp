@@ -533,7 +533,7 @@ export function createServer(): McpServer {
     },
     async ({ symbol, strip_params }) => {
       try {
-        const result = demangleSymbol({
+        const result = await demangleSymbol({
           symbol,
           strip_params,
         });
