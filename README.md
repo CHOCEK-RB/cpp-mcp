@@ -18,18 +18,18 @@ Model Context Protocol (MCP) server that empowers AI coding assistants with auth
 flowchart TB
     Client["AI Clients\n(Antigravity / Claude / VS Code / Cursor / Zed)"] -->|stdio · JSON-RPC| Server["cpp-mcp Server"]
 
-    subgraph Tools ["18 MCP Tools by Functional Domain"]
+    subgraph Tools ["19 MCP Tools by Functional Domain"]
         direction LR
         D1["Reference & Standards\n• search_cppreference\n• get_cppreference_page\n• lookup_header\n• check_cpp_standard"]
         D2["Safety & Guidelines\n• check_secure_coding (CERT)\n• get_guideline (Core Guidelines)\n• get_cpp_modules_guide\n• get_cpp_tooling_guide"]
         D3["Semantic Intelligence (AST)\n• search_code_symbols\n• analyze_code_symbol\n• rename_code_symbol\n• get_code_diagnostics\n• get_project_details"]
-        D4["Developer Productivity\n• format_code (clang-format)\n• scaffold_project (xmake / CMake)\n• explain_compiler_error\n• demangle_symbol\n• check_compiler_support"]
+        D4["Developer Productivity\n• format_code (clang-format)\n• generate_documentation (clang-doc)\n• scaffold_project (xmake / CMake)\n• explain_compiler_error\n• demangle_symbol\n• check_compiler_support"]
     end
 
     subgraph Backends ["Execution & Storage Engines"]
         direction LR
         Cache[("Tiered Cache\nL1 Memory + L2 Disk")]
-        LSP["clangd LSP & xmake\nAST & Compilation DB"]
+        LSP["clangd LSP & clang-doc\nAST & Compilation DB"]
         Web["cppreference.com\nHTTPS Scraper"]
     end
 
@@ -47,6 +47,7 @@ flowchart TB
 - **Semantic Code Intelligence (xmake + clangd LSP)**: Deep AST understanding of your local codebase with automatic compilation database generation via `xmake`, symbol search, type inheritance, call hierarchies, and usage examples (`search_code_symbols`, `analyze_code_symbol`).
 - **Live Compiler Diagnostics & AST Renaming**: Real-time error detection with caret pointers (`^~~~`), AST-based safe symbol renaming across all workspace files, and automated header tracking (`get_code_diagnostics`, `rename_code_symbol`).
 - **C/C++ Code Formatter**: Instant in-memory and file formatting via `clang-format` with project `.clang-format` auto-discovery, standard presets (`LLVM`, `Google`), line ranges, and unified diff preview (`format_code`).
+- **C/C++ Documentation Generator (clang-doc)**: Generates comprehensive API documentation from source code and Doxygen comments in Markdown, HTML, JSON, or YAML with compilation database integration and public API filtering (`generate_documentation`).
 - **Smart C++ Project Scaffolding**: One-command project bootstrapping with modern `xmake` / `CMake`, C++11-26 standards, Catch2/GTest/doctest, C++20 modules, Qt6, CUDA, `.clang-format`, and `.clangd` LSP configurations (`scaffold_project`).
 - **Intelligent Compiler & Linker Error Explainer**: Translates intimidating template cascades, unsatisfied C++20 concepts, missing vtables, and undefined references into plain English root causes, simplified signatures, and concrete code fixes (`explain_compiler_error`).
 - **C++20/23/26 Modules Architecture**: Dedicated offline guide and best practices for `import std;`, interface & internal partitions, CMake 3.28+ (`FILE_SET CXX_MODULES`), and header migration (`get_cpp_modules_guide`).
@@ -601,6 +602,45 @@ Analyzes and explains complex, multi-page C++ compiler and linker errors in plai
   }
   ```
 
+### 19. `generate_documentation`
+
+Generates technical API documentation directly from C/C++ source code and Doxygen-style comments using LLVM `clang-doc`. Produces clean Markdown, standalone HTML sites, or structured JSON trees with inheritance, member types, function signatures, and return descriptions.
+
+- **Parameters**:
+  - `workspace` (`string`, optional): Project workspace root containing `compile_commands.json`, `xmake.lua`, or `CMakeLists.txt`.
+  - `files` (`string[]`, optional): Specific source or header files to document.
+  - `output_dir` (`string`, optional, default `"docs/api"`): Output directory for generated documentation files.
+  - `format` (`string`, optional, default `"md"`): Output format (`"md"`, `"html"`, `"json"`, or `"yaml"`).
+  - `public_only` (`boolean`, optional, default `false`): Document only public declarations.
+  - `doxygen_only` (`boolean`, optional, default `false`): Parse only Doxygen-style comments.
+  - `dry_run` (`boolean`, optional, default `false`): Previews execution without writing files.
+
+- **Output Example**:
+  ```json
+  {
+    "success": true,
+    "tool": "clang-doc (v22.1.8)",
+    "version": "22.1.8",
+    "format": "md",
+    "outputDir": "/home/user/project/docs/api",
+    "totalFiles": 4,
+    "filesGenerated": [
+      {
+        "relativePath": "index.md",
+        "absolutePath": "/home/user/project/docs/api/index.md",
+        "sizeBytes": 128
+      },
+      {
+        "relativePath": "geometry/Point.md",
+        "absolutePath": "/home/user/project/docs/api/geometry/Point.md",
+        "sizeBytes": 512
+      }
+    ],
+    "summary": "Successfully generated 4 documentation file(s) in MD format into '/home/user/project/docs/api'.",
+    "previewMarkdown": "# C/C++ Reference\n\n* Namespace: [geometry](geometry)\n..."
+  }
+  ```
+
 ---
 
 ## Resources Catalog
@@ -837,6 +877,11 @@ cpp-mcp scaffold my_cmake_app --build cmake --test catch2
 # Explain complex compiler errors, template explosions, or linker traces
 cpp-mcp explain-error "main.cpp:8:5: error: 'vector' was not declared in this scope"
 cat build.log | cpp-mcp explain-error -
+
+# Generate API documentation via clang-doc (Markdown, HTML, JSON, YAML)
+cpp-mcp docs --format md --output docs/api
+cpp-mcp docs include/geometry.hpp --public
+cpp-mcp docs --dry-run --json
 ```
 
 ---
