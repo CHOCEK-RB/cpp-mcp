@@ -28,6 +28,7 @@ flowchart TD
         Server --> T7["check_secure_coding"]
         Server --> T8["get_cpp_tooling_guide"]
         Server --> T9["check_compiler_support"]
+        Server --> T10["demangle_symbol"]
     end
 
     subgraph Primitives ["MCP Native Primitives"]
@@ -37,7 +38,7 @@ flowchart TD
 
     subgraph Storage ["Tiered Storage & Fallback"]
         T1 & T2 & T3 & T4 --> Cache[("TieredCache\n(L1 LRU Memory + L2 Disk with TTL)")]
-        T3 & T4 & T5 & T6 & T7 & T8 & T9 --> StaticIdx[("Curated Engines & Datasets\n(Guidelines, Modules, CERT, Tooling, Compiler Support)")]
+        T3 & T4 & T5 & T6 & T7 & T8 & T9 & T10 --> StaticIdx[("Curated Engines & Datasets\n(Guidelines, Modules, CERT, Tooling, Compiler Support, Demangler)")]
         Cache -- Miss --> Web["cppreference.com\n(HTTPS Scraper + Sanitizer)"]
     end
 ```
@@ -287,6 +288,25 @@ Evaluates minimum compiler versions (GCC, Clang, MSVC, Apple Clang) required for
       "compatible": false,
       "message": "Incompatible: gcc 12.2 is older than the required 13."
     }
+  }
+  ```
+
+### 10. `demangle_symbol`
+
+Demangles C++ symbol identifiers (Itanium ABI used by GCC/Clang, or MSVC) into human-readable function signatures and qualified class methods. Also detects, extracts, and translates mangled symbols in full compiler, linker, or crash stack trace logs.
+
+- **Parameters**:
+  - `symbol` (`string`, required): Mangled identifier (e.g. `"_ZNSt6vectorIiSaIiEE9push_backERKi"`, `"_Z3addii"`, `"?func@@YAHXZ"`) or full error log containing mangled symbols.
+  - `strip_params` (`boolean`, optional): When `true`, strips parameter signatures to return only the qualified name.
+
+- **Output Example**:
+  ```json
+  {
+    "original": "_ZNSt6vectorIiSaIiEE9push_backERKi",
+    "demangled": "std::vector<int, std::allocator<int>>::push_back(int const&)",
+    "abi": "itanium",
+    "method": "cxxfilt",
+    "isMangled": true
   }
   ```
 

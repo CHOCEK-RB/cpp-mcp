@@ -8,6 +8,7 @@ import { registerPrompts } from "./prompts/index.js";
 import { registerResources } from "./resources/index.js";
 import { checkSecureCoding } from "./tools/cert.js";
 import { checkCompilerSupport } from "./tools/compiler-support.js";
+import { demangleSymbol } from "./tools/demangle.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
 import { getCppModulesGuide } from "./tools/modules.js";
@@ -476,6 +477,52 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error checking compiler support: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "demangle_symbol",
+    {
+      description:
+        "Demangle C++ mangled symbol names (Itanium ABI for GCC/Clang, or MSVC) into human-readable function signatures, or translate entire compiler/linker error trace logs containing mangled identifiers.",
+      inputSchema: {
+        symbol: z
+          .string()
+          .min(1)
+          .describe(
+            "Mangled symbol (e.g. '_ZNSt6vectorIiSaIiEE9push_backERKi', '_Z3addii', '?func@@YAHXZ') or an entire compiler/linker error trace containing mangled symbols.",
+          ),
+        strip_params: z
+          .boolean()
+          .optional()
+          .describe("If true, strips function parameter types to return only the qualified name."),
+      },
+    },
+    async ({ symbol, strip_params }) => {
+      try {
+        const result = demangleSymbol({
+          symbol,
+          strip_params,
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error demangling symbol: ${error instanceof Error ? error.message : String(error)}`,
             },
           ],
         };
