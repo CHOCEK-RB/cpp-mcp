@@ -5,6 +5,7 @@ import { isExecutableAvailable, resolveProjectBuildInfo } from "./project/xmake.
 import { checkSecureCoding } from "./tools/cert.js";
 import { analyzeCodeSymbol } from "./tools/code-analyzer.js";
 import { getCodeDiagnostics } from "./tools/code-diagnostics.js";
+import { formatCode } from "./tools/code-formatter.js";
 import { renameCodeSymbol } from "./tools/code-renamer.js";
 import { searchCodeSymbols } from "./tools/code-search.js";
 import { sessionManager } from "./tools/code-session-manager.js";
@@ -33,6 +34,7 @@ Commands:
   code-analyze <symbol>             Analyze symbol definition, hierarchy, and usage
   code-diagnostics [file]           Inspect live compiler errors and warnings via clangd
   code-rename <symbol> <new_name>   Rename symbol across project using AST analysis (clangd)
+  code-format [file]                Format C/C++ source code or file via clang-format (--style, --apply)
   compiler <feature> [options]      Check compiler support matrix (GCC, Clang, MSVC, Apple Clang)
   demangle <symbol|->               Demangle Itanium or MSVC mangled symbols (or stdin)
   cert <rule_id|cwe|category>       Audit against SEI CERT C++ rules and CWEs
@@ -43,14 +45,16 @@ Commands:
 
 Options:
   --json                            Output response in raw JSON format
-  --raw                             Print only primary scalar value (e.g. only header name)
-  --workspace <dir>                 Project root directory for code-search, code-analyze, diagnostics, and rename
-  --file <path>                     Source file path for symbol disambiguation, diagnostics, or rename
+  --raw                             Print only primary scalar value (e.g. only header name or formatted code)
+  --workspace <dir>                 Project root directory for code tools and .clang-format lookup
+  --file <path>                     Source file path for symbol disambiguation, diagnostics, rename, or format
   --line <num>                      Line number (1-indexed) for symbol disambiguation or rename
-  --apply                           Apply rename changes directly to disk (default is dry-run preview)
-  --dry-run                         Preview rename diff without modifying files (default)
+  --lines <start:end>               Line range (1-indexed) to format only a sub-region
+  --style <name>                    Format style ('file', 'LLVM', 'Google', 'Chromium', 'Mozilla', 'WebKit')
+  --apply                           Apply rename or format changes directly to disk (default is dry-run preview)
+  --dry-run                         Preview changes without modifying files (default)
   --severity <level>                Filter diagnostics (all, error, warning)
-  --code <code>                     Inline code snippet to check without saving to disk
+  --code <code>                     Inline code snippet to check or format without saving to disk
   --compiler <name>                 Compiler name for compatibility checks (gcc, clang, msvc, apple_clang)
   --version <ver>                   Compiler version to evaluate against feature requirement
   -v, --version                     Print version and exit
@@ -95,6 +99,8 @@ export async function runCli(args: string[]): Promise<number> {
   let flagLine: number | undefined;
   let flagSeverity: string | undefined;
   let flagCode: string | undefined;
+  let flagStyle: string | undefined;
+  let flagLines: string | undefined;
   let flagApply = false;
 
   for (let i = 0; i < args.length; i++) {
@@ -136,6 +142,14 @@ export async function runCli(args: string[]): Promise<number> {
     }
     if (arg === "--code" && i + 1 < args.length) {
       flagCode = args[++i];
+      continue;
+    }
+    if (arg === "--style" && i + 1 < args.length) {
+      flagStyle = args[++i];
+      continue;
+    }
+    if (arg === "--lines" && i + 1 < args.length) {
+      flagLines = args[++i];
       continue;
     }
     if (!arg.startsWith("-")) {
@@ -787,6 +801,98 @@ export async function runCli(args: string[]): Promise<number> {
         if (res.dryRun) {
           console.log("Tip: Run with --apply to write changes to files on disk.");
         }
+        return 0;
+      }
+
+      case "code-format":
+      case "format": {
+        let codeInput = flagCode;
+        let fileInput = target || flagFile;
+
+        // If target is "-" or piped stdin
+        if (target === "-" || (!target && !flagCode && !flagFile && !process.stdin.isTTY)) {
+          codeInput = await readStdin();
+          fileInput = undefined;
+        }
+
+        if (!codeInput && !fileInput) {
+          console.error(
+            "Error: 'code-format' requires a file path, --code snippet, or piped stdin.",
+          );
+          return 1;
+        }
+
+        let range: { startLine: number; endLine: number } | undefined;
+        if (flagLines) {
+          const parts = flagLines.split(/[:-]/).map((n) => Number.parseInt(n, 10));
+          const start = parts[0];
+          const end = parts[1];
+          if (
+            parts.length !== 2 ||
+            start === undefined ||
+            end === undefined ||
+            Number.isNaN(start) ||
+            Number.isNaN(end)
+          ) {
+            console.error(
+              `Error: Invalid --lines format '${flagLines}'. Expected '<start>:<end>' (e.g. --lines 5:20).`,
+            );
+            return 1;
+          }
+          if (start < 1 || end < 1 || start > end) {
+            console.error(
+              `Error: Invalid range '${flagLines}'. Start line must be >= 1 and <= end line.`,
+            );
+            return 1;
+          }
+          range = { startLine: start, endLine: end };
+        }
+
+        const res = await formatCode({
+          code: codeInput,
+          file: fileInput,
+          workspace: flagWorkspace,
+          style: flagStyle,
+          apply: flagApply,
+          range,
+        });
+
+        if (isJson) {
+          console.log(JSON.stringify(res, null, 2));
+          return res.formatted ? 0 : 1;
+        }
+
+        if (!res.formatted) {
+          console.error(`Format error: ${res.error || "Unknown formatting error"}`);
+          return 1;
+        }
+
+        if (isRaw) {
+          if (res.formattedCode) process.stdout.write(res.formattedCode);
+          return 0;
+        }
+
+        if (codeInput && !fileInput) {
+          if (res.formattedCode) {
+            console.log(res.formattedCode);
+          }
+          return 0;
+        }
+
+        if (res.applied) {
+          console.log(`✓ Formatted and applied changes to '${res.file}'.`);
+          if (res.diff) console.log(`\n${res.diff}`);
+          return 0;
+        }
+
+        if (!res.changed) {
+          console.log(`'${res.file}' is already well-formatted.`);
+          return 0;
+        }
+
+        console.log(`Format Preview (Dry Run) for '${res.file}':\n`);
+        if (res.diff) console.log(res.diff);
+        console.log(`\nTip: Run with --apply to write formatting changes to disk.`);
         return 0;
       }
 
