@@ -182,15 +182,21 @@ describe("doc-generator - clang-doc Discovery & Execution", () => {
     expect(fs.existsSync(handwritten)).toBe(true);
   });
 
-  it("does not report its own manifest as a generated JSON document", async () => {
+  it("never reports its own manifest as a generated document", async () => {
+    const outputDir = path.join(TEST_WORKSPACE, "docs/manifest-reported");
+    fs.mkdirSync(outputDir, { recursive: true });
+    const manifest = path.join(outputDir, ".cpp-mcp-docs.json");
+    fs.writeFileSync(manifest, JSON.stringify(["previous.md"]), "utf-8");
+
     const res = await generateDocumentation({
       workspace: TEST_WORKSPACE,
-      outputDir: "docs/json-manifest",
-      format: "json",
+      outputDir: "docs/manifest-reported",
+      format: "md",
     });
 
     expect(res.success).toBe(true);
     expect(res.filesGenerated.some((f) => f.relativePath === ".cpp-mcp-docs.json")).toBe(false);
+    expect(fs.existsSync(manifest)).toBe(true);
   });
 });
 
