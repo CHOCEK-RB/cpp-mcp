@@ -85,23 +85,43 @@ async function extractLineSnippet(
   }
 }
 
-function findSymbolRecursive(symbols: DocumentSymbol[], targetName: string): DocumentSymbol | null {
+function findSymbolRecursive(
+  symbols: DocumentSymbol[],
+  targetName: string,
+  targetLine?: number,
+): DocumentSymbol | null {
   const unqualified = targetName.split("::").pop() || targetName;
+  let fallback: DocumentSymbol | null = null;
+
   for (const s of symbols) {
-    if (
+    const matchesName =
       s.name === targetName ||
       s.name === unqualified ||
       targetName.endsWith(`::${s.name}`) ||
-      s.name.endsWith(`::${targetName}`)
-    ) {
-      return s;
+      s.name.endsWith(`::${targetName}`);
+
+    if (matchesName) {
+      if (
+        targetLine !== undefined &&
+        s.range.start.line <= targetLine &&
+        targetLine <= s.range.end.line
+      ) {
+        return s;
+      }
+      if (s.children && s.children.length > 0) {
+        fallback = s;
+      } else if (!fallback) {
+        fallback = s;
+      }
     }
+
     if (s.children && s.children.length > 0) {
-      const res = findSymbolRecursive(s.children, targetName);
+      const res = findSymbolRecursive(s.children, targetName, targetLine);
       if (res) return res;
     }
   }
-  return null;
+
+  return fallback;
 }
 
 /**
@@ -196,7 +216,9 @@ export async function analyzeCodeSymbol(options: CodeAnalyzerOptions): Promise<C
     if (existsSync(localFilePath)) {
       try {
         const fileContent = await fs.readFile(localFilePath, "utf-8");
-        session.openDocument(targetUri, "cpp", fileContent);
+        const lang = localFilePath.endsWith(".c") ? "c" : "cpp";
+        session.openDocument(targetUri, lang, fileContent);
+        await new Promise((r) => setTimeout(r, 60));
       } catch {
         // Fallback to background indexing
       }
@@ -223,8 +245,8 @@ export async function analyzeCodeSymbol(options: CodeAnalyzerOptions): Promise<C
     );
 
     // Refine symbol kind if unresolved
-    if (symbolKind === "symbol" && docSymbolsRes.length > 0) {
-      const matched = findSymbolRecursive(docSymbolsRes, options.symbol);
+    if (docSymbolsRes.length > 0) {
+      const matched = findSymbolRecursive(docSymbolsRes, options.symbol, targetPos.line);
       if (matched) {
         symbolKind = symbolKindToString(matched.kind);
       }
@@ -320,7 +342,7 @@ export async function analyzeCodeSymbol(options: CodeAnalyzerOptions): Promise<C
     // Extract class/struct members if applicable
     let members: MemberEntry[] | undefined;
     if (["class", "struct"].includes(symbolKind)) {
-      const container = findSymbolRecursive(docSymbolsRes, options.symbol);
+      const container = findSymbolRecursive(docSymbolsRes, options.symbol, targetPos.line);
       if (container?.children) {
         members = container.children.map((child) => ({
           name: child.name,

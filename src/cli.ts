@@ -79,6 +79,8 @@ export async function runCli(args: string[]): Promise<number> {
   let flagCompiler: string | undefined;
   let flagVersion: string | undefined;
   let flagWorkspace: string | undefined;
+  let flagFile: string | undefined;
+  let flagLine: number | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -95,6 +97,14 @@ export async function runCli(args: string[]): Promise<number> {
     }
     if (arg === "--workspace" && i + 1 < args.length) {
       flagWorkspace = args[++i];
+      continue;
+    }
+    if (arg === "--file" && i + 1 < args.length) {
+      flagFile = args[++i];
+      continue;
+    }
+    if (arg === "--line" && i + 1 < args.length) {
+      flagLine = Number.parseInt(args[++i] ?? "0", 10);
       continue;
     }
     if (!arg.startsWith("-")) {
@@ -459,6 +469,8 @@ export async function runCli(args: string[]): Promise<number> {
         const res = await analyzeCodeSymbol({
           symbol: target,
           workspaceDir: flagWorkspace,
+          file: flagFile,
+          line: flagLine,
         });
         if (isJson) {
           console.log(JSON.stringify(res, null, 2));
