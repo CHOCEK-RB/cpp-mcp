@@ -33,3 +33,6 @@ report.[0-9]*.json
 
 # Finder (MacOS) folder config
 .DS_Store
+
+# AI agent guidance (local-only, not published)
+AGENTS.md

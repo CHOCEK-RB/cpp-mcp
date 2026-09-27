@@ -18,12 +18,12 @@ Model Context Protocol (MCP) server that empowers AI coding assistants with auth
 flowchart TB
     Client["AI Clients\n(Antigravity / Claude / VS Code / Cursor / Zed)"] -->|stdio · JSON-RPC| Server["cpp-mcp Server"]
 
-    subgraph Tools ["20 MCP Tools by Functional Domain"]
+    subgraph Tools ["21 MCP Tools by Functional Domain"]
         direction LR
         D1["Reference & Standards\n• search_cppreference\n• get_cppreference_page\n• lookup_header\n• check_cpp_standard"]
         D2["Safety & Guidelines\n• check_secure_coding (CERT)\n• get_guideline (Core Guidelines)\n• get_cpp_modules_guide\n• get_cpp_tooling_guide"]
         D3["Semantic Intelligence (AST)\n• search_code_symbols\n• analyze_code_symbol\n• rename_code_symbol\n• get_code_diagnostics\n• get_project_details"]
-        D4["Developer Productivity\n• format_code (clang-format)\n• generate_documentation (clang-doc)\n• generate_compilation_database\n• scaffold_project (xmake / CMake)\n• explain_compiler_error\n• demangle_symbol\n• check_compiler_support"]
+        D4["Developer Productivity\n• format_code (clang-format)\n• generate_documentation (clang-doc)\n• reorder_struct_fields (clang-reorder-fields)\n• generate_compilation_database\n• scaffold_project (xmake / CMake)\n• explain_compiler_error\n• demangle_symbol\n• check_compiler_support"]
     end
 
     subgraph Backends ["Execution & Storage Engines"]
@@ -48,6 +48,7 @@ flowchart TB
 - **Live Compiler Diagnostics & AST Renaming**: Real-time error detection with caret pointers (`^~~~`), AST-based safe symbol renaming across all workspace files, and automated header tracking (`get_code_diagnostics`, `rename_code_symbol`).
 - **C/C++ Code Formatter**: Instant in-memory and file formatting via `clang-format` with project `.clang-format` auto-discovery, standard presets (`LLVM`, `Google`), line ranges, and unified diff preview (`format_code`).
 - **C/C++ Documentation Generator (clang-doc)**: Generates comprehensive API documentation from source code and Doxygen comments in Markdown, HTML, JSON, or YAML with compilation database integration and public API filtering (`generate_documentation`).
+- **Semantic Field Reordering (clang-reorder-fields)**: Optimizes struct/class memory layout and padding while automatically rewriting member declarations, constructor initializer lists, aggregate initializers, and C++20 designated initializers across the entire codebase (`reorder_struct_fields`).
 - **Independent Compilation Database Generator**: Automatically resolves, generates, or synthesizes `compile_commands.json` across CMake, xmake, Meson, Bear, or synthetic mode without a build system, unlocking clangd LSP and clang-doc (`generate_compilation_database`).
 - **Smart C++ Project Scaffolding**: One-command project bootstrapping with modern `xmake` / `CMake`, C++11-26 standards, Catch2/GTest/doctest, C++20 modules, Qt6, CUDA, `.clang-format`, and `.clangd` LSP configurations (`scaffold_project`).
 - **Intelligent Compiler & Linker Error Explainer**: Translates intimidating template cascades, unsatisfied C++20 concepts, missing vtables, and undefined references into plain English root causes, simplified signatures, and concrete code fixes (`explain_compiler_error`).
@@ -672,6 +673,36 @@ Generates, resolves, or synthesizes a `compile_commands.json` database for C/C++
   }
   ```
 
+### 21. `reorder_struct_fields`
+
+Reorders fields in C/C++ structs and classes using `clang-reorder-fields`. Optimizes memory layout and padding, and automatically synchronizes all field definitions, constructor initializer lists, aggregate initializers, and C++20 designated initializers across the codebase.
+
+- **Parameters**:
+  - `record_name` (`string`, required): Fully-qualified name of the struct or class (e.g. `"Foo"` or `"::bar::Foo"`).
+  - `fields_order` (`string[]`, required): Desired order of field names (e.g. `["z", "w", "y", "x"]`).
+  - `workspace` (`string`, optional): Workspace directory containing source files or `compile_commands.json`.
+  - `files` (`string[]`, optional): Specific source or header files to inspect and update.
+  - `extra_args` (`string[]`, optional): Additional compiler flags (e.g. `["-std=c++20"]`).
+  - `apply` (`boolean`, optional, default `false`): When `true`, writes changes directly to disk. When `false` (default), returns preview diff.
+
+- **Output Example**:
+  ```json
+  {
+    "success": true,
+    "recordName": "Data",
+    "fieldsOrder": ["b", "a", "c"],
+    "dryRun": true,
+    "totalFiles": 2,
+    "modifiedFiles": [
+      "include/data.h",
+      "src/main.c"
+    ],
+    "unifiedDiff": "--- a/include/data.h\n+++ b/include/data.h\n@@ -2,3 +2,3 @@\n+ double b;\n  char a;\n- double b;\n  int c;",
+    "warnings": [],
+    "summary": "[DRY-RUN / PREVIEW] Successfully reordered fields in 'Data' (b, a, c) across 2 file(s)."
+  }
+  ```
+
 ---
 
 ## Resources Catalog
@@ -862,6 +893,11 @@ cpp-mcp code-diagnostics src/main.cpp --code "int x = undeclared_var;" --json
 cpp-mcp code-rename "calculate_total" "compute_total"
 cpp-mcp code-rename "calculate_total" "compute_total" --apply
 cpp-mcp code-rename "Calculator::add" "sum" --workspace /path/to/project --json
+
+# Reorder struct/class fields to optimize memory layout & padding (clang-reorder-fields)
+cpp-mcp reorder-fields "Foo" "z,w,y,x"
+cpp-mcp reorder-fields "::bar::Foo" "z,w,y,x" --apply
+cpp-mcp reorder-fields "Data" "b,a,c" --file src/data.h --apply
 
 # Raw or JSON output for shell scripting and automation
 cpp-mcp code-search Vec2 --raw
