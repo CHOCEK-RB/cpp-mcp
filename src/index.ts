@@ -11,6 +11,7 @@ import { registerResources } from "./resources/index.js";
 import { checkSecureCoding } from "./tools/cert.js";
 import { analyzeCodeSymbol } from "./tools/code-analyzer.js";
 import { getCodeDiagnostics } from "./tools/code-diagnostics.js";
+import { formatCode } from "./tools/code-formatter.js";
 import { renameCodeSymbol } from "./tools/code-renamer.js";
 import { searchCodeSymbols } from "./tools/code-search.js";
 import { sessionManager } from "./tools/code-session-manager.js";
@@ -844,6 +845,131 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error renaming symbol: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "format_code",
+    {
+      description:
+        "Format C/C++ source code or files using clang-format. Supports in-memory code snippets, project-specific .clang-format styles, standard presets (LLVM, Google, Chromium, Mozilla, WebKit, Microsoft), line ranges, and atomic disk application.",
+      inputSchema: {
+        code: z
+          .string()
+          .optional()
+          .describe(
+            "C/C++ code snippet to format in-memory. Ideal for formatting generated code before writing to disk.",
+          ),
+        file: z
+          .string()
+          .optional()
+          .describe(
+            "Path to a C/C++ source or header file to format (.cpp, .hpp, .c, .h, .cxx, .ixx, .mpp).",
+          ),
+        workspace: z
+          .string()
+          .optional()
+          .describe(
+            "Root workspace directory used to locate the project's .clang-format configuration file.",
+          ),
+        style: z
+          .string()
+          .optional()
+          .default("file")
+          .describe(
+            "Coding style preset ('file' to use project .clang-format, 'LLVM', 'Google', 'Chromium', 'Mozilla', 'WebKit', 'Microsoft', or custom YAML string). Defaults to 'file'.",
+          ),
+        fallback_style: z
+          .string()
+          .optional()
+          .default("LLVM")
+          .describe(
+            "Fallback style if no .clang-format is found when style='file'. Defaults to 'LLVM'.",
+          ),
+        apply: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe(
+            "If true and 'file' is provided, writes formatted changes directly to disk. Defaults to false (dry-run preview with unified diff).",
+          ),
+        start_line: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe("Optional 1-indexed starting line number to format only a sub-region."),
+        end_line: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe("Optional 1-indexed ending line number to format only a sub-region."),
+      },
+    },
+    async ({ code, file, workspace, style, fallback_style, apply, start_line, end_line }) => {
+      try {
+        if (
+          (start_line !== undefined && end_line === undefined) ||
+          (start_line === undefined && end_line !== undefined)
+        ) {
+          return {
+            isError: true,
+            content: [
+              {
+                type: "text" as const,
+                text: "Error: Both 'start_line' and 'end_line' must be provided when specifying a format range.",
+              },
+            ],
+          };
+        }
+
+        if (start_line !== undefined && end_line !== undefined && start_line > end_line) {
+          return {
+            isError: true,
+            content: [
+              {
+                type: "text" as const,
+                text: `Error: 'start_line' (${start_line}) cannot be greater than 'end_line' (${end_line}).`,
+              },
+            ],
+          };
+        }
+
+        const range =
+          start_line !== undefined && end_line !== undefined
+            ? { startLine: start_line, endLine: end_line }
+            : undefined;
+
+        const result = await formatCode({
+          code,
+          file,
+          workspace,
+          style,
+          fallbackStyle: fallback_style,
+          apply,
+          range,
+        });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error formatting code: ${error instanceof Error ? error.message : String(error)}`,
             },
           ],
         };

@@ -34,6 +34,7 @@ flowchart TD
         Server --> T13["get_project_details"]
         Server --> T14["get_code_diagnostics"]
         Server --> T15["rename_code_symbol"]
+        Server --> T16["format_code"]
     end
 
     subgraph Primitives ["MCP Native Primitives"]
@@ -54,6 +55,8 @@ flowchart TD
 
 - **Authoritative C/C++ Lookup**: Instant access to standard headers, containers, algorithms, keywords, and C++20/23/26 features.
 - **Semantic Code Intelligence (xmake + clangd LSP)**: Deep AST understanding of your local codebase with automatic compilation database generation via `xmake`, symbol search, type inheritance, call hierarchies, and usage examples (`search_code_symbols`, `analyze_code_symbol`).
+- **Live Compiler Diagnostics & AST Renaming**: Real-time error detection with caret pointers (`^~~~`), AST-based safe symbol renaming across all workspace files, and automated header tracking (`get_code_diagnostics`, `rename_code_symbol`).
+- **C/C++ Code Formatter**: Instant in-memory and file formatting via `clang-format` with project `.clang-format` auto-discovery, standard presets (`LLVM`, `Google`), line ranges, and unified diff preview (`format_code`).
 - **C++20/23/26 Modules Architecture**: Dedicated offline guide and best practices for `import std;`, interface & internal partitions, CMake 3.28+ (`FILE_SET CXX_MODULES`), and header migration (`get_cpp_modules_guide`).
 - **Modern C/C++ Tooling Ecosystem**: In-depth recipes and starter configs for `xmake` (Lua build system with native C++20 modules), `clang-format`, `clang-tidy`, and runtime sanitizers (`get_cpp_tooling_guide`).
 - **SEI CERT C++ Security Standard**: Complete catalog of 83 official rules with CWE mappings, heuristic auditing, and compliant fixes for memory safety, concurrency, strings, integers, and UB prevention (`check_secure_coding`).
@@ -505,6 +508,30 @@ Performs AST-level semantic symbol renaming across all workspace files powered b
   }
   ```
 
+### 16. `format_code`
+
+Formats C/C++ source code snippets or files using `clang-format`. Ideal for formatting AI-generated code before writing to disk, ensuring strict compliance with the workspace `.clang-format` or standard presets (`LLVM`, `Google`, `Chromium`, `Mozilla`, `WebKit`, `Microsoft`).
+
+- **Parameters**:
+  - `code` (`string`, optional): In-memory C/C++ code snippet to format.
+  - `file` (`string`, optional): Relative or absolute path to a file on disk.
+  - `workspace` (`string`, optional): Workspace directory to look for `.clang-format`.
+  - `style` (`string`, optional, default `"file"`): Format style preset or custom YAML string.
+  - `fallback_style` (`string`, optional, default `"LLVM"`): Fallback preset if `.clang-format` is not found.
+  - `apply` (`boolean`, optional, default `false`): If true, updates file on disk; otherwise outputs diff preview.
+  - `start_line` / `end_line` (`number`, optional): 1-indexed line range to format only a sub-region.
+
+- **Output Example**:
+  ```json
+  {
+    "formatted": true,
+    "changed": true,
+    "formattedCode": "int main() {\n  int a = 1;\n  return a;\n}\n",
+    "diff": "--- a/main.cpp\n+++ b/main.cpp\n@@ -1,1 +1,4 @@\n- int main(){int a=1;return a;}\n+ int main() {\n+   int a = 1;\n+   return a;\n+ }",
+    "applied": false
+  }
+  ```
+
 ---
 
 ## Resources Catalog
@@ -727,6 +754,10 @@ cpp-mcp standard std::span C++20
 cpp-mcp tooling xmake
 cpp-mcp tooling xmake cxx-modules
 cpp-mcp tooling xmake toolchains
+
+# Format in-memory snippet or source files via clang-format
+cpp-mcp code-format --code "int main(){int a=1;return a;}"
+cpp-mcp code-format src/main.cpp --apply
 ```
 
 ---
