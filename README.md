@@ -18,12 +18,12 @@ Model Context Protocol (MCP) server that empowers AI coding assistants with auth
 flowchart TB
     Client["AI Clients\n(Antigravity / Claude / VS Code / Cursor / Zed)"] -->|stdio · JSON-RPC| Server["cpp-mcp Server"]
 
-    subgraph Tools ["21 MCP Tools by Functional Domain"]
+    subgraph Tools ["22 MCP Tools by Functional Domain"]
         direction LR
         D1["Reference & Standards\n• search_cppreference\n• get_cppreference_page\n• lookup_header\n• check_cpp_standard"]
         D2["Safety & Guidelines\n• check_secure_coding (CERT)\n• get_guideline (Core Guidelines)\n• get_cpp_modules_guide\n• get_cpp_tooling_guide"]
         D3["Semantic Intelligence (AST)\n• search_code_symbols\n• analyze_code_symbol\n• rename_code_symbol\n• get_code_diagnostics\n• get_project_details"]
-        D4["Developer Productivity\n• format_code (clang-format)\n• generate_documentation (clang-doc)\n• reorder_struct_fields (clang-reorder-fields)\n• generate_compilation_database\n• scaffold_project (xmake / CMake)\n• explain_compiler_error\n• demangle_symbol\n• check_compiler_support"]
+        D4["Developer Productivity\n• format_code (clang-format)\n• generate_documentation (clang-doc)\n• reorder_struct_fields (clang-reorder-fields)\n• trace_preprocessor (pp-trace)\n• generate_compilation_database\n• scaffold_project (xmake / CMake)\n• explain_compiler_error\n• demangle_symbol\n• check_compiler_support"]
     end
 
     subgraph Backends ["Execution & Storage Engines"]
@@ -49,6 +49,7 @@ flowchart TB
 - **C/C++ Code Formatter**: Instant in-memory and file formatting via `clang-format` with project `.clang-format` auto-discovery, standard presets (`LLVM`, `Google`), line ranges, and unified diff preview (`format_code`).
 - **C/C++ Documentation Generator (clang-doc)**: Generates comprehensive API documentation from source code and Doxygen comments in Markdown, HTML, JSON, or YAML with compilation database integration and public API filtering (`generate_documentation`).
 - **Semantic Field Reordering (clang-reorder-fields)**: Optimizes struct/class memory layout and padding while automatically rewriting member declarations, constructor initializer lists, aggregate initializers, and C++20 designated initializers across the entire codebase (`reorder_struct_fields`).
+- **Preprocessor Tracer (pp-trace)**: Streams and aggregates the Clang preprocessor callback dump into a compact report of macro definitions, `#include` chains, `#if`/`#ifdef` branch decisions, pragmas, and C++20 module imports, filtered to project files by default (`trace_preprocessor`).
 - **Independent Compilation Database Generator**: Automatically resolves, generates, or synthesizes `compile_commands.json` across CMake, xmake, Meson, Bear, or synthetic mode without a build system, unlocking clangd LSP and clang-doc (`generate_compilation_database`).
 - **Smart C++ Project Scaffolding**: One-command project bootstrapping with modern `xmake` / `CMake`, C++11-26 standards, Catch2/GTest/doctest, C++20 modules, Qt6, CUDA, `.clang-format`, and `.clangd` LSP configurations (`scaffold_project`).
 - **Intelligent Compiler & Linker Error Explainer**: Translates intimidating template cascades, unsatisfied C++20 concepts, missing vtables, and undefined references into plain English root causes, simplified signatures, and concrete code fixes (`explain_compiler_error`).
@@ -703,6 +704,40 @@ Reorders fields in C/C++ structs and classes using `clang-reorder-fields`. Optim
   }
   ```
 
+### 22. `trace_preprocessor`
+
+Traces the C/C++ preprocessor with `pp-trace` (clang-tools-extra) and returns a compact, filtered report instead of the raw multi-megabyte YAML callback dump. Summarizes macro definitions/undefinitions, `#include` directives, conditional compilation branch decisions (`#if`/`#ifdef`/`#elif`/`#else`), pragmas, and C++20 module imports. By default only events from project files are reported, keeping standard-library noise out.
+
+- **Parameters**:
+  - `file` (`string`, required): Source file to trace (absolute, or relative to `workspace`).
+  - `workspace` (`string`, optional): Workspace directory used to locate `compile_commands.json` (passed to `pp-trace -p`).
+  - `callbacks` (`string[]`, optional): Restrict tracing to specific callback names or globs (e.g. `["MacroDefined", "MacroExpands"]`).
+  - `extra_args` (`string[]`, optional): Additional compiler flags (e.g. `["-std=c++20", "-Iinclude"]`).
+  - `max_events` (`number`, optional, default `500`): Maximum number of raw events retained when `include_events` is enabled.
+  - `include_events` (`boolean`, optional, default `false`): Include the capped raw callback event list in the output.
+  - `user_files_only` (`boolean`, optional, default `true`): Report only events from project files, filtering out system headers and `<built-in>` locations.
+
+- **Output Example**:
+  ```json
+  {
+    "success": true,
+    "source": "/home/user/project/src/main.cpp",
+    "tool": { "name": "pp-trace", "path": "/usr/bin/pp-trace", "version": "22.1.8" },
+    "summary": {
+      "totalEvents": 309135,
+      "userEvents": 6,
+      "truncated": false,
+      "counts": { "MacroDefined": 1, "MacroExpands": 1, "InclusionDirective": 1, "If": 1, "Endif": 1, "EndOfMainFile": 1 }
+    },
+    "macros": [{ "name": "MAX", "action": "define", "file": "/home/user/project/src/main.cpp", "loc": "/home/user/project/src/main.cpp:1:9" }],
+    "includes": [{ "fileName": "vector", "angled": true, "searchPath": "/usr/include/c++/22" }],
+    "conditionals": [{ "kind": "If", "loc": "/home/user/project/src/main.cpp:2:2", "conditionValue": false }],
+    "pragmas": [],
+    "modules": [],
+    "warnings": []
+  }
+  ```
+
 ---
 
 ## Resources Catalog
@@ -898,6 +933,11 @@ cpp-mcp code-rename "Calculator::add" "sum" --workspace /path/to/project --json
 cpp-mcp reorder-fields "Foo" "z,w,y,x"
 cpp-mcp reorder-fields "::bar::Foo" "z,w,y,x" --apply
 cpp-mcp reorder-fields "Data" "b,a,c" --file src/data.h --apply
+
+# Trace the preprocessor: macros, includes, and #if branches (pp-trace)
+cpp-mcp trace-preprocessor src/main.cpp
+cpp-mcp trace-preprocessor src/main.cpp --callbacks MacroDefined,MacroExpands --std c++20
+cpp-mcp trace-preprocessor src/main.cpp --include-events --max-events 50 --json
 
 # Raw or JSON output for shell scripting and automation
 cpp-mcp code-search Vec2 --raw
