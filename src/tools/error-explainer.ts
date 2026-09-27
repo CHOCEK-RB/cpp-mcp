@@ -192,7 +192,7 @@ export async function explainCompilerError(
   const codeSnippet = resolveCodeSnippet(params.codeSnippet, location, params.workspaceDir);
 
   // 1. Demangle any mangled symbols present in the error output
-  const demangleRes = await demangleSymbol({ symbol: rawError });
+  const demangleRes = demangleSymbol({ symbol: rawError });
   const demangledText = demangleRes.demangled;
   const demangledSymbols = demangleRes.extractedSymbols?.map((s) => ({
     mangled: s.mangled,

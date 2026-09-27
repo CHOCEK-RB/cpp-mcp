@@ -9,20 +9,12 @@ import { formatCode } from "./tools/code-formatter.js";
 import { renameCodeSymbol } from "./tools/code-renamer.js";
 import { searchCodeSymbols } from "./tools/code-search.js";
 import { sessionManager } from "./tools/code-session-manager.js";
-import {
-  type BuildSystemName,
-  generateCompilationDatabase,
-  VALID_COMPILE_DB_SYSTEMS,
-} from "./tools/compile-db.js";
 import { type CompilerName, checkCompilerSupport } from "./tools/compiler-support.js";
 import { demangleSymbol } from "./tools/demangle.js";
-import { type DocFormat, generateDocumentation } from "./tools/doc-generator.js";
 import { explainCompilerError } from "./tools/error-explainer.js";
-import { reorderStructFields } from "./tools/field-reorderer.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
 import { getCppModulesGuide } from "./tools/modules.js";
-import { tracePreprocessor } from "./tools/preprocessor-tracer.js";
 import {
   type BuildSystem,
   type CppStandard,
@@ -59,10 +51,6 @@ Commands:
   code-format [file]                Format C/C++ source code or file via clang-format (--style, --apply)
   scaffold <name>                   Scaffold modern C++ project (xmake/CMake, C++20, Catch2, clangd)
   explain-error <text|->            Explain complex C++ compiler or linker errors (or pipe via stdin)
-  docs [files...]                   Generate API documentation via clang-doc (--format, --output)
-  compile-db [dir]                  Generate compile_commands.json (auto, CMake, xmake, Meson, Bear, synthetic)
-  reorder-fields <record> <order>   Reorder fields in C/C++ struct/class via clang-reorder-fields (--apply)
-  trace-preprocessor <file>         Trace macros, includes, and #if branches via pp-trace (--callbacks, --max-events)
   compiler <feature> [options]      Check compiler support matrix (GCC, Clang, MSVC, Apple Clang)
   demangle <symbol|->               Demangle Itanium or MSVC mangled symbols (or stdin)
   cert <rule_id|cwe|category>       Audit against SEI CERT C++ rules and CWEs
@@ -79,21 +67,12 @@ Options:
   --line <num>                      Line number (1-indexed) for symbol disambiguation or rename
   --lines <start:end>               Line range (1-indexed) to format only a sub-region
   --style <name>                    Format style ('file', 'LLVM', 'Google', 'Chromium', 'Mozilla', 'WebKit')
-  --apply                           Apply rename, format, or reorder changes to disk (default is dry-run)
+  --apply                           Apply rename or format changes directly to disk (default is dry-run preview)
   --dry-run                         Preview changes without modifying files (default)
-  --order, --fields-order <order>   Comma-separated list of field names in desired order
-  --extra-arg <arg>                 Additional compiler flag for clang-reorder-fields or pp-trace (e.g. -std=c++20)
-  --callbacks <a,b,...>             Restrict pp-trace to specific callbacks or globs (e.g. MacroDefined,MacroExpands)
-  --max-events <num>                Max raw pp-trace events returned with --include-events (default: 500)
-  --include-events                  Include capped raw pp-trace callback events in the output
-  --all-files                       Include system-header events in pp-trace output (default: project files only)
   --dir <path>                      Target directory for scaffolded project (default: ./<name>)
   --build <xmake|cmake>             Build system for scaffolding (default: xmake)
-  --build-system <system>           Build system for compile-db ('auto', 'cmake', 'xmake', 'meson', 'bear', 'synthetic')
-  --build-dir <dir>                 Build directory for compile_commands.json (default: 'build')
-  --no-root-link                    Do not copy/link compile_commands.json to workspace root
   --type <type>                     Project type (executable, library, header-only, cxx-modules, qt, cuda)
-  --std <version>                   C++ standard for scaffolding/compile-db (11, 14, 17, 20, 23, 26)
+  --std <version>                   C++ standard for scaffolding (11, 14, 17, 20, 23, 26)
   --test <framework>                Test framework (catch2, gtest, doctest, none)
   --pm, --package-manager <name>    Package manager (xrepo, vcpkg, conan, none)
   --git                             Initialize git repository during scaffold
@@ -101,10 +80,6 @@ Options:
   --force, --overwrite              Overwrite existing non-empty directory during scaffold
   --severity <level>                Filter diagnostics (all, error, warning)
   --code <code>                     Inline code snippet to check or format without saving to disk
-  --output, -o <dir>                Output directory for generated documentation (default: docs/api)
-  --format <format>                 Doc format: 'md', 'html', 'json', 'yaml' (default: md)
-  --public                          Document only public declarations
-  --doxygen                         Parse only Doxygen-style comments
   --compiler <name>                 Compiler name for compatibility checks (gcc, clang, msvc, apple_clang)
   --version <ver>                   Compiler version to evaluate against feature requirement
   -v, --version                     Print version and exit
@@ -186,8 +161,6 @@ export async function runCli(args: string[]): Promise<number> {
   let flagApply = false;
   let flagDir: string | undefined;
   let flagBuildSystem: string | undefined;
-  let flagBuildDir: string | undefined;
-  let flagNoRootLink = false;
   let flagProjectType: string | undefined;
   let flagCppStd: string | undefined;
   let flagTest: string | undefined;
@@ -196,36 +169,10 @@ export async function runCli(args: string[]): Promise<number> {
   let flagGit = false;
   let flagForce = false;
   let flagDryRun = false;
-  let flagOutput: string | undefined;
-  let flagFormat: string | undefined;
-  let flagPublic = false;
-  let flagDoxygen = false;
-  let flagFieldsOrder: string | undefined;
-  let flagCallbacks: string | undefined;
-  let flagMaxEvents: number | undefined;
-  let flagAllFiles = false;
-  let flagIncludeEvents = false;
-  const flagExtraArgs: string[] = [];
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (!arg || arg === "--json" || arg === "--raw") {
-      continue;
-    }
-    if (arg === "--public") {
-      flagPublic = true;
-      continue;
-    }
-    if (arg === "--doxygen") {
-      flagDoxygen = true;
-      continue;
-    }
-    if ((arg === "--output" || arg === "-o") && i + 1 < args.length) {
-      flagOutput = args[++i];
-      continue;
-    }
-    if (arg === "--format" && i + 1 < args.length) {
-      flagFormat = args[++i];
       continue;
     }
     if (arg === "--apply") {
@@ -235,33 +182,6 @@ export async function runCli(args: string[]): Promise<number> {
     if (arg === "--dry-run") {
       flagDryRun = true;
       flagApply = false;
-      continue;
-    }
-    if ((arg === "--order" || arg === "--fields-order") && i + 1 < args.length) {
-      flagFieldsOrder = args[++i];
-      continue;
-    }
-    if (arg === "--callbacks" && i + 1 < args.length) {
-      flagCallbacks = args[++i];
-      continue;
-    }
-    if (arg === "--max-events" && i + 1 < args.length) {
-      flagMaxEvents = Number.parseInt(args[++i] ?? "0", 10);
-      continue;
-    }
-    if (arg === "--include-events") {
-      flagIncludeEvents = true;
-      continue;
-    }
-    if (arg === "--all-files" || arg === "--no-user-files-only") {
-      flagAllFiles = true;
-      continue;
-    }
-    if (arg === "--extra-arg" && i + 1 < args.length) {
-      const nextArg = args[++i];
-      if (nextArg !== undefined) {
-        flagExtraArgs.push(nextArg);
-      }
       continue;
     }
     if (arg === "--git") {
@@ -282,14 +202,6 @@ export async function runCli(args: string[]): Promise<number> {
     }
     if ((arg === "--build" || arg === "--build-system") && i + 1 < args.length) {
       flagBuildSystem = args[++i];
-      continue;
-    }
-    if (arg === "--build-dir" && i + 1 < args.length) {
-      flagBuildDir = args[++i];
-      continue;
-    }
-    if (arg === "--no-root-link") {
-      flagNoRootLink = true;
       continue;
     }
     if (arg === "--type" && i + 1 < args.length) {
@@ -426,7 +338,7 @@ export async function runCli(args: string[]): Promise<number> {
           console.error("Error: 'demangle' command requires a mangled symbol or piped input.");
           return 1;
         }
-        const res = await demangleSymbol({ symbol: symbolToDemangle });
+        const res = demangleSymbol({ symbol: symbolToDemangle });
         if (isJson) {
           console.log(JSON.stringify(res, null, 2));
           return 0;
@@ -1248,331 +1160,6 @@ export async function runCli(args: string[]): Promise<number> {
           }
         }
 
-        return 0;
-      }
-
-      case "docs":
-      case "generate-docs":
-      case "clang-doc": {
-        const VALID_FORMATS = new Set(["md", "html", "json", "yaml"]);
-        if (flagFormat && !VALID_FORMATS.has(flagFormat)) {
-          console.error(
-            `Error: Invalid format '${flagFormat}'. Supported formats: ${Array.from(VALID_FORMATS).join(", ")}.`,
-          );
-          return 1;
-        }
-
-        const filesToDoc = positionalArgs.slice(1);
-        const res = await generateDocumentation({
-          workspace: flagWorkspace,
-          files: filesToDoc.length > 0 ? filesToDoc : undefined,
-          outputDir: flagOutput,
-          format: flagFormat as DocFormat | undefined,
-          publicOnly: flagPublic,
-          doxygenOnly: flagDoxygen,
-          dryRun: flagDryRun,
-        });
-
-        if (isJson) {
-          console.log(JSON.stringify(res, null, 2));
-          return res.success ? 0 : 1;
-        }
-
-        if (isRaw) {
-          console.log(res.outputDir);
-          return res.success ? 0 : 1;
-        }
-
-        if (!res.success) {
-          console.error(`Error: ${res.summary}`);
-          if (res.error) {
-            console.error(`\n${res.error}`);
-          }
-          return 1;
-        }
-
-        console.log(`Documentation Generated (${res.tool}):`);
-        console.log(`Format:       ${res.format.toUpperCase()}`);
-        console.log(`Output Dir:   ${res.outputDir}`);
-        console.log(`Total Files:  ${res.totalFiles} generated`);
-        if (res.filesGenerated.length > 0) {
-          console.log("\nGenerated Files:");
-          for (const f of res.filesGenerated.slice(0, 10)) {
-            console.log(`  + ${f.relativePath} (${f.sizeBytes} bytes)`);
-          }
-          if (res.filesGenerated.length > 10) {
-            console.log(`  ... and ${res.filesGenerated.length - 10} more files`);
-          }
-        }
-        if (res.previewMarkdown) {
-          console.log("\nDocumentation Preview (index.md):");
-          console.log(res.previewMarkdown);
-        }
-        return 0;
-      }
-
-      case "compile-db":
-      case "compiledb":
-      case "generate-compile-commands": {
-        if (flagBuildSystem && !VALID_COMPILE_DB_SYSTEMS.has(flagBuildSystem)) {
-          console.error(
-            `Error: Invalid --build-system '${flagBuildSystem}'. Supported: ${Array.from(VALID_COMPILE_DB_SYSTEMS).join(", ")}.`,
-          );
-          return 1;
-        }
-
-        const workspaceTarget = positionalArgs[1] || flagWorkspace || target || process.cwd();
-        const res = await generateCompilationDatabase({
-          workspace: workspaceTarget,
-          buildSystem: flagBuildSystem as BuildSystemName | undefined,
-          buildDir: flagBuildDir,
-          compiler: flagCompiler,
-          std: flagCppStd,
-          symlinkToRoot: !flagNoRootLink,
-          dryRun: flagDryRun,
-        });
-
-        if (isJson) {
-          console.log(JSON.stringify(res, null, 2));
-          return res.success ? 0 : 1;
-        }
-
-        if (isRaw) {
-          console.log(res.compileCommandsPath || "");
-          return res.success ? 0 : 1;
-        }
-
-        if (!res.success) {
-          console.error(`Error: ${res.summary}`);
-          if (res.error) {
-            console.error(`\n${res.error}`);
-          }
-          return 1;
-        }
-
-        console.log("Compilation Database Generated:");
-        console.log(`Build System: ${res.buildSystem.toUpperCase()}`);
-        console.log(`Path:         ${res.compileCommandsPath}`);
-        console.log(`Total Units:  ${res.entryCount} compilation unit(s)`);
-        if (res.rootLinked) {
-          console.log("Root Link:    Copied/linked to workspace root");
-        }
-        if (res.filesIndexed.length > 0) {
-          console.log("\nIndexed Files:");
-          for (const f of res.filesIndexed.slice(0, 10)) {
-            console.log(`  + ${f}`);
-          }
-          if (res.filesIndexed.length > 10) {
-            console.log(`  ... and ${res.filesIndexed.length - 10} more files`);
-          }
-        }
-        return 0;
-      }
-
-      case "reorder-fields":
-      case "reorder": {
-        const recordArg = positionalArgs[1];
-        if (!recordArg) {
-          console.error(
-            "Error: 'reorder-fields' command requires a struct or class name (e.g. 'cpp-mcp reorder-fields Foo z,w,y,x')",
-          );
-          return 1;
-        }
-
-        let orderList: string[] = [];
-        if (flagFieldsOrder) {
-          orderList = flagFieldsOrder
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean);
-        } else if (positionalArgs.length > 2) {
-          const rest = positionalArgs.slice(2);
-          if (rest.length === 1 && rest[0]?.includes(",")) {
-            orderList = rest[0]
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean);
-          } else {
-            orderList = rest.map((s) => s.trim()).filter(Boolean);
-          }
-        }
-
-        if (orderList.length < 2) {
-          console.error(
-            "Error: 'reorder-fields' requires at least 2 fields in order (e.g. 'cpp-mcp reorder-fields Foo z,w,y,x')",
-          );
-          return 1;
-        }
-
-        const filesToTarget = flagFile ? [flagFile] : undefined;
-        const res = await reorderStructFields({
-          recordName: recordArg,
-          fieldsOrder: orderList,
-          workspace: flagWorkspace,
-          files: filesToTarget,
-          extraArgs: flagExtraArgs.length > 0 ? flagExtraArgs : undefined,
-          apply: flagApply,
-        });
-
-        if (isJson) {
-          console.log(JSON.stringify(res, null, 2));
-          return res.success ? 0 : 1;
-        }
-
-        if (!res.success) {
-          console.error(`Error: ${res.summary}`);
-          if (res.error) {
-            console.error(`\n${res.error}`);
-          }
-          return 1;
-        }
-
-        const modeStr = res.dryRun ? "[DRY-RUN / PREVIEW]" : "[APPLIED]";
-        console.log(
-          `${modeStr} Reordered fields in '${res.recordName}' (${res.fieldsOrder.join(", ")}) across ${res.modifiedFiles.length} file(s):\n`,
-        );
-
-        for (const fileChange of res.changes) {
-          console.log(`File: ${fileChange.file}`);
-          if (fileChange.diff) {
-            console.log(
-              fileChange.diff
-                .split("\n")
-                .map((l) => `  ${l}`)
-                .join("\n"),
-            );
-          }
-          console.log();
-        }
-
-        if (res.warnings && res.warnings.length > 0) {
-          console.log("\nWarnings:");
-          for (const w of res.warnings) {
-            console.log(`  ! ${w}`);
-          }
-        }
-
-        if (res.dryRun) {
-          console.log("Tip: Run with --apply to write changes to files on disk.");
-        }
-        return 0;
-      }
-
-      case "trace-preprocessor":
-      case "trace-pp":
-      case "pretrace": {
-        const traceFile = positionalArgs[1] ?? flagFile;
-        if (!traceFile) {
-          console.error(
-            "Error: 'trace-preprocessor' command requires a source file (e.g. 'cpp-mcp trace-preprocessor main.cpp')",
-          );
-          return 1;
-        }
-
-        const callbacks = flagCallbacks
-          ? flagCallbacks
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean)
-          : undefined;
-
-        const traceExtraArgs = [...flagExtraArgs];
-        if (flagCppStd) {
-          const std = flagCppStd.startsWith("-")
-            ? flagCppStd
-            : flagCppStd.startsWith("c++")
-              ? `-std=${flagCppStd}`
-              : `-std=c++${flagCppStd}`;
-          traceExtraArgs.push(std);
-        }
-
-        const res = await tracePreprocessor({
-          file: traceFile,
-          workspace: flagWorkspace,
-          callbacks,
-          extraArgs: traceExtraArgs.length > 0 ? traceExtraArgs : undefined,
-          maxEvents: flagMaxEvents,
-          includeEvents: flagIncludeEvents,
-          userFilesOnly: !flagAllFiles,
-        });
-
-        if (isJson) {
-          console.log(JSON.stringify(res, null, 2));
-          return res.success ? 0 : 1;
-        }
-
-        if (!res.success) {
-          console.error(`Error: ${res.error ?? "Failed to trace preprocessor."}`);
-          for (const w of res.warnings) {
-            console.error(`  ! ${w}`);
-          }
-          return 1;
-        }
-
-        const versionStr = res.tool.version ? ` ${res.tool.version}` : "";
-        console.log(`Preprocessor trace for ${res.source} (pp-trace${versionStr}):\n`);
-        console.log(
-          `Events: ${res.summary.totalEvents} parsed, ${res.summary.userEvents} from project code${
-            res.summary.truncated ? " (truncated)" : ""
-          }`,
-        );
-
-        const countEntries = Object.entries(res.summary.counts).sort((a, b) => b[1] - a[1]);
-        if (countEntries.length > 0) {
-          console.log("\nCallback counts:");
-          for (const [name, count] of countEntries) {
-            console.log(`  ${name}: ${count}`);
-          }
-        }
-
-        if (res.macros.length > 0) {
-          console.log("\nMacros:");
-          for (const m of res.macros) {
-            const where = m.loc ? ` (${m.loc})` : m.file ? ` (${m.file})` : "";
-            console.log(`  ${m.action === "define" ? "#define" : "#undef "} ${m.name}${where}`);
-          }
-        }
-
-        if (res.includes.length > 0) {
-          console.log("\nIncludes:");
-          for (const inc of res.includes) {
-            const written = inc.angled ? `<${inc.fileName}>` : `"${inc.fileName}"`;
-            console.log(`  ${written}${inc.resolved ? ` -> ${inc.resolved}` : ""}`);
-          }
-        }
-
-        if (res.conditionals.length > 0) {
-          console.log("\nConditionals:");
-          for (const c of res.conditionals) {
-            const value = c.conditionValue === undefined ? "" : ` => ${c.conditionValue}`;
-            console.log(`  ${c.kind}${c.loc ? ` at ${c.loc}` : ""}${value}`);
-          }
-        }
-
-        if (res.pragmas.length > 0) {
-          console.log("\nPragmas:");
-          for (const p of res.pragmas) {
-            console.log(`  ${p.kind}${p.detail ? `: ${p.detail}` : ""}`);
-          }
-        }
-
-        if (res.modules.length > 0) {
-          console.log("\nModule imports:");
-          for (const mod of res.modules) {
-            console.log(`  import ${mod.imported}`);
-          }
-        }
-
-        if (res.events && res.events.length > 0) {
-          console.log(`\nRaw events: ${res.events.length}`);
-        }
-
-        if (res.warnings.length > 0) {
-          console.log("\nWarnings:");
-          for (const w of res.warnings) {
-            console.log(`  ! ${w}`);
-          }
-        }
         return 0;
       }
 

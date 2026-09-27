@@ -1,6 +1,6 @@
 // src/tools/demangle.ts
 // C++ Symbol Demangler for Itanium ABI (GCC, Clang) and MSVC ABI.
-import { spawn } from "node:child_process";
+import { spawnSync } from "node:child_process";
 
 export interface DemangleParams {
   symbol: string;
@@ -19,63 +19,6 @@ export interface DemangleResult {
   }>;
   translatedText?: string;
   isMangled: boolean;
-}
-
-export interface DemangleToolResult {
-  status: number | null;
-  stdout: string;
-  stderr: string;
-}
-
-/**
- * Runs an external demangler without blocking the event loop. Unlike
- * spawnSync, the MCP server can keep serving other requests while the tool
- * runs, and the child is killed with SIGKILL if it exceeds `timeoutMs`.
- */
-export function runDemangleTool(
-  command: string,
-  args: string[],
-  options: { input?: string; timeoutMs: number },
-): Promise<DemangleToolResult> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(command, args, { stdio: ["pipe", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    const finish = (action: () => void) => {
-      if (settled) return;
-      settled = true;
-      if (timer) clearTimeout(timer);
-      action();
-    };
-
-    if (options.timeoutMs > 0) {
-      timer = setTimeout(() => {
-        finish(() => {
-          if (!proc.killed) proc.kill("SIGKILL");
-          reject(new Error(`demangler timed out after ${options.timeoutMs}ms`));
-        });
-      }, options.timeoutMs);
-    }
-
-    proc.stdin.on("error", () => {});
-    proc.stdout.on("data", (chunk) => {
-      stdout += chunk.toString("utf-8");
-    });
-    proc.stderr.on("data", (chunk) => {
-      stderr += chunk.toString("utf-8");
-    });
-
-    proc.on("error", (error) => finish(() => reject(error)));
-    proc.on("close", (status) => finish(() => resolve({ status, stdout, stderr })));
-
-    if (options.input !== undefined) {
-      proc.stdin.write(options.input, "utf-8");
-    }
-    proc.stdin.end();
-  });
 }
 
 const ITANIUM_PRIMITIVES: Record<string, string> = {
@@ -182,13 +125,13 @@ export function detectSymbolAbi(symbol: string): "itanium" | "msvc" | "rust" | "
   return "unknown";
 }
 
-async function demangleItaniumWithSystemTool(
-  symbol: string,
-  stripParams = false,
-): Promise<string | null> {
+function demangleItaniumWithSystemTool(symbol: string, stripParams = false): string | null {
   try {
     const args = stripParams ? ["-p", symbol] : [symbol];
-    const proc = await runDemangleTool("c++filt", args, { timeoutMs: 2000 });
+    const proc = spawnSync("c++filt", args, {
+      encoding: "utf-8",
+      timeout: 2000,
+    });
 
     if (proc.status === 0 && proc.stdout) {
       const output = proc.stdout.trim();
@@ -202,13 +145,13 @@ async function demangleItaniumWithSystemTool(
   return null;
 }
 
-async function demangleMsvcWithSystemTool(
-  symbol: string,
-  stripParams = false,
-): Promise<string | null> {
+function demangleMsvcWithSystemTool(symbol: string, stripParams = false): string | null {
   for (const cmd of ["llvm-undname", "undname"]) {
     try {
-      const proc = await runDemangleTool(cmd, [symbol], { timeoutMs: 2000 });
+      const proc = spawnSync(cmd, [symbol], {
+        encoding: "utf-8",
+        timeout: 2000,
+      });
 
       if (proc.status === 0 && proc.stdout) {
         const lines = proc.stdout
@@ -530,7 +473,7 @@ export function demangleMsvcFallback(mangled: string, stripParams = false): stri
  * 1. Single mangled symbols (_Z..., ?...)
  * 2. Entire compiler/linker error trace snippets containing multiple mangled symbols
  */
-export async function demangleSymbol(params: DemangleParams): Promise<DemangleResult> {
+export function demangleSymbol(params: DemangleParams): DemangleResult {
   const { symbol, strip_params = false } = params;
   const raw = symbol.trim();
 
@@ -548,9 +491,10 @@ export async function demangleSymbol(params: DemangleParams): Promise<DemangleRe
     // Attempt single-pass stream translation via c++filt over stdin
     let translatedText = raw;
     try {
-      const proc = await runDemangleTool("c++filt", strip_params ? ["-p"] : [], {
+      const proc = spawnSync("c++filt", strip_params ? ["-p"] : [], {
         input: raw,
-        timeoutMs: 3000,
+        encoding: "utf-8",
+        timeout: 3000,
       });
       if (proc.status === 0 && proc.stdout && proc.stdout.trim() !== raw) {
         translatedText = proc.stdout;
@@ -566,11 +510,10 @@ export async function demangleSymbol(params: DemangleParams): Promise<DemangleRe
 
       if (abi === "itanium") {
         demangled =
-          (await demangleItaniumWithSystemTool(match, strip_params)) ??
-          demangleItaniumFallback(match);
+          demangleItaniumWithSystemTool(match, strip_params) ?? demangleItaniumFallback(match);
       } else if (abi === "msvc") {
         demangled =
-          (await demangleMsvcWithSystemTool(match, strip_params)) ??
+          demangleMsvcWithSystemTool(match, strip_params) ??
           demangleMsvcFallback(match, strip_params);
       }
 
@@ -610,7 +553,7 @@ export async function demangleSymbol(params: DemangleParams): Promise<DemangleRe
 
   // Try MSVC ABI
   if (abi === "msvc") {
-    const sysResult = await demangleMsvcWithSystemTool(raw, strip_params);
+    const sysResult = demangleMsvcWithSystemTool(raw, strip_params);
     if (sysResult) {
       return {
         original: raw,
@@ -631,7 +574,7 @@ export async function demangleSymbol(params: DemangleParams): Promise<DemangleRe
   }
 
   // Try Itanium ABI (c++filt first, then pure JS fallback)
-  const sysResult = await demangleItaniumWithSystemTool(raw, strip_params);
+  const sysResult = demangleItaniumWithSystemTool(raw, strip_params);
   if (sysResult) {
     return {
       original: raw,
