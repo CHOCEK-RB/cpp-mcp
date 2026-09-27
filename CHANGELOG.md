@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/CHOCEK-RB/cpp-mcp/compare/cpp-mcp-v1.5.0...cpp-mcp-v1.6.0) (2026-09-27)
+
+
+### Features
+
+* code formatting, project scaffolding, and compiler error explainer ([#42](https://github.com/CHOCEK-RB/cpp-mcp/issues/42)) ([7a8b6ca](https://github.com/CHOCEK-RB/cpp-mcp/commit/7a8b6ca04d5ba68a19a3d4b00397f5e4581395b2))
+
 ## [1.5.0](https://github.com/CHOCEK-RB/cpp-mcp/compare/cpp-mcp-v1.4.0...cpp-mcp-v1.5.0) (2026-09-27)
 
 
