@@ -190,3 +190,27 @@ export function diagnosticSeverityToString(
       return "error";
   }
 }
+
+export interface TextEdit {
+  range: Range;
+  newText: string;
+}
+
+export interface TextDocumentEdit {
+  textDocument: {
+    uri: string;
+    version?: number | null;
+  };
+  edits: TextEdit[];
+}
+
+export interface WorkspaceEdit {
+  changes?: Record<string, TextEdit[]>;
+  documentChanges?: TextDocumentEdit[];
+}
+
+export interface RenameParams {
+  textDocument: { uri: string };
+  position: Position;
+  newName: string;
+}
