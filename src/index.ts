@@ -25,6 +25,7 @@ import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
 import { getCppModulesGuide } from "./tools/modules.js";
 import { getCppreferencePage } from "./tools/page.js";
+import { tracePreprocessor } from "./tools/preprocessor-tracer.js";
 import { scaffoldProject } from "./tools/project-scaffold.js";
 import { searchCppreference } from "./tools/search.js";
 import { checkCppStandard } from "./tools/standards.js";
@@ -1403,6 +1404,99 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error reordering fields: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "trace_preprocessor",
+    {
+      description:
+        "Trace C/C++ preprocessor activity with clang-tools-extra's pp-trace. Returns an aggregated summary of macro definitions/undefinitions, #include directives, conditional branches (#if/#ifdef/#elif), pragmas, and module imports, filtering out system-header noise by default.",
+      inputSchema: {
+        file: z
+          .string()
+          .describe(
+            "Path to the C/C++ source file to trace (absolute or relative to 'workspace').",
+          ),
+        workspace: z
+          .string()
+          .optional()
+          .describe(
+            "Workspace directory used to resolve the file and locate compile_commands.json (defaults to current directory).",
+          ),
+        callbacks: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Restrict tracing to specific pp-trace callbacks or globs (e.g. ['MacroDefined', 'MacroExpands']).",
+          ),
+        extra_args: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Additional compiler arguments forwarded via --extra-arg (e.g. ['-std=c++20', '-Iinclude']).",
+          ),
+        max_events: z
+          .number()
+          .int()
+          .optional()
+          .default(500)
+          .describe(
+            "Maximum number of raw events retained when 'include_events' is true (default 500, max 10000).",
+          ),
+        include_events: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe("When true, also return the raw callback events (capped by 'max_events')."),
+        user_files_only: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe(
+            "Filter out events from system headers and virtual files, keeping only project code (default true).",
+          ),
+      },
+    },
+    async ({
+      file,
+      workspace,
+      callbacks,
+      extra_args,
+      max_events,
+      include_events,
+      user_files_only,
+    }) => {
+      try {
+        const result = await tracePreprocessor({
+          file,
+          workspace,
+          callbacks,
+          extraArgs: extra_args,
+          maxEvents: max_events,
+          includeEvents: include_events,
+          userFilesOnly: user_files_only,
+        });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error tracing preprocessor: ${err instanceof Error ? err.message : String(err)}`,
             },
           ],
         };

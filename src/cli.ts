@@ -22,6 +22,7 @@ import { reorderStructFields } from "./tools/field-reorderer.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
 import { getCppModulesGuide } from "./tools/modules.js";
+import { tracePreprocessor } from "./tools/preprocessor-tracer.js";
 import {
   type BuildSystem,
   type CppStandard,
@@ -61,6 +62,7 @@ Commands:
   docs [files...]                   Generate API documentation via clang-doc (--format, --output)
   compile-db [dir]                  Generate compile_commands.json (auto, CMake, xmake, Meson, Bear, synthetic)
   reorder-fields <record> <order>   Reorder fields in C/C++ struct/class via clang-reorder-fields (--apply)
+  trace-preprocessor <file>         Trace macros, includes, and #if branches via pp-trace (--callbacks, --max-events)
   compiler <feature> [options]      Check compiler support matrix (GCC, Clang, MSVC, Apple Clang)
   demangle <symbol|->               Demangle Itanium or MSVC mangled symbols (or stdin)
   cert <rule_id|cwe|category>       Audit against SEI CERT C++ rules and CWEs
@@ -80,7 +82,11 @@ Options:
   --apply                           Apply rename, format, or reorder changes to disk (default is dry-run)
   --dry-run                         Preview changes without modifying files (default)
   --order, --fields-order <order>   Comma-separated list of field names in desired order
-  --extra-arg <arg>                 Additional compiler flag for clang-reorder-fields (e.g. -std=c++20)
+  --extra-arg <arg>                 Additional compiler flag for clang-reorder-fields or pp-trace (e.g. -std=c++20)
+  --callbacks <a,b,...>             Restrict pp-trace to specific callbacks or globs (e.g. MacroDefined,MacroExpands)
+  --max-events <num>                Max raw pp-trace events returned with --include-events (default: 500)
+  --include-events                  Include capped raw pp-trace callback events in the output
+  --all-files                       Include system-header events in pp-trace output (default: project files only)
   --dir <path>                      Target directory for scaffolded project (default: ./<name>)
   --build <xmake|cmake>             Build system for scaffolding (default: xmake)
   --build-system <system>           Build system for compile-db ('auto', 'cmake', 'xmake', 'meson', 'bear', 'synthetic')
@@ -195,6 +201,10 @@ export async function runCli(args: string[]): Promise<number> {
   let flagPublic = false;
   let flagDoxygen = false;
   let flagFieldsOrder: string | undefined;
+  let flagCallbacks: string | undefined;
+  let flagMaxEvents: number | undefined;
+  let flagAllFiles = false;
+  let flagIncludeEvents = false;
   const flagExtraArgs: string[] = [];
 
   for (let i = 0; i < args.length; i++) {
@@ -229,6 +239,22 @@ export async function runCli(args: string[]): Promise<number> {
     }
     if ((arg === "--order" || arg === "--fields-order") && i + 1 < args.length) {
       flagFieldsOrder = args[++i];
+      continue;
+    }
+    if (arg === "--callbacks" && i + 1 < args.length) {
+      flagCallbacks = args[++i];
+      continue;
+    }
+    if (arg === "--max-events" && i + 1 < args.length) {
+      flagMaxEvents = Number.parseInt(args[++i] ?? "0", 10);
+      continue;
+    }
+    if (arg === "--include-events") {
+      flagIncludeEvents = true;
+      continue;
+    }
+    if (arg === "--all-files" || arg === "--no-user-files-only") {
+      flagAllFiles = true;
       continue;
     }
     if (arg === "--extra-arg" && i + 1 < args.length) {
@@ -1428,6 +1454,124 @@ export async function runCli(args: string[]): Promise<number> {
 
         if (res.dryRun) {
           console.log("Tip: Run with --apply to write changes to files on disk.");
+        }
+        return 0;
+      }
+
+      case "trace-preprocessor":
+      case "trace-pp":
+      case "pretrace": {
+        const traceFile = positionalArgs[1] ?? flagFile;
+        if (!traceFile) {
+          console.error(
+            "Error: 'trace-preprocessor' command requires a source file (e.g. 'cpp-mcp trace-preprocessor main.cpp')",
+          );
+          return 1;
+        }
+
+        const callbacks = flagCallbacks
+          ? flagCallbacks
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : undefined;
+
+        const traceExtraArgs = [...flagExtraArgs];
+        if (flagCppStd) {
+          const std = flagCppStd.startsWith("-")
+            ? flagCppStd
+            : flagCppStd.startsWith("c++")
+              ? `-std=${flagCppStd}`
+              : `-std=c++${flagCppStd}`;
+          traceExtraArgs.push(std);
+        }
+
+        const res = await tracePreprocessor({
+          file: traceFile,
+          workspace: flagWorkspace,
+          callbacks,
+          extraArgs: traceExtraArgs.length > 0 ? traceExtraArgs : undefined,
+          maxEvents: flagMaxEvents,
+          includeEvents: flagIncludeEvents,
+          userFilesOnly: !flagAllFiles,
+        });
+
+        if (isJson) {
+          console.log(JSON.stringify(res, null, 2));
+          return res.success ? 0 : 1;
+        }
+
+        if (!res.success) {
+          console.error(`Error: ${res.error ?? "Failed to trace preprocessor."}`);
+          for (const w of res.warnings) {
+            console.error(`  ! ${w}`);
+          }
+          return 1;
+        }
+
+        const versionStr = res.tool.version ? ` ${res.tool.version}` : "";
+        console.log(`Preprocessor trace for ${res.source} (pp-trace${versionStr}):\n`);
+        console.log(
+          `Events: ${res.summary.totalEvents} parsed, ${res.summary.userEvents} from project code${
+            res.summary.truncated ? " (truncated)" : ""
+          }`,
+        );
+
+        const countEntries = Object.entries(res.summary.counts).sort((a, b) => b[1] - a[1]);
+        if (countEntries.length > 0) {
+          console.log("\nCallback counts:");
+          for (const [name, count] of countEntries) {
+            console.log(`  ${name}: ${count}`);
+          }
+        }
+
+        if (res.macros.length > 0) {
+          console.log("\nMacros:");
+          for (const m of res.macros) {
+            const where = m.loc ? ` (${m.loc})` : m.file ? ` (${m.file})` : "";
+            console.log(`  ${m.action === "define" ? "#define" : "#undef "} ${m.name}${where}`);
+          }
+        }
+
+        if (res.includes.length > 0) {
+          console.log("\nIncludes:");
+          for (const inc of res.includes) {
+            const written = inc.angled ? `<${inc.fileName}>` : `"${inc.fileName}"`;
+            console.log(`  ${written}${inc.resolved ? ` -> ${inc.resolved}` : ""}`);
+          }
+        }
+
+        if (res.conditionals.length > 0) {
+          console.log("\nConditionals:");
+          for (const c of res.conditionals) {
+            const value = c.conditionValue === undefined ? "" : ` => ${c.conditionValue}`;
+            console.log(`  ${c.kind}${c.loc ? ` at ${c.loc}` : ""}${value}`);
+          }
+        }
+
+        if (res.pragmas.length > 0) {
+          console.log("\nPragmas:");
+          for (const p of res.pragmas) {
+            console.log(`  ${p.kind}${p.detail ? `: ${p.detail}` : ""}`);
+          }
+        }
+
+        if (res.modules.length > 0) {
+          console.log("\nModule imports:");
+          for (const mod of res.modules) {
+            console.log(`  import ${mod.imported}`);
+          }
+        }
+
+        if (res.events && res.events.length > 0) {
+          console.log(`\nRaw events: ${res.events.length}`);
+        }
+
+        if (res.warnings.length > 0) {
+          console.log("\nWarnings:");
+          for (const w of res.warnings) {
+            console.log(`  ! ${w}`);
+          }
         }
         return 0;
       }
