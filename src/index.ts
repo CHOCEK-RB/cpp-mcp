@@ -11,6 +11,7 @@ import { registerResources } from "./resources/index.js";
 import { checkSecureCoding } from "./tools/cert.js";
 import { analyzeCodeSymbol } from "./tools/code-analyzer.js";
 import { getCodeDiagnostics } from "./tools/code-diagnostics.js";
+import { renameCodeSymbol } from "./tools/code-renamer.js";
 import { searchCodeSymbols } from "./tools/code-search.js";
 import { sessionManager } from "./tools/code-session-manager.js";
 import { checkCompilerSupport } from "./tools/compiler-support.js";
@@ -769,6 +770,66 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error retrieving code diagnostics: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "rename_code_symbol",
+    {
+      description:
+        "Perform AST-level semantic symbol renaming across all workspace files via clangd LSP. Accurately updates declarations, definitions, and references without false positives. Supports dry_run preview.",
+      inputSchema: {
+        symbol: z
+          .string()
+          .describe(
+            "Symbol name or qualified identifier to rename (e.g. 'Calculator::add', 'process_data').",
+          ),
+        new_name: z.string().describe("New identifier name. Must be a valid C/C++ identifier."),
+        workspaceDir: z
+          .string()
+          .optional()
+          .describe(
+            "Project root directory containing xmake.lua, CMakeLists.txt, or compile_commands.json. Defaults to cwd.",
+          ),
+        file: z.string().optional().describe("Source file path hint for symbol location."),
+        line: z.number().optional().describe("Line number hint (1-indexed) for symbol location."),
+        dry_run: z
+          .boolean()
+          .optional()
+          .describe(
+            "If true (default), returns preview diff of all affected files without modifying disk. If false, writes changes to disk.",
+          ),
+      },
+    },
+    async ({ symbol, new_name, workspaceDir, file, line, dry_run }) => {
+      try {
+        const result = await renameCodeSymbol({
+          symbol,
+          newName: new_name,
+          workspaceDir,
+          file,
+          line,
+          dryRun: dry_run,
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error renaming symbol: ${error instanceof Error ? error.message : String(error)}`,
             },
           ],
         };

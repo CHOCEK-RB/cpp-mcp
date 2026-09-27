@@ -33,6 +33,7 @@ flowchart TD
         Server --> T12["analyze_code_symbol"]
         Server --> T13["get_project_details"]
         Server --> T14["get_code_diagnostics"]
+        Server --> T15["rename_code_symbol"]
     end
 
     subgraph Primitives ["MCP Native Primitives"]
@@ -465,6 +466,47 @@ Retrieves live C/C++ compilation diagnostics (syntax errors, type mismatches, mi
   }
   ```
 
+### 15. `rename_code_symbol`
+
+Performs AST-level semantic symbol renaming across all workspace files powered by `clangd` LSP. Simultaneously updates declarations (`.hpp`), definitions (`.cpp`), and all call sites without text-replacement false positives. Includes collision detection and dry-run preview before touching files on disk.
+
+- **Parameters**:
+  - `symbol` (`string`, required): Symbol name or qualified identifier to rename (e.g. `"Calculator::add"`, `"calculate_total"`).
+  - `new_name` (`string`, required): New identifier name (must be a valid C/C++ identifier).
+  - `workspaceDir` (`string`, optional): Project root directory.
+  - `file` (`string`, optional): Source or header file path hint for symbol location.
+  - `line` (`number`, optional): Line number hint (1-indexed).
+  - `dry_run` (`boolean`, optional): When `true` (default), returns preview diff without modifying disk. When `false`, writes changes to disk.
+
+- **Output Example**:
+  ```json
+  {
+    "success": true,
+    "symbol": "calculate_total",
+    "newName": "compute_total",
+    "dryRun": true,
+    "workspaceDir": "/home/user/project",
+    "totalEdits": 3,
+    "affectedFiles": [
+      {
+        "file": "include/math_utils.hpp",
+        "editCount": 1,
+        "edits": [
+          {
+            "line": 3,
+            "character": 7,
+            "endLine": 3,
+            "endCharacter": 22,
+            "oldText": "calculate_total",
+            "newText": "compute_total",
+            "snippet": "- 3 | int calculate_total(int a, int b);\n+ 3 | int compute_total(int a, int b);"
+          }
+        ]
+      }
+    ]
+  }
+  ```
+
 ---
 
 ## Resources Catalog
@@ -643,6 +685,11 @@ cpp-mcp code-diagnostics
 cpp-mcp code-diagnostics src/main.cpp
 cpp-mcp code-diagnostics src/main.cpp --severity error
 cpp-mcp code-diagnostics src/main.cpp --code "int x = undeclared_var;" --json
+
+# Semantic symbol rename across project with preview (dry-run) or direct file modification
+cpp-mcp code-rename "calculate_total" "compute_total"
+cpp-mcp code-rename "calculate_total" "compute_total" --apply
+cpp-mcp code-rename "Calculator::add" "sum" --workspace /path/to/project --json
 
 # Raw or JSON output for shell scripting and automation
 cpp-mcp code-search Vec2 --raw

@@ -15,6 +15,7 @@ import type {
   PublishDiagnosticsParams,
   SymbolInformation,
   TypeHierarchyItem,
+  WorkspaceEdit,
 } from "./types.js";
 
 export interface ClangdSessionOptions {
@@ -111,6 +112,10 @@ export class ClangdSession extends EventEmitter {
             },
             callHierarchy: {
               dynamicRegistration: false,
+            },
+            rename: {
+              dynamicRegistration: false,
+              prepareSupport: true,
             },
           },
           workspace: {
@@ -371,6 +376,27 @@ export class ClangdSession extends EventEmitter {
       supertypes: Array.isArray(supertypes) ? supertypes : [],
       subtypes: Array.isArray(subtypes) ? subtypes : [],
     };
+  }
+
+  /**
+   * Performs semantic symbol rename across the workspace.
+   */
+  public async renameSymbol(
+    uri: string,
+    position: Position,
+    newName: string,
+  ): Promise<WorkspaceEdit | null> {
+    if (!this.client) throw new Error("Clangd session is not running");
+    const result = await this.client.request<WorkspaceEdit | null>(
+      "textDocument/rename",
+      {
+        textDocument: { uri },
+        position,
+        newName,
+      },
+      15000,
+    );
+    return result || null;
   }
 
   /**
