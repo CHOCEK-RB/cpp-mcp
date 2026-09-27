@@ -18,6 +18,7 @@ import { type CompilerName, checkCompilerSupport } from "./tools/compiler-suppor
 import { demangleSymbol } from "./tools/demangle.js";
 import { type DocFormat, generateDocumentation } from "./tools/doc-generator.js";
 import { explainCompilerError } from "./tools/error-explainer.js";
+import { reorderStructFields } from "./tools/field-reorderer.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
 import { getCppModulesGuide } from "./tools/modules.js";
@@ -59,6 +60,7 @@ Commands:
   explain-error <text|->            Explain complex C++ compiler or linker errors (or pipe via stdin)
   docs [files...]                   Generate API documentation via clang-doc (--format, --output)
   compile-db [dir]                  Generate compile_commands.json (auto, CMake, xmake, Meson, Bear, synthetic)
+  reorder-fields <record> <order>   Reorder fields in C/C++ struct/class via clang-reorder-fields (--apply)
   compiler <feature> [options]      Check compiler support matrix (GCC, Clang, MSVC, Apple Clang)
   demangle <symbol|->               Demangle Itanium or MSVC mangled symbols (or stdin)
   cert <rule_id|cwe|category>       Audit against SEI CERT C++ rules and CWEs
@@ -75,8 +77,10 @@ Options:
   --line <num>                      Line number (1-indexed) for symbol disambiguation or rename
   --lines <start:end>               Line range (1-indexed) to format only a sub-region
   --style <name>                    Format style ('file', 'LLVM', 'Google', 'Chromium', 'Mozilla', 'WebKit')
-  --apply                           Apply rename or format changes directly to disk (default is dry-run preview)
+  --apply                           Apply rename, format, or reorder changes to disk (default is dry-run)
   --dry-run                         Preview changes without modifying files (default)
+  --order, --fields-order <order>   Comma-separated list of field names in desired order
+  --extra-arg <arg>                 Additional compiler flag for clang-reorder-fields (e.g. -std=c++20)
   --dir <path>                      Target directory for scaffolded project (default: ./<name>)
   --build <xmake|cmake>             Build system for scaffolding (default: xmake)
   --build-system <system>           Build system for compile-db ('auto', 'cmake', 'xmake', 'meson', 'bear', 'synthetic')
@@ -190,6 +194,8 @@ export async function runCli(args: string[]): Promise<number> {
   let flagFormat: string | undefined;
   let flagPublic = false;
   let flagDoxygen = false;
+  let flagFieldsOrder: string | undefined;
+  const flagExtraArgs: string[] = [];
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -219,6 +225,17 @@ export async function runCli(args: string[]): Promise<number> {
     if (arg === "--dry-run") {
       flagDryRun = true;
       flagApply = false;
+      continue;
+    }
+    if ((arg === "--order" || arg === "--fields-order") && i + 1 < args.length) {
+      flagFieldsOrder = args[++i];
+      continue;
+    }
+    if (arg === "--extra-arg" && i + 1 < args.length) {
+      const nextArg = args[++i];
+      if (nextArg !== undefined) {
+        flagExtraArgs.push(nextArg);
+      }
       continue;
     }
     if (arg === "--git") {
@@ -1322,6 +1339,95 @@ export async function runCli(args: string[]): Promise<number> {
           if (res.filesIndexed.length > 10) {
             console.log(`  ... and ${res.filesIndexed.length - 10} more files`);
           }
+        }
+        return 0;
+      }
+
+      case "reorder-fields":
+      case "reorder": {
+        const recordArg = positionalArgs[1];
+        if (!recordArg) {
+          console.error(
+            "Error: 'reorder-fields' command requires a struct or class name (e.g. 'cpp-mcp reorder-fields Foo z,w,y,x')",
+          );
+          return 1;
+        }
+
+        let orderList: string[] = [];
+        if (flagFieldsOrder) {
+          orderList = flagFieldsOrder
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+        } else if (positionalArgs.length > 2) {
+          const rest = positionalArgs.slice(2);
+          if (rest.length === 1 && rest[0]?.includes(",")) {
+            orderList = rest[0]
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean);
+          } else {
+            orderList = rest.map((s) => s.trim()).filter(Boolean);
+          }
+        }
+
+        if (orderList.length < 2) {
+          console.error(
+            "Error: 'reorder-fields' requires at least 2 fields in order (e.g. 'cpp-mcp reorder-fields Foo z,w,y,x')",
+          );
+          return 1;
+        }
+
+        const filesToTarget = flagFile ? [flagFile] : undefined;
+        const res = await reorderStructFields({
+          recordName: recordArg,
+          fieldsOrder: orderList,
+          workspace: flagWorkspace,
+          files: filesToTarget,
+          extraArgs: flagExtraArgs.length > 0 ? flagExtraArgs : undefined,
+          apply: flagApply,
+        });
+
+        if (isJson) {
+          console.log(JSON.stringify(res, null, 2));
+          return res.success ? 0 : 1;
+        }
+
+        if (!res.success) {
+          console.error(`Error: ${res.summary}`);
+          if (res.error) {
+            console.error(`\n${res.error}`);
+          }
+          return 1;
+        }
+
+        const modeStr = res.dryRun ? "[DRY-RUN / PREVIEW]" : "[APPLIED]";
+        console.log(
+          `${modeStr} Reordered fields in '${res.recordName}' (${res.fieldsOrder.join(", ")}) across ${res.modifiedFiles.length} file(s):\n`,
+        );
+
+        for (const fileChange of res.changes) {
+          console.log(`File: ${fileChange.file}`);
+          if (fileChange.diff) {
+            console.log(
+              fileChange.diff
+                .split("\n")
+                .map((l) => `  ${l}`)
+                .join("\n"),
+            );
+          }
+          console.log();
+        }
+
+        if (res.warnings && res.warnings.length > 0) {
+          console.log("\nWarnings:");
+          for (const w of res.warnings) {
+            console.log(`  ! ${w}`);
+          }
+        }
+
+        if (res.dryRun) {
+          console.log("Tip: Run with --apply to write changes to files on disk.");
         }
         return 0;
       }

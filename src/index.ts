@@ -20,6 +20,7 @@ import { checkCompilerSupport } from "./tools/compiler-support.js";
 import { demangleSymbol } from "./tools/demangle.js";
 import { generateDocumentation } from "./tools/doc-generator.js";
 import { explainCompilerError } from "./tools/error-explainer.js";
+import { reorderStructFields } from "./tools/field-reorderer.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
 import { getCppModulesGuide } from "./tools/modules.js";
@@ -1332,6 +1333,76 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error generating compilation database: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "reorder_struct_fields",
+    {
+      description:
+        "Reorder fields in C/C++ structs and classes using clang-reorder-fields. Optimizes memory layout and padding, and automatically updates field declarations, constructor initializer lists, aggregate initializers, and C++20 designated initializers across the codebase.",
+      inputSchema: {
+        record_name: z
+          .string()
+          .describe(
+            "Fully-qualified name of the struct or class to reorder (e.g. 'Foo' or '::bar::Foo').",
+          ),
+        fields_order: z
+          .array(z.string())
+          .describe("The desired order of field names (e.g. ['z', 'w', 'y', 'x'])."),
+        workspace: z
+          .string()
+          .optional()
+          .describe(
+            "Workspace directory containing source files or compile_commands.json (defaults to current directory).",
+          ),
+        files: z
+          .array(z.string())
+          .optional()
+          .describe("Optional specific source or header files to inspect and update."),
+        extra_args: z
+          .array(z.string())
+          .optional()
+          .describe("Additional compiler arguments (e.g. ['-std=c++20'])."),
+        apply: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe(
+            "When true, writes rewritten changes to disk. When false (default), returns preview diff.",
+          ),
+      },
+    },
+    async ({ record_name, fields_order, workspace, files, extra_args, apply }) => {
+      try {
+        const result = await reorderStructFields({
+          recordName: record_name,
+          fieldsOrder: fields_order,
+          workspace,
+          files,
+          extraArgs: extra_args,
+          apply,
+        });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error reordering fields: ${err instanceof Error ? err.message : String(err)}`,
             },
           ],
         };
