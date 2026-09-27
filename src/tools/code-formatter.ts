@@ -3,6 +3,7 @@
 import { spawn } from "node:child_process";
 import { existsSync, promises as fs } from "node:fs";
 import path from "node:path";
+import { resolveClangTool } from "./clang-tool-resolver.js";
 
 export interface FormatRange {
   startLine: number;
@@ -17,6 +18,8 @@ export interface FormatCodeParams {
   fallbackStyle?: string;
   apply?: boolean;
   range?: FormatRange;
+  /** Explicit clang-format executable path; also read from CLANG_FORMAT_PATH. */
+  clangFormatPath?: string;
 }
 
 export interface FormatCodeResult {
@@ -87,13 +90,22 @@ export function generateSimpleDiff(original: string, modified: string, fileName?
   return diffLines.join("\n");
 }
 
-function runClangFormat(
+/** Default per-invocation timeout for clang-format, in milliseconds. */
+const DEFAULT_TIMEOUT_MS = 10_000;
+
+/**
+ * Runs clang-format over `input`, reading the formatted result from stdout. A hung
+ * process is killed and the promise rejected so the MCP server never wedges.
+ */
+export function runClangFormat(
   input: string,
   options: {
     assumeFilename: string;
     style: string;
     fallbackStyle: string;
     cwd: string;
+    binaryPath?: string;
+    timeoutMs?: number;
     range?: FormatRange;
   },
 ): Promise<{ stdout: string; stderr: string; code: number }> {
@@ -112,16 +124,35 @@ function runClangFormat(
       args.push(`--lines=${options.range.startLine}:${options.range.endLine}`);
     }
 
-    const proc = spawn("clang-format", args, {
+    const proc = spawn(options.binaryPath ?? "clang-format", args, {
       cwd: options.cwd,
       stdio: ["pipe", "pipe", "pipe"],
     });
 
-    // Prevent uncaught EPIPE error if clang-format exits early (e.g. invalid flags/style)
-    proc.stdin.on("error", () => {});
-
     let stdout = "";
     let stderr = "";
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const finish = (action: () => void) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      action();
+    };
+
+    const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    if (timeoutMs > 0) {
+      timer = setTimeout(() => {
+        finish(() => {
+          if (!proc.killed) proc.kill("SIGKILL");
+          reject(new Error(`clang-format timed out after ${timeoutMs}ms`));
+        });
+      }, timeoutMs);
+    }
+
+    // Prevent uncaught EPIPE error if clang-format exits early (e.g. invalid flags/style)
+    proc.stdin.on("error", () => {});
 
     proc.stdout.on("data", (chunk) => {
       stdout += chunk.toString("utf-8");
@@ -132,11 +163,11 @@ function runClangFormat(
     });
 
     proc.on("error", (err) => {
-      reject(err);
+      finish(() => reject(err));
     });
 
     proc.on("close", (code) => {
-      resolve({ stdout, stderr, code: code ?? 0 });
+      finish(() => resolve({ stdout, stderr, code: code ?? 0 }));
     });
 
     proc.stdin.write(input, "utf-8");
@@ -221,6 +252,21 @@ export async function formatCode(params: FormatCodeParams): Promise<FormatCodeRe
     targetPath = "snippet.cpp";
   }
 
+  const toolInfo = await resolveClangTool({
+    name: "clang-format",
+    customPath: params.clangFormatPath,
+    envVar: "CLANG_FORMAT_PATH",
+  });
+
+  if (!toolInfo.available || !toolInfo.path) {
+    return {
+      formatted: false,
+      changed: false,
+      error:
+        "clang-format not found. Install LLVM/clang-format, set CLANG_FORMAT_PATH, or pass clangFormatPath to its executable path.",
+    };
+  }
+
   try {
     const {
       stdout,
@@ -231,6 +277,7 @@ export async function formatCode(params: FormatCodeParams): Promise<FormatCodeRe
       style,
       fallbackStyle,
       cwd: workDir,
+      binaryPath: toolInfo.path,
       range,
     });
 

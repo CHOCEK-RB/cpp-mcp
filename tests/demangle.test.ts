@@ -1,10 +1,14 @@
 import { describe, expect, it } from "bun:test";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { createServer } from "../src/index.js";
 import {
   demangleItaniumFallback,
   demangleMsvcFallback,
   demangleSymbol,
   detectSymbolAbi,
+  runDemangleTool,
 } from "../src/tools/demangle.js";
 
 describe("C++ Symbol Demangler", () => {
@@ -18,37 +22,37 @@ describe("C++ Symbol Demangler", () => {
     expect(detectSymbolAbi("regular_c_function")).toBe("unknown");
   });
 
-  it("should demangle simple Itanium functions", () => {
-    const res = demangleSymbol({ symbol: "_Z3addii" });
+  it("should demangle simple Itanium functions", async () => {
+    const res = await demangleSymbol({ symbol: "_Z3addii" });
     expect(res.isMangled).toBe(true);
     expect(res.abi).toBe("itanium");
     expect(res.demangled).toContain("add");
     expect(res.demangled).toContain("int");
   });
 
-  it("should demangle nested namespace and class methods", () => {
-    const res = demangleSymbol({ symbol: "_ZN3Foo3barEv" });
+  it("should demangle nested namespace and class methods", async () => {
+    const res = await demangleSymbol({ symbol: "_ZN3Foo3barEv" });
     expect(res.isMangled).toBe(true);
     expect(res.abi).toBe("itanium");
     expect(res.demangled).toContain("Foo::bar");
   });
 
-  it("should demangle complex std library symbols", () => {
-    const res = demangleSymbol({ symbol: "_ZNSt6vectorIiSaIiEE9push_backERKi" });
+  it("should demangle complex std library symbols", async () => {
+    const res = await demangleSymbol({ symbol: "_ZNSt6vectorIiSaIiEE9push_backERKi" });
     expect(res.isMangled).toBe(true);
     expect(res.abi).toBe("itanium");
     expect(res.demangled).toContain("vector");
     expect(res.demangled).toContain("push_back");
   });
 
-  it("should demangle MSVC symbols using system tool or fallback parser", () => {
-    const res1 = demangleSymbol({ symbol: "?func@@YAHXZ" });
+  it("should demangle MSVC symbols using system tool or fallback parser", async () => {
+    const res1 = await demangleSymbol({ symbol: "?func@@YAHXZ" });
     expect(res1.isMangled).toBe(true);
     expect(res1.abi).toBe("msvc");
     expect(res1.demangled).toContain("func");
     expect(res1.demangled).toContain("int");
 
-    const res2 = demangleSymbol({ symbol: "?bar@Foo@@QAEXXZ" });
+    const res2 = await demangleSymbol({ symbol: "?bar@Foo@@QAEXXZ" });
     expect(res2.isMangled).toBe(true);
     expect(res2.abi).toBe("msvc");
     expect(res2.demangled).toContain("Foo::bar");
@@ -60,17 +64,17 @@ describe("C++ Symbol Demangler", () => {
     expect(demangleMsvcFallback("?bar@Foo@@QAEXXZ", true)).toBe("Foo::bar");
   });
 
-  it("should strip parameters when strip_params is enabled", () => {
-    const res = demangleSymbol({ symbol: "_Z3addii", strip_params: true });
+  it("should strip parameters when strip_params is enabled", async () => {
+    const res = await demangleSymbol({ symbol: "_Z3addii", strip_params: true });
     expect(res.isMangled).toBe(true);
     expect(res.demangled.trim()).toBe("add");
 
-    const resMsvc = demangleSymbol({ symbol: "?func@@YAHXZ", strip_params: true });
+    const resMsvc = await demangleSymbol({ symbol: "?func@@YAHXZ", strip_params: true });
     expect(resMsvc.isMangled).toBe(true);
     expect(resMsvc.demangled.trim()).toBe("func");
   });
 
-  it("should extract and translate mangled symbols inside full linker error messages without prefix collisions", () => {
+  it("should extract and translate mangled symbols inside full linker error messages without prefix collisions", async () => {
     // Both _Z3foo and _Z3foov are present; longer must be replaced first
     const errorSnippet = `
       /usr/bin/ld: /tmp/main.o: in function 'main':
@@ -81,7 +85,7 @@ describe("C++ Symbol Demangler", () => {
       collect2: error: ld returned 1 exit status
     `;
 
-    const res = demangleSymbol({ symbol: errorSnippet });
+    const res = await demangleSymbol({ symbol: errorSnippet });
     expect(res.isMangled).toBe(true);
     expect(res.method).toBe("text_translation");
     expect(res.extractedSymbols).toBeDefined();
@@ -105,8 +109,8 @@ describe("C++ Symbol Demangler", () => {
     expect(demangleItaniumFallback("_ZN3FooplERKS_")).toBe("Foo::operator+(const Foo&)");
   });
 
-  it("should pass through already unmangled symbols safely", () => {
-    const res = demangleSymbol({ symbol: "std::vector<int>::push_back" });
+  it("should pass through already unmangled symbols safely", async () => {
+    const res = await demangleSymbol({ symbol: "std::vector<int>::push_back" });
     expect(res.isMangled).toBe(false);
     expect(res.demangled).toBe("std::vector<int>::push_back");
     expect(res.method).toBe("unmangled");
@@ -120,5 +124,59 @@ describe("C++ Symbol Demangler", () => {
 
     expect(serverAny._registeredTools).toBeDefined();
     expect(serverAny._registeredTools?.demangle_symbol).toBeDefined();
+  });
+});
+
+describe("demangleSymbol asynchronous execution", () => {
+  it("should return a promise so callers can await demangling", async () => {
+    const result = demangleSymbol({ symbol: "_Z3addii" });
+    expect(result).toBeInstanceOf(Promise);
+    await result;
+  });
+
+  it("should not block the event loop while the system demangler runs", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "cpp-mcp-demangle-"));
+    const fakeTool = path.join(dir, "c++filt");
+    await fs.writeFile(fakeTool, "#!/bin/sh\nsleep 1\necho add(int, int)\n", { mode: 0o755 });
+
+    const originalPath = process.env.PATH;
+    process.env.PATH = `${dir}:${originalPath ?? ""}`;
+
+    try {
+      const order: string[] = [];
+      const running = demangleSymbol({ symbol: "_Z3addii" }).then((result) => {
+        order.push("demangle");
+        return result;
+      });
+
+      await new Promise((resolve) => {
+        setTimeout(() => {
+          order.push("timer");
+          resolve(undefined);
+        }, 100);
+      });
+
+      // With a blocking spawnSync the event loop would stall and the timer
+      // could only fire after demangling finished.
+      expect(order).toEqual(["timer"]);
+
+      const result = await running;
+      expect(result.demangled).toContain("add");
+    } finally {
+      process.env.PATH = originalPath;
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("should kill the system demangler and reject when it exceeds the timeout", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "cpp-mcp-demangle-"));
+    const hungTool = path.join(dir, "hung-cxxfilt");
+    await fs.writeFile(hungTool, "#!/bin/sh\nsleep 5\n", { mode: 0o755 });
+
+    try {
+      await expect(runDemangleTool(hungTool, [], { timeoutMs: 100 })).rejects.toThrow(/timed out/i);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
   });
 });
