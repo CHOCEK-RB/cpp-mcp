@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { inferLanguageId } from "../lsp/language-id.js";
 import { ClangdSession } from "../lsp/session.js";
 import {
   isExecutableAvailable,
@@ -105,7 +106,11 @@ class SessionManager {
             if (!seen.has(absFile) && existsSync(absFile)) {
               seen.add(absFile);
               const code = await fs.readFile(absFile, "utf-8");
-              session.openDocument(pathToFileURL(absFile).toString(), "cpp", code);
+              session.openDocument(
+                pathToFileURL(absFile).toString(),
+                inferLanguageId(absFile),
+                code,
+              );
             }
           }
           if (seen.size > 0) {
