@@ -3,7 +3,6 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { DocumentSymbol, Position } from "../lsp/types.js";
 import { symbolKindToString } from "../lsp/types.js";
-import { openFileInSession } from "./code-document.js";
 import { sessionManager } from "./code-session-manager.js";
 
 export interface CodeAnalyzerOptions {
@@ -215,9 +214,13 @@ export async function analyzeCodeSymbol(options: CodeAnalyzerOptions): Promise<C
 
     // Notify clangd to open document so AST is built in memory for hover & definitions
     if (existsSync(localFilePath)) {
-      const opened = await openFileInSession(session, targetUri, localFilePath);
-      if (opened) {
+      try {
+        const fileContent = await fs.readFile(localFilePath, "utf-8");
+        const lang = localFilePath.endsWith(".c") ? "c" : "cpp";
+        session.openDocument(targetUri, lang, fileContent);
         await new Promise((r) => setTimeout(r, 60));
+      } catch {
+        // Fallback to background indexing
       }
     }
 

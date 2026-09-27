@@ -2,7 +2,6 @@ import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { inferLanguageId } from "../lsp/language-id.js";
 import { type Diagnostic, DiagnosticSeverity, diagnosticSeverityToString } from "../lsp/types.js";
 import { sessionManager } from "./code-session-manager.js";
 
@@ -42,6 +41,13 @@ export interface CodeDiagnosticsResult {
   totalWarnings: number;
   files: FileDiagnosticsSummary[];
   error?: string;
+}
+
+function inferLanguageId(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === ".c") return "c";
+  if (ext === ".cu") return "cuda";
+  return "cpp";
 }
 
 function buildSnippet(

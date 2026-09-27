@@ -207,45 +207,7 @@ export async function resolveProjectBuildInfo(
     }
   }
 
-  // 5. If CMake detected and autoGenerate is allowed (default true)
-  if (buildSystem === "cmake" && options.autoGenerate !== false) {
-    const cmakeAvailable = await isExecutableAvailable("cmake");
-    if (cmakeAvailable) {
-      try {
-        const buildDir = options.targetDir || path.join(rootDir, "build");
-        const outputPath = path.join(buildDir, "compile_commands.json");
-        await fs.mkdir(buildDir, { recursive: true });
-        await execFileAsync("cmake", ["-B", buildDir, "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"], {
-          cwd: rootDir,
-          timeout: 45000,
-        });
-
-        if (existsSync(outputPath)) {
-          const rootOutputPath = path.join(rootDir, "compile_commands.json");
-          if (rootOutputPath !== outputPath) {
-            try {
-              await fs.copyFile(outputPath, rootOutputPath);
-            } catch {
-              // Ignore copy failure
-            }
-          }
-          const entries = await readCompilationDatabase(outputPath);
-          return {
-            found: true,
-            buildSystem: "cmake",
-            rootDir,
-            compileCommandsPath: outputPath,
-            entryCount: entries.length,
-            generated: true,
-          };
-        }
-      } catch {
-        // Fall through to instructive error below
-      }
-    }
-  }
-
-  // 6. If CMake detected but compile_commands.json not found
+  // 5. If CMake detected but no compile_commands.json
   if (buildSystem === "cmake") {
     return {
       found: false,
