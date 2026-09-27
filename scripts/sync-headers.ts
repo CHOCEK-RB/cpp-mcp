@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import * as cheerio from "cheerio";
+import pkg from "../package.json" with { type: "json" };
 import { CPP_STANDARD_HEADERS } from "../src/data/headers.js";
 
 const CPP_HEADERS_URL = "https://en.cppreference.com/w/cpp/header";
@@ -9,7 +10,7 @@ async function verifyHeaders(): Promise<void> {
   try {
     const res = await fetch(CPP_HEADERS_URL, {
       headers: {
-        "User-Agent": "cpp-mcp-sync/1.0.0 (+https://github.com/CHOCEK-RB/cpp-mcp)",
+        "User-Agent": `cpp-mcp-sync/${pkg.version} (+https://github.com/CHOCEK-RB/cpp-mcp)`,
       },
       signal: AbortSignal.timeout(10_000),
     });

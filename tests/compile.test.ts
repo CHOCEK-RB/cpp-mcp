@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { existsSync } from "node:fs";
 import { TARGETS } from "../scripts/compile-binaries.js";
 
 describe("Standalone Binary Compiler", () => {
@@ -21,5 +22,23 @@ describe("Standalone Binary Compiler", () => {
     expect(bunTargets).toContain("bun-darwin-x64");
     expect(bunTargets).toContain("bun-darwin-arm64");
     expect(bunTargets).toContain("bun-windows-x64");
+  });
+
+  it("should boot standalone binary and respond to JSON-RPC ping over stdio", () => {
+    const binPath = "./dist/bin/cpp-mcp";
+    if (!existsSync(binPath)) {
+      const compileProc = Bun.spawnSync(["bun", "run", "compile"]);
+      expect(compileProc.exitCode).toBe(0);
+    }
+    const payload = `${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" })}\n`;
+    const proc = Bun.spawnSync([binPath], {
+      stdin: Buffer.from(payload),
+      timeout: 10_000,
+    });
+
+    expect(proc.exitCode).toBe(0);
+    const stdout = proc.stdout.toString();
+    expect(stdout).toContain('"jsonrpc":"2.0"');
+    expect(stdout).toContain('"id":1');
   });
 });

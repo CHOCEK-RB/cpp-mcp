@@ -3,6 +3,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import pkg from "../package.json" with { type: "json" };
 import { registerPrompts } from "./prompts/index.js";
 import { registerResources } from "./resources/index.js";
 import { checkSecureCoding } from "./tools/cert.js";
@@ -15,7 +16,7 @@ import { checkCppStandard } from "./tools/standards.js";
 import { getCppToolingGuide } from "./tools/tooling.js";
 
 export const SERVER_NAME = "cpp-mcp";
-export const SERVER_VERSION = "1.1.1";
+export const SERVER_VERSION = pkg.version;
 
 /**
  * Creates and configures the C/C++ Reference MCP Server with tools.

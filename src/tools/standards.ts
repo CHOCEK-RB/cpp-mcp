@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 import { pageCache } from "../cache.js";
 import { CPP_STANDARD_HEADERS, SYMBOL_MAP } from "../data/headers.js";
+import { fetchWithRetry } from "./fetch-utils.js";
 import { isValidCppReferenceUrl, USER_AGENT } from "./page.js";
 import { searchCppreference } from "./search.js";
 
@@ -326,13 +327,17 @@ export async function checkCppStandard(
     if (targetUrl && isValidCppReferenceUrl(targetUrl)) {
       let html = await pageCache.get(targetUrl);
       if (!html) {
-        const pageResponse = await fetchFn(targetUrl, {
-          headers: {
-            "User-Agent": USER_AGENT,
-            Accept: "text/html,application/xhtml+xml",
+        const pageResponse = await fetchWithRetry(
+          targetUrl,
+          {
+            headers: {
+              "User-Agent": USER_AGENT,
+              Accept: "text/html,application/xhtml+xml",
+            },
+            signal: AbortSignal.timeout(15_000),
           },
-          signal: AbortSignal.timeout(15_000),
-        });
+          fetchFn,
+        );
 
         if (pageResponse.ok) {
           html = await pageResponse.text();
