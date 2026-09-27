@@ -1,10 +1,50 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import type { ChildProcess } from "node:child_process";
+import { EventEmitter } from "node:events";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { PassThrough } from "node:stream";
 import { pathToFileURL } from "node:url";
-import { ClangdSession } from "../src/lsp/index.js";
+import { ClangdSession, encodeLspMessage, LspMessageParser } from "../src/lsp/index.js";
 import { isExecutableAvailable } from "../src/project/xmake.js";
+
+/** Minimal fake of a spawned clangd child process for lifecycle tests (no real binary). */
+class FakeChildProcess extends EventEmitter {
+  public stdin = new PassThrough();
+  public stdout = new PassThrough();
+  public stderr = new PassThrough();
+  public killed = false;
+  public killSignals: string[] = [];
+
+  public kill(signal?: NodeJS.Signals): boolean {
+    this.killed = true;
+    if (signal) this.killSignals.push(signal);
+    return true;
+  }
+
+  public asChildProcess(): ChildProcess {
+    return this as unknown as ChildProcess;
+  }
+}
+
+/**
+ * Wires the fake clangd so LSP requests get answers. The handler receives the method
+ * name; returning `undefined` deliberately leaves that request unanswered.
+ */
+function wireFakeClangd(
+  child: FakeChildProcess,
+  handler: (method: string) => unknown = () => ({}),
+): void {
+  const parser = new LspMessageParser();
+  child.stdin.on("data", (chunk: Buffer) => parser.append(chunk));
+  parser.on("message", (msg: { id?: number; method?: string }) => {
+    if (msg.id === undefined) return; // notification
+    const result = handler(msg.method ?? "");
+    if (result === undefined) return; // intentionally unanswered
+    child.stdout.write(encodeLspMessage({ jsonrpc: "2.0", id: msg.id, result }));
+  });
+}
 
 describe("ClangdSession Integration with Real Clangd", () => {
   let tempDir: string;
@@ -123,5 +163,59 @@ namespace math {
     await session.close();
     expect(session.isRunning()).toBe(false);
     session = null;
+  });
+});
+
+describe("ClangdSession lifecycle without a real clangd", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "clangd-fake-test-"));
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("should stop reporting running and reject pending requests when clangd exits unexpectedly", async () => {
+    const fake = new FakeChildProcess();
+    // Answers the initialize handshake but leaves other requests unanswered.
+    wireFakeClangd(fake, (method) => (method === "initialize" ? {} : undefined));
+    const session = new ClangdSession({
+      workspaceDir: tempDir,
+      spawnProcess: () => fake.asChildProcess(),
+    });
+
+    await session.start();
+    expect(session.isRunning()).toBe(true);
+
+    // A request the fake never answers, so it would otherwise hang until the LSP timeout.
+    const pending = session.searchSymbols("Anything");
+    await new Promise((r) => setTimeout(r, 0));
+
+    // clangd crashes.
+    fake.emit("exit", 1, null);
+
+    expect(session.isRunning()).toBe(false);
+    await expect(pending).rejects.toThrow(/exited unexpectedly/i);
+
+    await session.close();
+  });
+
+  it("should kill the spawned process and reject when the initialize handshake fails", async () => {
+    const fake = new FakeChildProcess();
+    wireFakeClangd(fake, () => undefined); // never answers initialize
+    const session = new ClangdSession({
+      workspaceDir: tempDir,
+      spawnProcess: () => fake.asChildProcess(),
+      initializeTimeoutMs: 60,
+    });
+
+    await expect(session.start()).rejects.toThrow(/timed out/i);
+
+    expect(fake.killed).toBe(true);
+    expect(session.isRunning()).toBe(false);
+
+    await session.close();
   });
 });

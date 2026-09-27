@@ -18,11 +18,21 @@ import type {
   WorkspaceEdit,
 } from "./types.js";
 
+export type SpawnProcess = (
+  command: string,
+  args: string[],
+  options: { stdio: ["pipe", "pipe", "pipe"] },
+) => ChildProcess;
+
 export interface ClangdSessionOptions {
   compileCommandsDir?: string;
   workspaceDir?: string;
   clangdPath?: string;
   backgroundIndex?: boolean;
+  /** Overrides how the clangd child process is spawned (test seam). */
+  spawnProcess?: SpawnProcess;
+  /** Timeout for the LSP initialize handshake, in milliseconds. */
+  initializeTimeoutMs?: number;
 }
 
 export class ClangdSession extends EventEmitter {
@@ -34,6 +44,9 @@ export class ClangdSession extends EventEmitter {
   private clangdPath: string;
   private diagnosticsMap = new Map<string, Diagnostic[]>();
   private openDocuments = new Map<string, number>();
+  private spawnFn: SpawnProcess;
+  private initializeTimeoutMs: number;
+  private closing = false;
 
   constructor(options: ClangdSessionOptions = {}) {
     super();
@@ -43,6 +56,8 @@ export class ClangdSession extends EventEmitter {
       options.compileCommandsDir || options.workspaceDir || process.cwd(),
     );
     this.clangdPath = options.clangdPath || process.env.CLANGD_PATH || "clangd";
+    this.spawnFn = options.spawnProcess ?? (spawn as unknown as SpawnProcess);
+    this.initializeTimeoutMs = options.initializeTimeoutMs ?? 15000;
   }
 
   /**
@@ -58,15 +73,34 @@ export class ClangdSession extends EventEmitter {
       "--header-insertion=never",
     ];
 
-    this.process = spawn(this.clangdPath, args, {
+    const child = this.spawnFn(this.clangdPath, args, {
       stdio: ["pipe", "pipe", "pipe"],
     });
+    this.process = child;
+    this.closing = false;
 
-    if (!this.process.stdin || !this.process.stdout) {
+    try {
+      await this.performHandshake(child);
+      this.initialized = true;
+    } catch (error) {
+      // A failed handshake must not leave an orphaned clangd process behind.
+      this.client?.destroy(error instanceof Error ? error : undefined);
+      this.client = null;
+      this.process = null;
+      this.initialized = false;
+      if (!child.killed) {
+        child.kill("SIGKILL");
+      }
+      throw error;
+    }
+  }
+
+  private async performHandshake(child: ChildProcess): Promise<void> {
+    if (!child.stdin || !child.stdout) {
       throw new Error("Failed to initialize stdin/stdout pipes for clangd");
     }
 
-    this.client = new LspClient(this.process.stdout, this.process.stdin);
+    this.client = new LspClient(child.stdout, child.stdin);
 
     this.client.on("notification", (msg: { method?: string; params?: unknown }) => {
       if (msg.method === "textDocument/publishDiagnostics") {
@@ -80,8 +114,12 @@ export class ClangdSession extends EventEmitter {
       }
     });
 
+    // An unexpected exit must invalidate the session so it is not reused as a zombie.
+    child.once("exit", this.handleProcessExit);
+    child.once("error", this.handleProcessExit);
+
     // Drain stderr to prevent 64KB OS pipe buffer saturation and deadlock
-    this.process.stderr?.resume();
+    child.stderr?.resume();
 
     // Initial handshake
     await this.client.request(
@@ -125,12 +163,23 @@ export class ClangdSession extends EventEmitter {
           },
         },
       },
-      15000,
+      this.initializeTimeoutMs,
     );
 
     this.client.notify("initialized", {});
-    this.initialized = true;
   }
+
+  private handleProcessExit = (): void => {
+    const wasRunning = this.initialized;
+    this.initialized = false;
+    this.process = null;
+    const error = new Error("clangd process exited unexpectedly");
+    this.client?.destroy(error);
+    this.client = null;
+    if (wasRunning && !this.closing) {
+      this.emit("exit", error);
+    }
+  };
 
   public isRunning(): boolean {
     return this.initialized && this.process !== null;
@@ -403,7 +452,8 @@ export class ClangdSession extends EventEmitter {
    * Gracefully terminates the session and child process.
    */
   public async close(): Promise<void> {
-    if (!this.initialized) return;
+    if (!this.initialized && !this.process) return;
+    this.closing = true;
 
     if (this.client) {
       try {
