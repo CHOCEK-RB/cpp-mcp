@@ -8,6 +8,9 @@ import { runCli } from "./cli.js";
 import { registerPrompts } from "./prompts/index.js";
 import { registerResources } from "./resources/index.js";
 import { checkSecureCoding } from "./tools/cert.js";
+import { analyzeCodeSymbol } from "./tools/code-analyzer.js";
+import { searchCodeSymbols } from "./tools/code-search.js";
+import { sessionManager } from "./tools/code-session-manager.js";
 import { checkCompilerSupport } from "./tools/compiler-support.js";
 import { demangleSymbol } from "./tools/demangle.js";
 import { getGuideline } from "./tools/guidelines.js";
@@ -532,6 +535,119 @@ export function createServer(): McpServer {
     },
   );
 
+  server.registerTool(
+    "search_code_symbols",
+    {
+      description:
+        "Search for C++ symbols (classes, structs, functions, methods, variables) across your project workspace using clangd LSP and xmake/CMake build integration.",
+      inputSchema: {
+        query: z
+          .string()
+          .describe(
+            "Symbol name or partial query to search for in workspace code (e.g. 'Calculator', 'Vec2', 'render').",
+          ),
+        workspaceDir: z
+          .string()
+          .optional()
+          .describe(
+            "Project root directory containing xmake.lua, CMakeLists.txt, or compile_commands.json. Defaults to cwd.",
+          ),
+        files: z
+          .array(z.string())
+          .optional()
+          .describe("Filter results to matching file names or relative paths."),
+        limit: z
+          .number()
+          .optional()
+          .describe("Maximum number of matching symbols to return (default: 25)."),
+      },
+    },
+    async ({ query, workspaceDir, files, limit }) => {
+      try {
+        const result = await searchCodeSymbols({
+          query,
+          workspaceDir,
+          files,
+          limit,
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error searching workspace code symbols: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "analyze_code_symbol",
+    {
+      description:
+        "Perform deep multi-dimensional semantic analysis of a C++ symbol (definition, declaration, hover signature, docstrings, inheritance hierarchy, incoming/outgoing call hierarchy, class members, and usage examples) via clangd LSP and xmake/CMake.",
+      inputSchema: {
+        symbol: z
+          .string()
+          .describe(
+            "Symbol name or qualified name to analyze (e.g. 'Calculator::add', 'Vec2', 'process').",
+          ),
+        workspaceDir: z
+          .string()
+          .optional()
+          .describe(
+            "Project root directory containing xmake.lua, CMakeLists.txt, or compile_commands.json. Defaults to cwd.",
+          ),
+        file: z.string().optional().describe("Source file path hint for disambiguation."),
+        line: z.number().optional().describe("Line number hint (1-indexed) for disambiguation."),
+        maxExamples: z
+          .number()
+          .optional()
+          .describe("Maximum number of usage references to extract (default: 5)."),
+      },
+    },
+    async ({ symbol, workspaceDir, file, line, maxExamples }) => {
+      try {
+        const result = await analyzeCodeSymbol({
+          symbol,
+          workspaceDir,
+          file,
+          line,
+          maxExamples,
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error analyzing code symbol: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
   registerResources(server);
   registerPrompts(server);
 
@@ -541,6 +657,25 @@ export function createServer(): McpServer {
 export async function main(): Promise<void> {
   const server = createServer();
   const transport = new StdioServerTransport();
+
+  const cleanup = async () => {
+    await sessionManager.closeAll();
+  };
+
+  process.on("SIGINT", async () => {
+    await cleanup();
+    process.exit(0);
+  });
+
+  process.on("SIGTERM", async () => {
+    await cleanup();
+    process.exit(0);
+  });
+
+  process.on("exit", () => {
+    void sessionManager.closeAll();
+  });
+
   await server.connect(transport);
 }
 
@@ -564,13 +699,18 @@ if (isDirectExecution) {
 
   if (!isStdioMode) {
     runCli(args)
-      .then((code) => process.exit(code))
-      .catch((err) => {
+      .then(async (code) => {
+        await sessionManager.closeAll();
+        process.exit(code);
+      })
+      .catch(async (err) => {
+        await sessionManager.closeAll();
         console.error("Fatal CLI error:", err);
         process.exit(1);
       });
   } else {
-    main().catch((err) => {
+    main().catch(async (err) => {
+      await sessionManager.closeAll();
       console.error("Fatal error starting cpp-mcp server:", err);
       process.exit(1);
     });

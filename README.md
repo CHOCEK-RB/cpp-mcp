@@ -48,6 +48,7 @@ flowchart TD
 ## Features
 
 - **Authoritative C/C++ Lookup**: Instant access to standard headers, containers, algorithms, keywords, and C++20/23/26 features.
+- **Semantic Code Intelligence (xmake + clangd LSP)**: Deep AST understanding of your local codebase with automatic compilation database generation via `xmake`, symbol search, type inheritance, call hierarchies, and usage examples (`search_code_symbols`, `analyze_code_symbol`).
 - **C++20/23/26 Modules Architecture**: Dedicated offline guide and best practices for `import std;`, interface & internal partitions, CMake 3.28+ (`FILE_SET CXX_MODULES`), and header migration (`get_cpp_modules_guide`).
 - **Modern C/C++ Tooling Ecosystem**: In-depth recipes and starter configs for `xmake` (Lua build system with native C++20 modules), `clang-format`, `clang-tidy`, and runtime sanitizers (`get_cpp_tooling_guide`).
 - **SEI CERT C++ Security Standard**: Complete catalog of 83 official rules with CWE mappings, heuristic auditing, and compliant fixes for memory safety, concurrency, strings, integers, and UB prevention (`check_secure_coding`).
@@ -311,6 +312,72 @@ Demangles C++ symbol identifiers (Itanium ABI used by GCC/Clang, or MSVC) into h
   }
   ```
 
+### 11. `search_code_symbols`
+
+Searches for C++ symbols (classes, structs, functions, methods, variables) across your project workspace using `clangd` Language Server Protocol (LSP) and `xmake`/`CMake` compilation database integration.
+
+- **Parameters**:
+  - `query` (`string`, required): Symbol name or partial query to search for (e.g. `"Calculator"`, `"Vec2"`, `"render"`).
+  - `workspaceDir` (`string`, optional): Project root directory containing `xmake.lua`, `CMakeLists.txt`, or `compile_commands.json` (defaults to current working directory).
+  - `files` (`string[]`, optional): Filter results to matching file names or relative paths.
+  - `limit` (`number`, optional): Maximum number of symbols to return (default: `25`).
+
+- **Output Example**:
+  ```json
+  {
+    "found": true,
+    "query": "Vec2",
+    "workspaceDir": "/workspace/project",
+    "totalMatches": 2,
+    "symbols": [
+      {
+        "name": "Vec2",
+        "kind": "struct",
+        "file": "/workspace/project/include/vector_math.hpp",
+        "line": 5,
+        "character": 10
+      }
+    ]
+  }
+  ```
+
+### 12. `analyze_code_symbol`
+
+Performs deep multi-dimensional semantic analysis of a C++ symbol in your project: definition, declaration, hover signature, docstrings, inheritance hierarchy (base and derived classes), call hierarchy (incoming and outgoing calls), class members, and usage examples.
+
+- **Parameters**:
+  - `symbol` (`string`, required): Symbol name or qualified name to analyze (e.g. `"Calculator::add"`, `"Vec2"`).
+  - `workspaceDir` (`string`, optional): Project root directory.
+  - `file` (`string`, optional): Source file path hint for disambiguation.
+  - `line` (`number`, optional): Line number hint (1-indexed) for disambiguation.
+  - `maxExamples` (`number`, optional): Maximum usage references to extract (default: `5`).
+
+- **Output Example**:
+  ```json
+  {
+    "found": true,
+    "symbol": "Vec2",
+    "kind": "struct",
+    "signature": "struct Vec2",
+    "documentation": "2D Vector representation",
+    "declaration": {
+      "file": "/workspace/project/include/vector_math.hpp",
+      "line": 5,
+      "character": 10
+    },
+    "definition": {
+      "file": "/workspace/project/include/vector_math.hpp",
+      "line": 5,
+      "character": 10
+    },
+    "members": [
+      { "name": "x", "kind": "field", "line": 6 },
+      { "name": "y", "kind": "field", "line": 7 },
+      { "name": "length_sq", "kind": "method", "line": 8 }
+    ]
+  }
+  ```
+
 ---
 
 ## Resources Catalog
@@ -469,6 +536,14 @@ If you downloaded the precompiled binary from [GitHub Releases](https://github.c
 ```bash
 # Fast header lookup (returns <span>)
 cpp-mcp header std::span --raw
+
+# Search code symbols in your local project (clangd + xmake/CMake)
+cpp-mcp code-search Vec2
+cpp-mcp code-search Calculator --workspace /path/to/project
+
+# Deep semantic analysis of a project symbol (signatures, hierarchy, examples)
+cpp-mcp code-analyze Vec2
+cpp-mcp code-analyze Calculator::add
 
 # Demangle Itanium or MSVC symbols directly (or pipe via stdin)
 cpp-mcp demangle "_Z3fooi"

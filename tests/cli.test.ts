@@ -247,6 +247,38 @@ describe("Direct CLI Mode", () => {
     }
   });
 
+  it("should return code 1 when code-search is called without arguments", async () => {
+    let errOutput = "";
+    const origErr = console.error;
+    console.error = (msg: string) => {
+      errOutput += `${msg}\n`;
+    };
+
+    try {
+      const code = await runCli(["code-search"]);
+      expect(code).toBe(1);
+      expect(errOutput).toContain("Error: 'code-search' command requires a query");
+    } finally {
+      console.error = origErr;
+    }
+  });
+
+  it("should return code 1 when code-analyze is called without arguments", async () => {
+    let errOutput = "";
+    const origErr = console.error;
+    console.error = (msg: string) => {
+      errOutput += `${msg}\n`;
+    };
+
+    try {
+      const code = await runCli(["code-analyze"]);
+      expect(code).toBe(1);
+      expect(errOutput).toContain("Error: 'code-analyze' command requires a symbol name");
+    } finally {
+      console.error = origErr;
+    }
+  });
+
   it("should execute directly via CLI process invocation", () => {
     const proc = Bun.spawnSync(["bun", "src/index.ts", "header", "std::span", "--raw"]);
     expect(proc.exitCode).toBe(0);
