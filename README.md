@@ -233,16 +233,18 @@ Audits C++ code for security vulnerabilities, undefined behavior (UB), and safet
 
 ### 8. `get_cpp_tooling_guide`
 
-Retrieves documentation, directives, CLI commands, and production starter configurations for modern C/C++ developer tools:
+Retrieves documentation, directives, CLI commands, and production starter configurations for modern C/C++ developer tools, including **58 official recipes** synchronized from `xmake-io/xmake-skills`:
 
-- **`xmake`**: Lua-based build utility with zero-configuration C++20/C++23 module scanning and integrated packages (`add_requires`).
+- **`xmake`**: Lua-based build utility with zero-configuration C++20/C++23 module scanning, integrated packages (`add_requires`), and 58 hands-on recipes across 12 categories (`toolchains`, `languages`, `packages`, `performance`, `testing`, etc.).
 - **`clang-format`**: Unified styling with pointer alignment, include sorting, and bracket placements.
 - **`clang-tidy`**: Strict static analysis check profiles (`modernize-*`, `bugprone-*`, `cert-*`).
 - **`sanitizers`**: Compiler instrumentation flags for AddressSanitizer (`ASan`), UndefinedBehaviorSanitizer (`UBSan`), and ThreadSanitizer (`TSan`).
 
 - **Parameters**:
   - `tool` (`string`, optional): Tool ID or alias (`"xmake"`, `"clang-format"`, `"clang-tidy"`, `"sanitizers"`, `"format"`, `"tidy"`, `"asan"`).
-  - `query` (`string`, optional): Search keyword across configuration directives and commands (e.g. `"compile_commands"`, `"add_requires"`, `"IndentWidth"`).
+  - `topic` (`string`, optional): Specific tooling topic or official xmake recipe (e.g. `"cxx-modules"`, `"cross-compilation"`, `"packages"`, `"cuda"`, `"unity"`, `"zigcc"`).
+  - `category` (`string`, optional): Filter xmake recipes by category (`"basics"`, `"cli"`, `"languages"`, `"packages"`, `"performance"`, `"project-config"`, `"toolchains"`, etc.).
+  - `query` (`string`, optional): Search keyword across configuration directives, commands, and official recipes (e.g. `"compile_commands"`, `"add_requires"`, `"IndentWidth"`, `"cuda"`).
   - `generate_config` (`boolean`, optional): Returns the raw copy-pasteable production configuration file (e.g. `xmake.lua`, `.clang-format`, `.clang-tidy`).
 
 - **Output Example**:
@@ -250,14 +252,10 @@ Retrieves documentation, directives, CLI commands, and production starter config
   {
     "found": true,
     "tool": "xmake",
-    "configFileName": "xmake.lua",
-    "configContent": "-- xmake.lua\nadd_rules(\"mode.debug\", \"mode.release\")...",
-    "keyDirectives": [
-      {
-        "name": "add_files(\"src/*.cppm\")",
-        "description": "Registers C++ module interfaces; xmake automatically invokes compiler module scanning."
-      }
-    ]
+    "topic": "cxx-modules",
+    "category": "toolchains",
+    "title": "Building C++20 Modules with Xmake",
+    "content": "# Building C++20 Modules with Xmake\n\nXmake has first-class C++20 modules support..."
   }
   ```
 
@@ -524,6 +522,8 @@ The server exposes read-only MCP resources providing zero-overhead offline datas
 - **`cppref://cert/{id}`**: Detailed SEI CERT rule specification with risk assessment, noncompliant code, and compliant solution.
 - **`cppref://tooling`**: Catalog of modern C/C++ developer tools (`xmake`, `clang-format`, `clang-tidy`, runtime sanitizers).
 - **`cppref://tooling/{tool}`**: In-depth documentation, CLI commands, and production starter configurations for a specific tool.
+- **`cppref://tooling/xmake/skills`**: Complete index of 58 official xmake recipes and agent skills across 12 categories.
+- **`cppref://tooling/xmake/{topic}`**: Full recipe and tutorial markdown for a specific xmake capability (`cxx-modules`, `cross-compilation`, `packages`, etc.).
 - **`cppref://compiler-support`**: Comprehensive compiler support matrix (GCC, Clang, MSVC, Apple Clang) for modern C++ features.
 - **`cppref://compiler-support/{feature}`**: Detailed compiler support matrix, WG21 paper, and feature test macro for a specific feature.
 
@@ -723,8 +723,10 @@ cpp-mcp guideline "RAII"
 # Check standard availability and feature test macros
 cpp-mcp standard std::span C++20
 
-# Modern C++ tooling starter recipes (xmake, clang-format, clang-tidy)
+# Modern C++ tooling starter recipes & 58 official xmake skills
 cpp-mcp tooling xmake
+cpp-mcp tooling xmake cxx-modules
+cpp-mcp tooling xmake toolchains
 ```
 
 ---

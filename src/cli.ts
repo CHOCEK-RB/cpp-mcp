@@ -39,7 +39,7 @@ Commands:
   guideline <rule_id|query>         Lookup C++ Core Guidelines rules and enforcement
   standard <version>                Inspect C or C++ standard features and test macros
   module <topic>                    Inspect C++20/23/26 modules architecture guides
-  tooling <tool>                    Inspect modern C++ tooling starter recipes (xmake, etc.)
+  tooling <tool> [topic]            Inspect modern C++ tooling & official xmake recipes (58 skills)
 
 Options:
   --json                            Output response in raw JSON format
@@ -407,30 +407,122 @@ export async function runCli(args: string[]): Promise<number> {
       }
 
       case "tooling": {
-        const res = getCppToolingGuide({ tool: target || undefined });
+        const parts = target ? target.split(/\s+/) : [];
+        let toolArg: string | undefined;
+        let topicArg: string | undefined;
+        let categoryArg: string | undefined;
+
+        if (parts.length > 0) {
+          const first = parts[0]?.toLowerCase() || "";
+          if (first === "xmake") {
+            toolArg = "xmake";
+            if (parts.length > 1) {
+              const sub = parts.slice(1).join(" ");
+              if (sub === "--list" || sub === "list" || sub === "skills") {
+                categoryArg = undefined;
+                topicArg = undefined;
+              } else if (
+                [
+                  "ai",
+                  "basics",
+                  "cli",
+                  "languages",
+                  "ops",
+                  "packages",
+                  "packaging",
+                  "performance",
+                  "project-config",
+                  "scripting",
+                  "testing",
+                  "toolchains",
+                ].includes(sub)
+              ) {
+                categoryArg = sub;
+              } else {
+                topicArg = sub;
+              }
+            }
+          } else {
+            toolArg = parts[0];
+            if (parts.length > 1) {
+              topicArg = parts.slice(1).join(" ");
+            }
+          }
+        }
+
+        const res = getCppToolingGuide({
+          tool: toolArg,
+          topic: topicArg,
+          category: categoryArg,
+        });
+
         if (isJson) {
           console.log(JSON.stringify(res, null, 2));
           return res.found ? 0 : 1;
         }
+
         if (!res.found) {
-          console.error(`Tooling guide '${target}' not found.`);
+          console.error(res.message || `Tooling guide '${target}' not found.`);
           return 1;
         }
+
+        // Case A: Specific topic / official recipe found
+        if (res.topic && res.content) {
+          console.log(`[xmake recipe: ${res.topic}] ${res.title} (${res.category})`);
+          if (res.description) console.log(`\n${res.description}`);
+          console.log(`\n${res.content}`);
+          return 0;
+        }
+
+        // Case B: Category listing
+        if (res.category && res.skills) {
+          console.log(
+            `Official Xmake Recipes - Category: ${res.category} (${res.skills.length} recipes):`,
+          );
+          for (const s of res.skills) {
+            console.log(`- ${s.id}: ${s.title}`);
+          }
+          console.log(`\nRun 'cpp-mcp tooling xmake <topic>' to view full recipe.`);
+          return 0;
+        }
+
+        // Case C: Tool overview
         if (res.tool) {
-          console.log(`Tool: ${res.tool}`);
-          if (res.content) console.log(`\n${res.content}`);
+          console.log(`Tool: ${res.title || res.tool}`);
+          if (res.description) console.log(`Description: ${res.description}`);
+          if (res.configFileName && res.configContent) {
+            console.log(`\nStarter Config (${res.configFileName}):\n${res.configContent.trim()}`);
+          }
           if (res.commands && res.commands.length > 0) {
             console.log(`\nCommon Commands:`);
             for (const c of res.commands.slice(0, 6)) {
               console.log(`- ${c.command}: ${c.description}`);
             }
           }
+          if (res.categories && res.categories.length > 0) {
+            console.log(
+              `\nOfficial Xmake Skills (${res.skillsCount} recipes across ${res.categories.length} categories):`,
+            );
+            for (const cat of res.categories) {
+              const sampleSkills = cat.skills
+                .slice(0, 3)
+                .map((s) => s.id)
+                .join(", ");
+              const more = cat.skills.length > 3 ? `, ... (+${cat.skills.length - 3})` : "";
+              console.log(`- ${cat.category} (${cat.count}): ${sampleSkills}${more}`);
+            }
+            console.log(
+              `\nRun 'cpp-mcp tooling xmake <topic>' (e.g. 'cxx-modules', 'cross-compilation', 'packages') to inspect full recipes.`,
+            );
+          }
           return 0;
         }
+
         if (res.matches && res.matches.length > 0) {
           console.log(`Available tools: ${res.matches.map((m) => m.id).join(", ")}`);
           return 0;
         }
+
         return 0;
       }
 

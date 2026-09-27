@@ -6,11 +6,27 @@ import {
   type ToolCommand,
   type ToolGuide,
 } from "../data/tooling.js";
+import {
+  findXmakeSkill,
+  searchXmakeSkills,
+  XMAKE_SKILLS,
+  XMAKE_SKILLS_BY_CATEGORY,
+} from "../data/xmake-skills.js";
 
 export interface GetCppToolingGuideParams {
   tool?: string;
+  topic?: string;
+  category?: string;
   query?: string;
   generate_config?: boolean;
+}
+
+export interface XmakeSkillSummary {
+  id: string;
+  name: string;
+  category: string;
+  title: string;
+  description: string;
 }
 
 export interface GetCppToolingGuideResult {
@@ -24,12 +40,23 @@ export interface GetCppToolingGuideResult {
   keyDirectives?: KeyDirective[];
   commands?: ToolCommand[];
   content?: string;
+  topic?: string;
+  category?: string;
+  path?: string;
+  skillsCount?: number;
+  skills?: XmakeSkillSummary[];
+  categories?: Array<{
+    category: string;
+    count: number;
+    skills: Array<{ id: string; title: string }>;
+  }>;
   matches?: Array<{
     id: string;
     title: string;
-    configFileName: string;
+    configFileName?: string;
     description: string;
     matchedDirectives?: string[];
+    category?: string;
   }>;
   message?: string;
 }
@@ -53,11 +80,73 @@ export function normalizeToolId(input: string): string {
 export function getCppToolingGuide(
   params: GetCppToolingGuideParams = {},
 ): GetCppToolingGuideResult {
-  const { tool, query, generate_config } = params;
+  const { tool, topic, category, query, generate_config } = params;
 
-  // Case 1: Specific tool requested
-  if (tool?.trim()) {
-    const rawKey = tool.trim().toLowerCase();
+  let targetTool = tool?.trim();
+  let targetTopic = topic?.trim();
+
+  // Support positional tool string like "xmake cxx-modules"
+  if (targetTool && !targetTopic && targetTool.includes(" ")) {
+    const parts = targetTool.split(/\s+/);
+    if (parts[0] && normalizeToolId(parts[0]) === "xmake") {
+      targetTool = parts[0];
+      targetTopic = parts.slice(1).join(" ");
+    }
+  }
+
+  // Case 1: Topic lookup without explicit tool or with xmake
+  if (targetTopic && (!targetTool || normalizeToolId(targetTool) === "xmake")) {
+    const skill = findXmakeSkill(targetTopic);
+    if (skill) {
+      return {
+        found: true,
+        tool: "xmake",
+        topic: skill.id,
+        category: skill.category,
+        title: skill.title,
+        description: skill.description,
+        path: skill.path,
+        content: skill.content,
+        message: `Official xmake recipe for '${skill.id}' (${skill.category}).`,
+      };
+    }
+    return {
+      found: false,
+      tool: "xmake",
+      message: `Skill recipe '${targetTopic}' not found in official xmake skills. Run with tool='xmake' without topic to view all ${XMAKE_SKILLS.length} available topics across 12 categories.`,
+    };
+  }
+
+  // Case 2: Category lookup for xmake recipes
+  if (category?.trim() && (!targetTool || normalizeToolId(targetTool) === "xmake")) {
+    const catKey = category.trim().toLowerCase();
+    const catSkills = XMAKE_SKILLS_BY_CATEGORY.get(catKey);
+    if (catSkills) {
+      return {
+        found: true,
+        tool: "xmake",
+        category: catKey,
+        skillsCount: catSkills.length,
+        skills: catSkills.map((s) => ({
+          id: s.id,
+          name: s.name,
+          category: s.category,
+          title: s.title,
+          description: s.description,
+        })),
+        message: `Found ${catSkills.length} official xmake recipes in category '${catKey}'.`,
+      };
+    }
+    return {
+      found: false,
+      tool: "xmake",
+      message: `Category '${category}' not found. Available categories: ${Array.from(XMAKE_SKILLS_BY_CATEGORY.keys()).join(", ")}.`,
+    };
+  }
+
+  // Case 3: Specific tool requested
+  if (targetTool) {
+    const rawKey = targetTool.toLowerCase();
     const normalizedKey = normalizeToolId(rawKey);
 
     const matched =
@@ -70,6 +159,28 @@ export function getCppToolingGuide(
       );
 
     if (matched) {
+      const isXmake = matched.id === "xmake";
+
+      let skillsInfo: {
+        skillsCount?: number;
+        categories?: Array<{
+          category: string;
+          count: number;
+          skills: Array<{ id: string; title: string }>;
+        }>;
+      } = {};
+
+      if (isXmake) {
+        skillsInfo = {
+          skillsCount: XMAKE_SKILLS.length,
+          categories: Array.from(XMAKE_SKILLS_BY_CATEGORY.entries()).map(([cat, list]) => ({
+            category: cat,
+            count: list.length,
+            skills: list.map((s) => ({ id: s.id, title: s.title })),
+          })),
+        };
+      }
+
       return {
         found: true,
         tool: matched.id,
@@ -80,24 +191,43 @@ export function getCppToolingGuide(
         keyDirectives: matched.keyDirectives,
         commands: matched.commands,
         content: matched.content,
+        ...skillsInfo,
         message: generate_config
           ? `Generated recommended configuration content for '${matched.configFileName}'.`
-          : undefined,
+          : isXmake
+            ? `xmake includes ${XMAKE_SKILLS.length} official recipes across 12 categories. Specify topic='<topic>' (e.g. 'cxx-modules', 'cross-compilation', 'packages', 'cuda') or category='<category>' to view full recipes.`
+            : undefined,
+      };
+    }
+
+    // Check if targetTool is an xmake skill directly (e.g. tool='cxx-modules')
+    const skill = findXmakeSkill(targetTool);
+    if (skill) {
+      return {
+        found: true,
+        tool: "xmake",
+        topic: skill.id,
+        category: skill.category,
+        title: skill.title,
+        description: skill.description,
+        path: skill.path,
+        content: skill.content,
+        message: `Official xmake recipe for '${skill.id}' (${skill.category}).`,
       };
     }
 
     return {
       found: false,
-      message: `Tool '${tool}' not found. Available tools: ${C_CPP_TOOLS.map((t) => t.id).join(", ")}.`,
+      message: `Tool '${targetTool}' not found. Available tools: ${C_CPP_TOOLS.map((t) => t.id).join(", ")}.`,
     };
   }
 
-  // Case 2: Free-text search across directives, commands, and content
+  // Case 4: Free-text search across directives, commands, content, and xmake skills
   if (query?.trim()) {
     const q = query.trim().toLowerCase();
     const terms = q.split(/\s+/).filter(Boolean);
 
-    const scored: Array<{
+    const scoredTools: Array<{
       guide: ToolGuide;
       score: number;
       matchedDirectives: string[];
@@ -133,22 +263,25 @@ export function getCppToolingGuide(
       if (guide.content.toLowerCase().includes(q)) score += 5;
 
       if (score > 0) {
-        scored.push({ guide, score, matchedDirectives });
+        scoredTools.push({ guide, score, matchedDirectives });
       }
     }
 
-    scored.sort((a, b) => b.score - a.score);
+    scoredTools.sort((a, b) => b.score - a.score);
 
-    if (scored.length === 0) {
+    // Also search xmake skills
+    const skillMatches = searchXmakeSkills(query);
+
+    if (scoredTools.length === 0 && skillMatches.length === 0) {
       return {
         found: false,
         message: `No C++ tools or configuration directives found matching '${query}'.`,
       };
     }
 
-    // If single match found, return detailed response
-    if (scored.length === 1 && scored[0]) {
-      const top = scored[0].guide;
+    // If single tool match and no skill match, return detailed response
+    if (scoredTools.length === 1 && skillMatches.length === 0 && scoredTools[0]) {
+      const top = scoredTools[0].guide;
       return {
         found: true,
         tool: top.id,
@@ -162,30 +295,72 @@ export function getCppToolingGuide(
       };
     }
 
-    return {
-      found: true,
-      totalTools: scored.length,
-      matches: scored.map(({ guide, matchedDirectives }) => ({
+    // If single skill match and no tool match, return the skill
+    if (skillMatches.length === 1 && scoredTools.length === 0 && skillMatches[0]) {
+      const s = skillMatches[0];
+      return {
+        found: true,
+        tool: "xmake",
+        topic: s.id,
+        category: s.category,
+        title: s.title,
+        description: s.description,
+        path: s.path,
+        content: s.content,
+        message: `Official xmake recipe for '${s.id}' (${s.category}).`,
+      };
+    }
+
+    const matches: Array<{
+      id: string;
+      title: string;
+      configFileName?: string;
+      description: string;
+      matchedDirectives?: string[];
+      category?: string;
+    }> = [];
+
+    for (const { guide, matchedDirectives } of scoredTools) {
+      matches.push({
         id: guide.id,
         title: guide.title,
         configFileName: guide.configFileName,
         description: guide.description,
         matchedDirectives: matchedDirectives.length > 0 ? matchedDirectives : undefined,
-      })),
+      });
+    }
+
+    for (const s of skillMatches.slice(0, 10)) {
+      matches.push({
+        id: `xmake:${s.id}`,
+        title: s.title,
+        description: s.description,
+        category: s.category,
+      });
+    }
+
+    return {
+      found: true,
+      totalTools: matches.length,
+      matches,
     };
   }
 
-  // Case 3: Overview of all supported modern tools
+  // Case 5: Overview of all supported modern tools
   return {
     found: true,
     totalTools: C_CPP_TOOLS.length,
+    skillsCount: XMAKE_SKILLS.length,
     matches: C_CPP_TOOLS.map((t) => ({
       id: t.id,
       title: t.title,
       configFileName: t.configFileName,
-      description: t.description,
+      description:
+        t.id === "xmake"
+          ? `${t.description} (Includes ${XMAKE_SKILLS.length} official agent skill recipes)`
+          : t.description,
     })),
     message:
-      "Call get_cpp_tooling_guide with tool='<xmake|clang-format|clang-tidy|sanitizers>' to view documentation, commands, and generate production configs.",
+      "Call get_cpp_tooling_guide with tool='<xmake|clang-format|clang-tidy|sanitizers>' or topic='<topic>' (for xmake recipes) to view documentation, commands, and generate production configs.",
   };
 }
