@@ -1,6 +1,13 @@
+import { existsSync } from "node:fs";
+import fs from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { ClangdSession } from "../lsp/session.js";
-import { isExecutableAvailable, resolveProjectBuildInfo } from "../project/xmake.js";
+import {
+  isExecutableAvailable,
+  readCompilationDatabase,
+  resolveProjectBuildInfo,
+} from "../project/xmake.js";
 
 export interface SessionAcquisitionResult {
   session: ClangdSession | null;
@@ -85,6 +92,30 @@ class SessionManager {
 
     try {
       await session.start();
+
+      // Preload primary translation units into clangd memory so cold queries find symbols immediately
+      if (buildInfo.compileCommandsPath && existsSync(buildInfo.compileCommandsPath)) {
+        try {
+          const dbEntries = await readCompilationDatabase(buildInfo.compileCommandsPath);
+          const seen = new Set<string>();
+          for (const entry of dbEntries.slice(0, 20)) {
+            const absFile = path.isAbsolute(entry.file)
+              ? entry.file
+              : path.resolve(entry.directory || resolvedWs, entry.file);
+            if (!seen.has(absFile) && existsSync(absFile)) {
+              seen.add(absFile);
+              const code = await fs.readFile(absFile, "utf-8");
+              session.openDocument(pathToFileURL(absFile).toString(), "cpp", code);
+            }
+          }
+          if (seen.size > 0) {
+            await new Promise((resolve) => setTimeout(resolve, 200));
+          }
+        } catch {
+          // Preload failure is non-fatal; clangd background indexer will continue
+        }
+      }
+
       this.activeSessions.set(resolvedWs, session);
       return {
         session,

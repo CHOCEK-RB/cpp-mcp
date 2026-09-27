@@ -48,7 +48,12 @@ export async function searchCodeSymbols(options: CodeSearchOptions): Promise<Cod
   }
 
   try {
-    const rawSymbols = await session.searchSymbols(options.query || "");
+    let rawSymbols = await session.searchSymbols(options.query || "");
+    if (rawSymbols.length === 0 && options.query) {
+      // Allow brief settling time for clangd AST indexer on cold start
+      await new Promise((r) => setTimeout(r, 200));
+      rawSymbols = await session.searchSymbols(options.query);
+    }
 
     const formatted: FormattedCodeSymbol[] = [];
 

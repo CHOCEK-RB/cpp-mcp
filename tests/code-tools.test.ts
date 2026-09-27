@@ -127,5 +127,57 @@ namespace math {
     expect(methodAnalysis.found).toBe(true);
     expect(methodAnalysis.definition).toBeDefined();
     expect(methodAnalysis.definition?.file).toMatch(/vector_math\.(cpp|hpp)/);
+
+    // 4. Analyze symbol with explicit file and indented line without character (auto-detection)
+    const indentedAnalysis = await analyzeCodeSymbol({
+      symbol: "Vec2",
+      workspaceDir: tempDir,
+      file: headerFile,
+      line: 5, // "  struct Vec2 {" has 2 leading spaces
+    });
+
+    expect(indentedAnalysis.found).toBe(true);
+    expect(["struct", "class"]).toContain(indentedAnalysis.kind || "");
+  });
+
+  it("should pre-warm symbols on cold start from compile_commands.json", async () => {
+    const hasClangd = await isExecutableAvailable("clangd");
+    if (!hasClangd) {
+      console.log("Skipping test: clangd is not installed");
+      return;
+    }
+
+    const srcDir = path.join(tempDir, "src");
+    await fs.mkdir(srcDir, { recursive: true });
+    const cppFile = path.join(srcDir, "calculator.cpp");
+
+    await fs.writeFile(
+      cppFile,
+      `class ColdCalculator {
+public:
+    int add(int a, int b) { return a + b; }
+};
+`,
+    );
+
+    await fs.writeFile(
+      path.join(tempDir, "compile_commands.json"),
+      JSON.stringify([
+        {
+          directory: tempDir,
+          file: cppFile,
+          command: `clang++ -c ${cppFile} -o calculator.o`,
+        },
+      ]),
+    );
+
+    // Call searchCodeSymbols directly on cold workspace without manual session warmup
+    const result = await searchCodeSymbols({
+      query: "ColdCalculator",
+      workspaceDir: tempDir,
+    });
+
+    expect(result.found).toBe(true);
+    expect(result.symbols.some((s) => s.name === "ColdCalculator")).toBe(true);
   });
 });

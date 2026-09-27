@@ -85,6 +85,25 @@ async function extractLineSnippet(
   }
 }
 
+function findSymbolRecursive(symbols: DocumentSymbol[], targetName: string): DocumentSymbol | null {
+  const unqualified = targetName.split("::").pop() || targetName;
+  for (const s of symbols) {
+    if (
+      s.name === targetName ||
+      s.name === unqualified ||
+      targetName.endsWith(`::${s.name}`) ||
+      s.name.endsWith(`::${targetName}`)
+    ) {
+      return s;
+    }
+    if (s.children && s.children.length > 0) {
+      const res = findSymbolRecursive(s.children, targetName);
+      if (res) return res;
+    }
+  }
+  return null;
+}
+
 /**
  * Performs multi-dimensional semantic analysis of a C++ code symbol using clangd LSP.
  */
@@ -113,9 +132,31 @@ export async function analyzeCodeSymbol(options: CodeAnalyzerOptions): Promise<C
         ? options.file
         : path.resolve(wsDir, options.file);
       targetUri = pathToFileURL(absFile).toString();
+      let col = Math.max(0, (options.character || 1) - 1);
+      if (!options.character && existsSync(absFile)) {
+        try {
+          const content = await fs.readFile(absFile, "utf-8");
+          const lineContent = content.split("\n")[options.line - 1];
+          if (lineContent) {
+            const unqualified = options.symbol.split("::").pop() || options.symbol;
+            const idx = lineContent.indexOf(unqualified);
+            if (idx !== -1) {
+              col = idx;
+            } else {
+              const firstNonSpace = lineContent.search(/\S/);
+              if (firstNonSpace !== -1) {
+                col = firstNonSpace;
+              }
+            }
+          }
+        } catch {
+          // Fall back to default col
+        }
+      }
+
       targetPos = {
         line: Math.max(0, options.line - 1), // 0-indexed for LSP
-        character: Math.max(0, (options.character || 1) - 1),
+        character: col,
       };
     } else {
       // 2. Otherwise locate symbol via workspace symbol search
@@ -161,22 +202,33 @@ export async function analyzeCodeSymbol(options: CodeAnalyzerOptions): Promise<C
       }
     }
 
-    // 3. Concurrently fetch hover, definitions, references, type and call hierarchy
-    const [hoverRes, defsRes, refsRes, typeHierRes, callHierRes] = await Promise.all([
-      session.getHover(targetUri, targetPos).catch(() => null),
-      session.getDefinition(targetUri, targetPos).catch(() => []),
-      session.getReferences(targetUri, targetPos).catch(() => []),
-      session.getTypeHierarchy(targetUri, targetPos).catch(() => ({
-        item: null,
-        supertypes: [],
-        subtypes: [],
-      })),
-      session.getCallHierarchy(targetUri, targetPos).catch(() => ({
-        item: null,
-        incoming: [],
-        outgoing: [],
-      })),
-    ]);
+    // 3. Concurrently fetch hover, definitions, references, type, call hierarchy, and document symbols
+    const [hoverRes, defsRes, refsRes, typeHierRes, callHierRes, docSymbolsRes] = await Promise.all(
+      [
+        session.getHover(targetUri, targetPos).catch(() => null),
+        session.getDefinition(targetUri, targetPos).catch(() => []),
+        session.getReferences(targetUri, targetPos).catch(() => []),
+        session.getTypeHierarchy(targetUri, targetPos).catch(() => ({
+          item: null,
+          supertypes: [],
+          subtypes: [],
+        })),
+        session.getCallHierarchy(targetUri, targetPos).catch(() => ({
+          item: null,
+          incoming: [],
+          outgoing: [],
+        })),
+        session.getDocumentSymbols(targetUri).catch(() => [] as DocumentSymbol[]),
+      ],
+    );
+
+    // Refine symbol kind if unresolved
+    if (symbolKind === "symbol" && docSymbolsRes.length > 0) {
+      const matched = findSymbolRecursive(docSymbolsRes, options.symbol);
+      if (matched) {
+        symbolKind = symbolKindToString(matched.kind);
+      }
+    }
 
     // Extract signature and documentation from hover
     let signature: string | undefined;
@@ -268,40 +320,14 @@ export async function analyzeCodeSymbol(options: CodeAnalyzerOptions): Promise<C
     // Extract class/struct members if applicable
     let members: MemberEntry[] | undefined;
     if (["class", "struct"].includes(symbolKind)) {
-      try {
-        const docSymbols = await session.getDocumentSymbols(targetUri);
-
-        const findSymbolRecursive = (
-          symbols: DocumentSymbol[],
-          targetName: string,
-        ): DocumentSymbol | null => {
-          for (const s of symbols) {
-            if (
-              s.name === targetName ||
-              targetName.endsWith(`::${s.name}`) ||
-              s.name.endsWith(`::${targetName}`)
-            ) {
-              return s;
-            }
-            if (s.children && s.children.length > 0) {
-              const res = findSymbolRecursive(s.children, targetName);
-              if (res) return res;
-            }
-          }
-          return null;
-        };
-
-        const container = findSymbolRecursive(docSymbols, options.symbol);
-        if (container?.children) {
-          members = container.children.map((child) => ({
-            name: child.name,
-            kind: symbolKindToString(child.kind),
-            detail: child.detail,
-            line: child.range.start.line + 1,
-          }));
-        }
-      } catch {
-        // Members optional
+      const container = findSymbolRecursive(docSymbolsRes, options.symbol);
+      if (container?.children) {
+        members = container.children.map((child) => ({
+          name: child.name,
+          kind: symbolKindToString(child.kind),
+          detail: child.detail,
+          line: child.range.start.line + 1,
+        }));
       }
     }
 
