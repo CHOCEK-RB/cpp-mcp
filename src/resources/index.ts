@@ -1,4 +1,5 @@
 import { type McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { COMPILER_SUPPORT_BY_ID, COMPILER_SUPPORT_ENTRIES } from "../data/compiler_support.js";
 import { CPP_STANDARD_HEADERS, HEADER_MAP } from "../data/headers.js";
 import { C_STANDARDS, CPP_STANDARDS, FEATURE_TEST_MACROS } from "../tools/standards.js";
 
@@ -414,6 +415,79 @@ export function registerResources(server: McpServer): void {
           {
             uri: uri.href,
             text: JSON.stringify(toolGuide, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    },
+  );
+
+  // Resource 13: Compiler Support Matrix Catalog
+  server.registerResource(
+    "cpp_compiler_support",
+    "cppref://compiler-support",
+    {
+      description:
+        "Comprehensive compiler support matrix (GCC, Clang, MSVC, Apple Clang) for modern C++ features across C++17, C++20, C++23, and C++26.",
+      mimeType: "application/json",
+    },
+    async () => {
+      return {
+        contents: [
+          {
+            uri: "cppref://compiler-support",
+            text: JSON.stringify(COMPILER_SUPPORT_ENTRIES, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    },
+  );
+
+  // Resource 14: Compiler Support Feature Detail
+  server.registerResource(
+    "cpp_compiler_support_detail",
+    new ResourceTemplate("cppref://compiler-support/{feature}", { list: undefined }),
+    {
+      description:
+        "Detailed compiler support matrix and paper info for a specific feature (e.g. 'std-print', 'std-expected', 'import-std', 'std-generator').",
+      mimeType: "application/json",
+    },
+    async (uri: URL, variables: { [key: string]: string | string[] | undefined }) => {
+      const rawFeature = String(variables.feature || "")
+        .trim()
+        .toLowerCase();
+      const entry =
+        COMPILER_SUPPORT_BY_ID.get(rawFeature) ||
+        COMPILER_SUPPORT_ENTRIES.find(
+          (e) =>
+            e.id.toLowerCase() === rawFeature ||
+            e.aliases.some((a) => a.toLowerCase() === rawFeature),
+        );
+
+      if (!entry) {
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              text: JSON.stringify(
+                {
+                  error: `Feature '${rawFeature}' not found in compiler support matrix. Available features: ${COMPILER_SUPPORT_ENTRIES.map((e) => e.id).join(", ")}.`,
+                },
+                null,
+                2,
+              ),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            text: JSON.stringify(entry, null, 2),
             mimeType: "application/json",
           },
         ],

@@ -7,6 +7,7 @@ import pkg from "../package.json" with { type: "json" };
 import { registerPrompts } from "./prompts/index.js";
 import { registerResources } from "./resources/index.js";
 import { checkSecureCoding } from "./tools/cert.js";
+import { checkCompilerSupport } from "./tools/compiler-support.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
 import { getCppModulesGuide } from "./tools/modules.js";
@@ -415,6 +416,66 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error retrieving C++ tooling guide: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "check_compiler_support",
+    {
+      description:
+        "Check minimum compiler support versions (GCC, Clang, MSVC, Apple Clang) for modern C++ features (e.g. std::print, std::expected, import std, std::generator, coroutines, concepts, modules). Optionally evaluate if a specific user compiler version is compatible.",
+      inputSchema: {
+        feature: z
+          .string()
+          .optional()
+          .describe(
+            "C++ standard feature, library symbol, or keyword (e.g. 'std::print', 'expected', 'import std', 'generator', 'deducing this'). If omitted, returns an overview of features.",
+          ),
+        standard: z
+          .string()
+          .optional()
+          .describe(
+            "Filter features by C++ standard version (e.g. 'C++20', 'C++23', 'C++26', 'C++17').",
+          ),
+        compiler: z
+          .enum(["gcc", "clang", "msvc", "apple_clang"])
+          .optional()
+          .describe("Specific compiler to check compatibility against."),
+        version: z
+          .union([z.string(), z.number()])
+          .optional()
+          .describe(
+            "User compiler version (e.g. '13.2', '16.0', 17) to evaluate compatibility against minimum requirements.",
+          ),
+      },
+    },
+    async ({ feature, standard, compiler, version }) => {
+      try {
+        const result = checkCompilerSupport({
+          feature,
+          standard,
+          compiler,
+          version,
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error checking compiler support: ${error instanceof Error ? error.message : String(error)}`,
             },
           ],
         };
