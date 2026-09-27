@@ -22,4 +22,18 @@ describe("Standalone Binary Compiler", () => {
     expect(bunTargets).toContain("bun-darwin-arm64");
     expect(bunTargets).toContain("bun-windows-x64");
   });
+
+  it("should boot standalone binary and respond to JSON-RPC ping over stdio", () => {
+    const binPath = "./dist/bin/cpp-mcp";
+    const payload = `${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" })}\n`;
+    const proc = Bun.spawnSync([binPath], {
+      stdin: Buffer.from(payload),
+      timeout: 10_000,
+    });
+
+    expect(proc.exitCode).toBe(0);
+    const stdout = proc.stdout.toString();
+    expect(stdout).toContain('"jsonrpc":"2.0"');
+    expect(stdout).toContain('"id":1');
+  });
 });

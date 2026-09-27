@@ -1,8 +1,10 @@
 import * as cheerio from "cheerio";
 import { type SearchResultPayload, searchCache } from "../cache.js";
+import { fetchWithRetry } from "./fetch-utils.js";
+import { USER_AGENT } from "./page.js";
 
 export const BASE_URL = "https://en.cppreference.com";
-export const USER_AGENT = "cpp-mcp/1.1.1 (+https://github.com/CHOCEK-RB/cpp-mcp)";
+export { USER_AGENT };
 export const MAX_SEARCH_RESULTS = 5;
 export const HTTP_TIMEOUT_MS = 15_000;
 
@@ -27,14 +29,18 @@ export async function searchCppreference(
   searchUrl.searchParams.set("title", "Special:Search");
   searchUrl.searchParams.set("search", normalizedQuery);
 
-  const response = await fetchFn(searchUrl.toString(), {
-    headers: {
-      "User-Agent": USER_AGENT,
-      Accept: "text/html,application/xhtml+xml",
+  const response = await fetchWithRetry(
+    searchUrl.toString(),
+    {
+      headers: {
+        "User-Agent": USER_AGENT,
+        Accept: "text/html,application/xhtml+xml",
+      },
+      redirect: "follow",
+      signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
     },
-    redirect: "follow",
-    signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
-  });
+    fetchFn,
+  );
 
   if (!response.ok) {
     throw new Error(

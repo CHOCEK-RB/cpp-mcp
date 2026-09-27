@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import pkg from "../package.json" with { type: "json" };
 
 export interface CoreGuidelineRule {
   id: string;
@@ -32,7 +33,7 @@ export async function syncGuidelines(): Promise<CoreGuidelineRule[]> {
   try {
     const res = await fetch(GUIDELINES_URL, {
       headers: {
-        "User-Agent": "cpp-mcp-sync/1.1.1 (+https://github.com/CHOCEK-RB/cpp-mcp)",
+        "User-Agent": `cpp-mcp-sync/${pkg.version} (+https://github.com/CHOCEK-RB/cpp-mcp)`,
       },
       signal: AbortSignal.timeout(15_000),
     });
