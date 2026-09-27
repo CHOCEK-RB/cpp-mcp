@@ -410,6 +410,27 @@ export function registerResources(server: McpServer): void {
         };
       }
 
+      if (toolGuide.id === "xmake") {
+        const { XMAKE_SKILLS } = await import("../data/xmake-skills.js");
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              text: JSON.stringify(
+                {
+                  ...toolGuide,
+                  skillsCount: XMAKE_SKILLS.length,
+                  skillsResourceUri: "cppref://tooling/xmake/skills",
+                },
+                null,
+                2,
+              ),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+
       return {
         contents: [
           {
@@ -422,7 +443,90 @@ export function registerResources(server: McpServer): void {
     },
   );
 
-  // Resource 13: Compiler Support Matrix Catalog
+  // Resource 12: Official xmake Agent Skills Index
+  server.registerResource(
+    "cpp_xmake_skills_index",
+    "cppref://tooling/xmake/skills",
+    {
+      description:
+        "Index of all 58 official xmake recipes and agent skills across 12 categories (modules, cross-compilation, packages, etc.).",
+      mimeType: "application/json",
+    },
+    async () => {
+      const { XMAKE_SKILLS, XMAKE_SKILLS_BY_CATEGORY } = await import("../data/xmake-skills.js");
+      const summary = {
+        totalSkills: XMAKE_SKILLS.length,
+        categories: Array.from(XMAKE_SKILLS_BY_CATEGORY.entries()).map(([category, skills]) => ({
+          category,
+          count: skills.length,
+          skills: skills.map((s) => ({
+            id: s.id,
+            name: s.name,
+            title: s.title,
+            description: s.description,
+          })),
+        })),
+      };
+
+      return {
+        contents: [
+          {
+            uri: "cppref://tooling/xmake/skills",
+            text: JSON.stringify(summary, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    },
+  );
+
+  // Resource 13: Official xmake Skill Recipe Markdown
+  server.registerResource(
+    "cpp_xmake_skill_detail",
+    new ResourceTemplate("cppref://tooling/xmake/{topic}", { list: undefined }),
+    {
+      description:
+        "Full recipe and tutorial markdown for a specific xmake capability (e.g. 'cxx-modules', 'cross-compilation', 'packages', 'cuda', 'unity').",
+      mimeType: "text/markdown",
+    },
+    async (uri: URL, variables: { [key: string]: string | string[] | undefined }) => {
+      const { findXmakeSkill, XMAKE_SKILLS } = await import("../data/xmake-skills.js");
+      const topic = String(variables.topic || "").trim();
+
+      const skill = findXmakeSkill(topic);
+      if (!skill) {
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              text: JSON.stringify(
+                {
+                  error: `Xmake skill recipe '${topic}' not found.`,
+                  availableCount: XMAKE_SKILLS.length,
+                  hint: "Query cppref://tooling/xmake/skills to see all available recipes.",
+                },
+                null,
+                2,
+              ),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            text: skill.content,
+            mimeType: "text/markdown",
+          },
+        ],
+      };
+    },
+  );
+
+  // Resource 14: Compiler Support Matrix Catalog
   server.registerResource(
     "cpp_compiler_support",
     "cppref://compiler-support",

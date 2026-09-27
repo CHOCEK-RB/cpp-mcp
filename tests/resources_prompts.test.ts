@@ -245,6 +245,28 @@ describe("MCP Resources & Prompts", () => {
     expect(parsed.id).toBe("xmake");
     expect(parsed.configFileName).toBe("xmake.lua");
     expect(parsed.sampleConfig).toContain("c++23");
+    expect(parsed.skillsCount).toBe(58);
+  });
+
+  it("should return xmake skills index for cppref://tooling/xmake/skills", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResources["cppref://tooling/xmake/skills"].readCallback;
+    const result = await handler(new URL("cppref://tooling/xmake/skills"));
+    expect(result.contents).toHaveLength(1);
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(parsed.totalSkills).toBe(58);
+    expect(parsed.categories.length).toBe(12);
+  });
+
+  it("should return xmake skill recipe markdown for cppref://tooling/xmake/cxx-modules", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResourceTemplates.cpp_xmake_skill_detail.readCallback;
+    const result = await handler(new URL("cppref://tooling/xmake/cxx-modules"), {
+      topic: "cxx-modules",
+    });
+    expect(result.contents).toHaveLength(1);
+    expect(result.contents[0].mimeType).toBe("text/markdown");
+    expect(result.contents[0].text).toContain("Building C++20 Modules with Xmake");
   });
 
   it("should generate tooling configuration prompt for cpp_generate_tooling_config", async () => {

@@ -29,6 +29,11 @@ flowchart TD
         Server --> T8["get_cpp_tooling_guide"]
         Server --> T9["check_compiler_support"]
         Server --> T10["demangle_symbol"]
+        Server --> T11["search_code_symbols"]
+        Server --> T12["analyze_code_symbol"]
+        Server --> T13["get_project_details"]
+        Server --> T14["get_code_diagnostics"]
+        Server --> T15["rename_code_symbol"]
     end
 
     subgraph Primitives ["MCP Native Primitives"]
@@ -228,16 +233,18 @@ Audits C++ code for security vulnerabilities, undefined behavior (UB), and safet
 
 ### 8. `get_cpp_tooling_guide`
 
-Retrieves documentation, directives, CLI commands, and production starter configurations for modern C/C++ developer tools:
+Retrieves documentation, directives, CLI commands, and production starter configurations for modern C/C++ developer tools, including **58 official recipes** synchronized from `xmake-io/xmake-skills`:
 
-- **`xmake`**: Lua-based build utility with zero-configuration C++20/C++23 module scanning and integrated packages (`add_requires`).
+- **`xmake`**: Lua-based build utility with zero-configuration C++20/C++23 module scanning, integrated packages (`add_requires`), and 58 hands-on recipes across 12 categories (`toolchains`, `languages`, `packages`, `performance`, `testing`, etc.).
 - **`clang-format`**: Unified styling with pointer alignment, include sorting, and bracket placements.
 - **`clang-tidy`**: Strict static analysis check profiles (`modernize-*`, `bugprone-*`, `cert-*`).
 - **`sanitizers`**: Compiler instrumentation flags for AddressSanitizer (`ASan`), UndefinedBehaviorSanitizer (`UBSan`), and ThreadSanitizer (`TSan`).
 
 - **Parameters**:
   - `tool` (`string`, optional): Tool ID or alias (`"xmake"`, `"clang-format"`, `"clang-tidy"`, `"sanitizers"`, `"format"`, `"tidy"`, `"asan"`).
-  - `query` (`string`, optional): Search keyword across configuration directives and commands (e.g. `"compile_commands"`, `"add_requires"`, `"IndentWidth"`).
+  - `topic` (`string`, optional): Specific tooling topic or official xmake recipe (e.g. `"cxx-modules"`, `"cross-compilation"`, `"packages"`, `"cuda"`, `"unity"`, `"zigcc"`).
+  - `category` (`string`, optional): Filter xmake recipes by category (`"basics"`, `"cli"`, `"languages"`, `"packages"`, `"performance"`, `"project-config"`, `"toolchains"`, etc.).
+  - `query` (`string`, optional): Search keyword across configuration directives, commands, and official recipes (e.g. `"compile_commands"`, `"add_requires"`, `"IndentWidth"`, `"cuda"`).
   - `generate_config` (`boolean`, optional): Returns the raw copy-pasteable production configuration file (e.g. `xmake.lua`, `.clang-format`, `.clang-tidy`).
 
 - **Output Example**:
@@ -245,14 +252,10 @@ Retrieves documentation, directives, CLI commands, and production starter config
   {
     "found": true,
     "tool": "xmake",
-    "configFileName": "xmake.lua",
-    "configContent": "-- xmake.lua\nadd_rules(\"mode.debug\", \"mode.release\")...",
-    "keyDirectives": [
-      {
-        "name": "add_files(\"src/*.cppm\")",
-        "description": "Registers C++ module interfaces; xmake automatically invokes compiler module scanning."
-      }
-    ]
+    "topic": "cxx-modules",
+    "category": "toolchains",
+    "title": "Building C++20 Modules with Xmake",
+    "content": "# Building C++20 Modules with Xmake\n\nXmake has first-class C++20 modules support..."
   }
   ```
 
@@ -419,6 +422,89 @@ Inspects C/C++ workspace build configuration, automatically detects build system
   }
   ```
 
+### 14. `get_code_diagnostics`
+
+Retrieves live C/C++ compilation diagnostics (syntax errors, type mismatches, missing headers, unused variables, and compiler warnings) powered by `clangd` LSP and the project compilation database. Supports inspecting saved files or testing in-memory code snippets with multi-line caret pointers.
+
+- **Parameters**:
+  - `file` (`string`, optional): Source or header file to analyze (e.g. `"src/main.cpp"`). If omitted, returns diagnostics across all tracked project files.
+  - `code` (`string`, optional): In-memory source code to check without modifying disk.
+  - `workspaceDir` (`string`, optional): Project root directory.
+  - `severity` (`string`, optional): Filter diagnostics (`"all"`, `"error"`, `"warning"`). Defaults to `"all"`.
+  - `waitTimeout` (`number`, optional): Maximum seconds to wait for clangd AST parsing (default: `3`).
+
+- **Output Example**:
+  ```json
+  {
+    "success": true,
+    "workspaceDir": "/home/user/project",
+    "buildSystem": "xmake",
+    "totalErrors": 1,
+    "totalWarnings": 0,
+    "files": [
+      {
+        "file": "src/main.cpp",
+        "errorCount": 1,
+        "warningCount": 0,
+        "diagnostics": [
+          {
+            "file": "src/main.cpp",
+            "line": 42,
+            "character": 12,
+            "endLine": 42,
+            "endCharacter": 24,
+            "severity": "error",
+            "message": "use of undeclared identifier 'my_variable'",
+            "source": "clang",
+            "snippet": "  41 | int a = 10;\n> 42 | my_variable = 20;\n     | ^~~~~~~~~~~\n  43 | return a;"
+          }
+        ]
+      }
+    ]
+  }
+  ```
+
+### 15. `rename_code_symbol`
+
+Performs AST-level semantic symbol renaming across all workspace files powered by `clangd` LSP. Simultaneously updates declarations (`.hpp`), definitions (`.cpp`), and all call sites without text-replacement false positives. Includes collision detection and dry-run preview before touching files on disk.
+
+- **Parameters**:
+  - `symbol` (`string`, required): Symbol name or qualified identifier to rename (e.g. `"Calculator::add"`, `"calculate_total"`).
+  - `new_name` (`string`, required): New identifier name (must be a valid C/C++ identifier).
+  - `workspaceDir` (`string`, optional): Project root directory.
+  - `file` (`string`, optional): Source or header file path hint for symbol location.
+  - `line` (`number`, optional): Line number hint (1-indexed).
+  - `dry_run` (`boolean`, optional): When `true` (default), returns preview diff without modifying disk. When `false`, writes changes to disk.
+
+- **Output Example**:
+  ```json
+  {
+    "success": true,
+    "symbol": "calculate_total",
+    "newName": "compute_total",
+    "dryRun": true,
+    "workspaceDir": "/home/user/project",
+    "totalEdits": 3,
+    "affectedFiles": [
+      {
+        "file": "include/math_utils.hpp",
+        "editCount": 1,
+        "edits": [
+          {
+            "line": 3,
+            "character": 7,
+            "endLine": 3,
+            "endCharacter": 22,
+            "oldText": "calculate_total",
+            "newText": "compute_total",
+            "snippet": "- 3 | int calculate_total(int a, int b);\n+ 3 | int compute_total(int a, int b);"
+          }
+        ]
+      }
+    ]
+  }
+  ```
+
 ---
 
 ## Resources Catalog
@@ -436,6 +522,8 @@ The server exposes read-only MCP resources providing zero-overhead offline datas
 - **`cppref://cert/{id}`**: Detailed SEI CERT rule specification with risk assessment, noncompliant code, and compliant solution.
 - **`cppref://tooling`**: Catalog of modern C/C++ developer tools (`xmake`, `clang-format`, `clang-tidy`, runtime sanitizers).
 - **`cppref://tooling/{tool}`**: In-depth documentation, CLI commands, and production starter configurations for a specific tool.
+- **`cppref://tooling/xmake/skills`**: Complete index of 58 official xmake recipes and agent skills across 12 categories.
+- **`cppref://tooling/xmake/{topic}`**: Full recipe and tutorial markdown for a specific xmake capability (`cxx-modules`, `cross-compilation`, `packages`, etc.).
 - **`cppref://compiler-support`**: Comprehensive compiler support matrix (GCC, Clang, MSVC, Apple Clang) for modern C++ features.
 - **`cppref://compiler-support/{feature}`**: Detailed compiler support matrix, WG21 paper, and feature test macro for a specific feature.
 
@@ -592,6 +680,17 @@ cpp-mcp code-analyze "Calculator::add"
 # Disambiguate identical symbols or forward declarations via file and line hints
 cpp-mcp code-analyze "__tb_element_t" --workspace /path/to/project --file include/element.h --line 182
 
+# Check compiler errors and warnings with live AST diagnostics and caret pointers
+cpp-mcp code-diagnostics
+cpp-mcp code-diagnostics src/main.cpp
+cpp-mcp code-diagnostics src/main.cpp --severity error
+cpp-mcp code-diagnostics src/main.cpp --code "int x = undeclared_var;" --json
+
+# Semantic symbol rename across project with preview (dry-run) or direct file modification
+cpp-mcp code-rename "calculate_total" "compute_total"
+cpp-mcp code-rename "calculate_total" "compute_total" --apply
+cpp-mcp code-rename "Calculator::add" "sum" --workspace /path/to/project --json
+
 # Raw or JSON output for shell scripting and automation
 cpp-mcp code-search Vec2 --raw
 cpp-mcp code-analyze "tb_hash_map_init" --json
@@ -624,8 +723,10 @@ cpp-mcp guideline "RAII"
 # Check standard availability and feature test macros
 cpp-mcp standard std::span C++20
 
-# Modern C++ tooling starter recipes (xmake, clang-format, clang-tidy)
+# Modern C++ tooling starter recipes & 58 official xmake skills
 cpp-mcp tooling xmake
+cpp-mcp tooling xmake cxx-modules
+cpp-mcp tooling xmake toolchains
 ```
 
 ---

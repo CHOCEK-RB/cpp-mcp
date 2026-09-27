@@ -4,6 +4,8 @@ import pkg from "../package.json" with { type: "json" };
 import { isExecutableAvailable, resolveProjectBuildInfo } from "./project/xmake.js";
 import { checkSecureCoding } from "./tools/cert.js";
 import { analyzeCodeSymbol } from "./tools/code-analyzer.js";
+import { getCodeDiagnostics } from "./tools/code-diagnostics.js";
+import { renameCodeSymbol } from "./tools/code-renamer.js";
 import { searchCodeSymbols } from "./tools/code-search.js";
 import { sessionManager } from "./tools/code-session-manager.js";
 import { type CompilerName, checkCompilerSupport } from "./tools/compiler-support.js";
@@ -29,20 +31,26 @@ Commands:
   project [dir]                     Inspect workspace build configuration, compile_commands, and tools
   code-search <query>               Search symbols in workspace code (clangd + xmake/CMake)
   code-analyze <symbol>             Analyze symbol definition, hierarchy, and usage
+  code-diagnostics [file]           Inspect live compiler errors and warnings via clangd
+  code-rename <symbol> <new_name>   Rename symbol across project using AST analysis (clangd)
   compiler <feature> [options]      Check compiler support matrix (GCC, Clang, MSVC, Apple Clang)
   demangle <symbol|->               Demangle Itanium or MSVC mangled symbols (or stdin)
   cert <rule_id|cwe|category>       Audit against SEI CERT C++ rules and CWEs
   guideline <rule_id|query>         Lookup C++ Core Guidelines rules and enforcement
   standard <version>                Inspect C or C++ standard features and test macros
   module <topic>                    Inspect C++20/23/26 modules architecture guides
-  tooling <tool>                    Inspect modern C++ tooling starter recipes (xmake, etc.)
+  tooling <tool> [topic]            Inspect modern C++ tooling & official xmake recipes (58 skills)
 
 Options:
   --json                            Output response in raw JSON format
   --raw                             Print only primary scalar value (e.g. only header name)
-  --workspace <dir>                 Project root directory for code-search and code-analyze
-  --file <path>                     Source file path for symbol disambiguation
-  --line <num>                      Line number (1-indexed) for symbol disambiguation
+  --workspace <dir>                 Project root directory for code-search, code-analyze, diagnostics, and rename
+  --file <path>                     Source file path for symbol disambiguation, diagnostics, or rename
+  --line <num>                      Line number (1-indexed) for symbol disambiguation or rename
+  --apply                           Apply rename changes directly to disk (default is dry-run preview)
+  --dry-run                         Preview rename diff without modifying files (default)
+  --severity <level>                Filter diagnostics (all, error, warning)
+  --code <code>                     Inline code snippet to check without saving to disk
   --compiler <name>                 Compiler name for compatibility checks (gcc, clang, msvc, apple_clang)
   --version <ver>                   Compiler version to evaluate against feature requirement
   -v, --version                     Print version and exit
@@ -85,10 +93,21 @@ export async function runCli(args: string[]): Promise<number> {
   let flagWorkspace: string | undefined;
   let flagFile: string | undefined;
   let flagLine: number | undefined;
+  let flagSeverity: string | undefined;
+  let flagCode: string | undefined;
+  let flagApply = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (!arg || arg === "--json" || arg === "--raw") {
+      continue;
+    }
+    if (arg === "--apply") {
+      flagApply = true;
+      continue;
+    }
+    if (arg === "--dry-run") {
+      flagApply = false;
       continue;
     }
     if (arg === "--compiler" && i + 1 < args.length) {
@@ -109,6 +128,14 @@ export async function runCli(args: string[]): Promise<number> {
     }
     if (arg === "--line" && i + 1 < args.length) {
       flagLine = Number.parseInt(args[++i] ?? "0", 10);
+      continue;
+    }
+    if (arg === "--severity" && i + 1 < args.length) {
+      flagSeverity = args[++i];
+      continue;
+    }
+    if (arg === "--code" && i + 1 < args.length) {
+      flagCode = args[++i];
       continue;
     }
     if (!arg.startsWith("-")) {
@@ -380,30 +407,122 @@ export async function runCli(args: string[]): Promise<number> {
       }
 
       case "tooling": {
-        const res = getCppToolingGuide({ tool: target || undefined });
+        const parts = target ? target.split(/\s+/) : [];
+        let toolArg: string | undefined;
+        let topicArg: string | undefined;
+        let categoryArg: string | undefined;
+
+        if (parts.length > 0) {
+          const first = parts[0]?.toLowerCase() || "";
+          if (first === "xmake") {
+            toolArg = "xmake";
+            if (parts.length > 1) {
+              const sub = parts.slice(1).join(" ");
+              if (sub === "--list" || sub === "list" || sub === "skills") {
+                categoryArg = undefined;
+                topicArg = undefined;
+              } else if (
+                [
+                  "ai",
+                  "basics",
+                  "cli",
+                  "languages",
+                  "ops",
+                  "packages",
+                  "packaging",
+                  "performance",
+                  "project-config",
+                  "scripting",
+                  "testing",
+                  "toolchains",
+                ].includes(sub)
+              ) {
+                categoryArg = sub;
+              } else {
+                topicArg = sub;
+              }
+            }
+          } else {
+            toolArg = parts[0];
+            if (parts.length > 1) {
+              topicArg = parts.slice(1).join(" ");
+            }
+          }
+        }
+
+        const res = getCppToolingGuide({
+          tool: toolArg,
+          topic: topicArg,
+          category: categoryArg,
+        });
+
         if (isJson) {
           console.log(JSON.stringify(res, null, 2));
           return res.found ? 0 : 1;
         }
+
         if (!res.found) {
-          console.error(`Tooling guide '${target}' not found.`);
+          console.error(res.message || `Tooling guide '${target}' not found.`);
           return 1;
         }
+
+        // Case A: Specific topic / official recipe found
+        if (res.topic && res.content) {
+          console.log(`[xmake recipe: ${res.topic}] ${res.title} (${res.category})`);
+          if (res.description) console.log(`\n${res.description}`);
+          console.log(`\n${res.content}`);
+          return 0;
+        }
+
+        // Case B: Category listing
+        if (res.category && res.skills) {
+          console.log(
+            `Official Xmake Recipes - Category: ${res.category} (${res.skills.length} recipes):`,
+          );
+          for (const s of res.skills) {
+            console.log(`- ${s.id}: ${s.title}`);
+          }
+          console.log(`\nRun 'cpp-mcp tooling xmake <topic>' to view full recipe.`);
+          return 0;
+        }
+
+        // Case C: Tool overview
         if (res.tool) {
-          console.log(`Tool: ${res.tool}`);
-          if (res.content) console.log(`\n${res.content}`);
+          console.log(`Tool: ${res.title || res.tool}`);
+          if (res.description) console.log(`Description: ${res.description}`);
+          if (res.configFileName && res.configContent) {
+            console.log(`\nStarter Config (${res.configFileName}):\n${res.configContent.trim()}`);
+          }
           if (res.commands && res.commands.length > 0) {
             console.log(`\nCommon Commands:`);
             for (const c of res.commands.slice(0, 6)) {
               console.log(`- ${c.command}: ${c.description}`);
             }
           }
+          if (res.categories && res.categories.length > 0) {
+            console.log(
+              `\nOfficial Xmake Skills (${res.skillsCount} recipes across ${res.categories.length} categories):`,
+            );
+            for (const cat of res.categories) {
+              const sampleSkills = cat.skills
+                .slice(0, 3)
+                .map((s) => s.id)
+                .join(", ");
+              const more = cat.skills.length > 3 ? `, ... (+${cat.skills.length - 3})` : "";
+              console.log(`- ${cat.category} (${cat.count}): ${sampleSkills}${more}`);
+            }
+            console.log(
+              `\nRun 'cpp-mcp tooling xmake <topic>' (e.g. 'cxx-modules', 'cross-compilation', 'packages') to inspect full recipes.`,
+            );
+          }
           return 0;
         }
+
         if (res.matches && res.matches.length > 0) {
           console.log(`Available tools: ${res.matches.map((m) => m.id).join(", ")}`);
           return 0;
         }
+
         return 0;
       }
 
@@ -546,6 +665,127 @@ export async function runCli(args: string[]): Promise<number> {
           for (const c of res.callHierarchy.incomingCalls.slice(0, 5)) {
             console.log(`  <- ${c.from.name} (${c.from.file}:${c.from.line})`);
           }
+        }
+        return 0;
+      }
+
+      case "code-diagnostics":
+      case "diagnostics":
+      case "check": {
+        const targetFile = target || flagFile;
+        const res = await getCodeDiagnostics({
+          file: targetFile,
+          code: flagCode,
+          workspaceDir: flagWorkspace,
+          severity: flagSeverity as "all" | "error" | "warning" | undefined,
+        });
+
+        if (isJson) {
+          console.log(JSON.stringify(res, null, 2));
+          return res.success ? (res.totalErrors > 0 ? 1 : 0) : 1;
+        }
+
+        if (!res.success) {
+          console.error(res.error || "Failed to retrieve code diagnostics.");
+          return 1;
+        }
+
+        if (res.totalErrors === 0 && res.totalWarnings === 0) {
+          if (targetFile) {
+            console.log(`✓ No errors or warnings found in ${targetFile}`);
+          } else {
+            console.log("✓ No errors or warnings found across tracked workspace files.");
+          }
+          return 0;
+        }
+
+        console.log(
+          `Found ${res.totalErrors} error(s) and ${res.totalWarnings} warning(s) (workspace: ${res.workspaceDir}):\n`,
+        );
+
+        for (const fileSummary of res.files) {
+          if (fileSummary.diagnostics.length === 0) continue;
+          console.log(
+            `File: ${fileSummary.file} (${fileSummary.errorCount} errors, ${fileSummary.warningCount} warnings)`,
+          );
+          for (const diag of fileSummary.diagnostics) {
+            const sevTag =
+              diag.severity === "error"
+                ? "ERROR"
+                : diag.severity === "warning"
+                  ? "WARNING"
+                  : "INFO";
+            console.log(
+              `  [${sevTag}] L${diag.line}:${diag.character} - ${diag.message} (${diag.source})`,
+            );
+            if (diag.snippet) {
+              console.log(
+                diag.snippet
+                  .split("\n")
+                  .map((l) => `    ${l}`)
+                  .join("\n"),
+              );
+            }
+          }
+          console.log();
+        }
+
+        return res.totalErrors > 0 ? 1 : 0;
+      }
+
+      case "code-rename":
+      case "rename": {
+        const symbolArg = positionalArgs[1];
+        const newNameArg = positionalArgs[2];
+        if (!symbolArg || !newNameArg) {
+          console.error(
+            "Error: 'code-rename' command requires a symbol and a new name (e.g. 'cpp-mcp code-rename Calculator::add sum')",
+          );
+          return 1;
+        }
+
+        const res = await renameCodeSymbol({
+          symbol: symbolArg,
+          newName: newNameArg,
+          workspaceDir: flagWorkspace,
+          file: flagFile,
+          line: flagLine,
+          dryRun: !flagApply,
+        });
+
+        if (isJson) {
+          console.log(JSON.stringify(res, null, 2));
+          return res.success ? 0 : 1;
+        }
+
+        if (!res.success) {
+          console.error(res.error || `Failed to rename '${symbolArg}'.`);
+          return 1;
+        }
+
+        const modeStr = res.dryRun ? "[DRY-RUN / PREVIEW]" : "[APPLIED]";
+        console.log(
+          `${modeStr} Renamed '${res.symbol}' to '${res.newName}' across ${res.affectedFiles.length} file(s) (${res.totalEdits} total edits):\n`,
+        );
+
+        for (const fileSummary of res.affectedFiles) {
+          console.log(`File: ${fileSummary.file} (${fileSummary.editCount} edits)`);
+          for (const edit of fileSummary.edits) {
+            console.log(`  L${edit.line}:${edit.character} '${edit.oldText}' -> '${edit.newText}'`);
+            if (edit.snippet) {
+              console.log(
+                edit.snippet
+                  .split("\n")
+                  .map((l) => `    ${l}`)
+                  .join("\n"),
+              );
+            }
+          }
+          console.log();
+        }
+
+        if (res.dryRun) {
+          console.log("Tip: Run with --apply to write changes to files on disk.");
         }
         return 0;
       }

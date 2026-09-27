@@ -146,3 +146,71 @@ export function symbolKindToString(kind: SymbolKind): string {
       return "symbol";
   }
 }
+
+export enum DiagnosticSeverity {
+  Error = 1,
+  Warning = 2,
+  Information = 3,
+  Hint = 4,
+}
+
+export interface DiagnosticRelatedInformation {
+  location: Location;
+  message: string;
+}
+
+export interface Diagnostic {
+  range: Range;
+  severity?: DiagnosticSeverity;
+  code?: number | string;
+  source?: string;
+  message: string;
+  relatedInformation?: DiagnosticRelatedInformation[];
+}
+
+export interface PublishDiagnosticsParams {
+  uri: string;
+  version?: number;
+  diagnostics: Diagnostic[];
+}
+
+export function diagnosticSeverityToString(
+  severity?: DiagnosticSeverity,
+): "error" | "warning" | "information" | "hint" {
+  switch (severity) {
+    case DiagnosticSeverity.Error:
+      return "error";
+    case DiagnosticSeverity.Warning:
+      return "warning";
+    case DiagnosticSeverity.Information:
+      return "information";
+    case DiagnosticSeverity.Hint:
+      return "hint";
+    default:
+      return "error";
+  }
+}
+
+export interface TextEdit {
+  range: Range;
+  newText: string;
+}
+
+export interface TextDocumentEdit {
+  textDocument: {
+    uri: string;
+    version?: number | null;
+  };
+  edits: TextEdit[];
+}
+
+export interface WorkspaceEdit {
+  changes?: Record<string, TextEdit[]>;
+  documentChanges?: TextDocumentEdit[];
+}
+
+export interface RenameParams {
+  textDocument: { uri: string };
+  position: Position;
+  newName: string;
+}
