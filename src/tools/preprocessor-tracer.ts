@@ -3,13 +3,11 @@
 // high-volume YAML callback stream into a filtered, aggregated summary of macros,
 // includes, conditional branches, pragmas, and module imports.
 
-import { execFile, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { promisify } from "node:util";
 import { findExistingCompilationDb } from "../project/xmake.js";
-
-const execFileAsync = promisify(execFile);
+import { resolveClangTool } from "./clang-tool-resolver.js";
 
 /** Default cap on retained raw events returned when `includeEvents` is enabled. */
 const DEFAULT_MAX_EVENTS = 500;
@@ -134,36 +132,7 @@ export async function findPpTrace(customPath?: string): Promise<{
   path?: string;
   version?: string;
 }> {
-  const candidates = customPath
-    ? [customPath]
-    : [
-        "pp-trace",
-        "/usr/bin/pp-trace",
-        "/usr/local/bin/pp-trace",
-        "pp-trace-22",
-        "pp-trace-21",
-        "pp-trace-20",
-        "pp-trace-19",
-        "pp-trace-18",
-        "pp-trace-17",
-      ];
-
-  for (const candidate of candidates) {
-    try {
-      const { stdout, stderr } = await execFileAsync(candidate, ["--version"], { timeout: 3000 });
-      const output = `${stdout}${stderr}`;
-      const versionMatch = output.match(/version\s+([0-9]+\.[0-9]+(?:\.[0-9]+)?)/i);
-      return {
-        available: true,
-        path: candidate,
-        version: versionMatch ? versionMatch[1] : undefined,
-      };
-    } catch {
-      // Continue checking the next candidate.
-    }
-  }
-
-  return { available: false };
+  return resolveClangTool({ name: "pp-trace", customPath });
 }
 
 /**

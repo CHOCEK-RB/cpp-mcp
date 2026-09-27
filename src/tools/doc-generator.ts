@@ -5,7 +5,8 @@ import { execFile } from "node:child_process";
 import { existsSync, promises as fs } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
-import { isExecutableAvailable, resolveProjectBuildInfo } from "../project/xmake.js";
+import { resolveProjectBuildInfo } from "../project/xmake.js";
+import { resolveClangTool } from "./clang-tool-resolver.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -49,42 +50,11 @@ export async function findClangDoc(customPath?: string): Promise<{
   path?: string;
   version?: string;
 }> {
-  const candidates = customPath
-    ? [customPath]
-    : [
-        "clang-doc",
-        "/usr/bin/clang-doc",
-        "/usr/local/bin/clang-doc",
-        "clang-doc-22",
-        "clang-doc-21",
-        "clang-doc-20",
-        "clang-doc-19",
-        "clang-doc-18",
-        "clang-doc-17",
-      ];
-
-  for (const bin of candidates) {
-    if (await isExecutableAvailable(bin)) {
-      try {
-        const { stdout } = await execFileAsync(bin, ["--version"], { timeout: 3000 });
-        const versionMatch =
-          stdout.match(/LLVM version\s+([\d.]+)/i) || stdout.match(/version\s+([\d.]+)/i);
-        return {
-          available: true,
-          path: bin,
-          version: versionMatch?.[1] ?? "unknown",
-        };
-      } catch {
-        return {
-          available: true,
-          path: bin,
-          version: "unknown",
-        };
-      }
-    }
+  const info = await resolveClangTool({ name: "clang-doc", customPath });
+  if (!info.available) {
+    return { available: false };
   }
-
-  return { available: false };
+  return { available: true, path: info.path, version: info.version ?? "unknown" };
 }
 
 export const FORMAT_EXTENSIONS: Record<DocFormat, string[]> = {

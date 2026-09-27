@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { runCli } from "../src/cli.js";
 import { createServer } from "../src/index.js";
-import { formatCode, generateSimpleDiff } from "../src/tools/code-formatter.js";
+import { formatCode, generateSimpleDiff, runClangFormat } from "../src/tools/code-formatter.js";
 
 describe("generateSimpleDiff", () => {
   test("should return empty string when original and modified are identical", () => {
@@ -106,9 +107,42 @@ describe("formatCode", () => {
     expect(res.error).toContain("File not found");
   });
 
+  test("should report a clear error when clang-format cannot be found", async () => {
+    const res = await formatCode({
+      code: "int a=1;",
+      clangFormatPath: "/nonexistent/clang-format-binary",
+    });
+    expect(res.formatted).toBe(false);
+    expect(res.error).toContain("clang-format");
+    expect(res.error).toContain("CLANG_FORMAT_PATH");
+  });
+
   test("should register format_code in createServer", () => {
     const server = createServer();
     expect(server).toBeDefined();
+  });
+});
+
+describe("runClangFormat", () => {
+  test("should kill clang-format and reject when it exceeds the timeout", async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "clang-format-timeout-"));
+    const script = path.join(tmpDir, "slow-clang-format");
+    await fs.writeFile(script, "#!/bin/sh\nsleep 5\n", { mode: 0o755 });
+
+    try {
+      await expect(
+        runClangFormat("int a=1;", {
+          assumeFilename: "snippet.cpp",
+          style: "LLVM",
+          fallbackStyle: "LLVM",
+          cwd: tmpDir,
+          binaryPath: script,
+          timeoutMs: 100,
+        }),
+      ).rejects.toThrow(/timed out/i);
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
   });
 });
 
