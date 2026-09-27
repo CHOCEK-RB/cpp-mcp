@@ -609,6 +609,8 @@ Analyzes and explains complex, multi-page C++ compiler and linker errors in plai
 
 Generates technical API documentation directly from C/C++ source code and Doxygen-style comments using LLVM `clang-doc`. Produces clean Markdown, standalone HTML sites, or structured JSON trees with inheritance, member types, function signatures, and return descriptions.
 
+> **Non-destructive output:** files are generated in a temporary staging directory and then published to `output_dir`. Only files produced by clang-doc during a previous run, tracked in `<output_dir>/.cpp-mcp-docs.json`, are cleaned up, so hand-written documents that share the target extension are preserved. A failed clang-doc run leaves `output_dir` untouched.
+
 - **Parameters**:
   - `workspace` (`string`, optional): Project workspace root containing `compile_commands.json`, `xmake.lua`, or `CMakeLists.txt`.
   - `files` (`string[]`, optional): Specific source or header files to document.
@@ -996,6 +998,12 @@ cpp-mcp docs include/geometry.hpp --public
 cpp-mcp docs --dry-run --json
 ```
 
+### Command Reference & Aliases
+
+Run `cpp-mcp <command>` for any of: `header`, `query`, `search`, `standard`, `guideline`, `cert`, `module`, `tooling`, `compiler`, `demangle`, `project`, `code-search`, `code-analyze`, `code-diagnostics`, `code-rename`, `code-format`, `scaffold`, `explain-error`, `docs`, `compile-db`, `reorder-fields`, `trace-preprocessor`.
+
+`query` looks up the ISO header for a symbol and falls back to a cppreference search when the symbol is unknown. Several commands accept short aliases: `code-diagnostics` (`diagnostics`, `check`), `code-rename` (`rename`), `code-format` (`format`), `scaffold` (`init`), `explain-error` (`explain`), `docs` (`generate-docs`, `clang-doc`), `compile-db` (`compiledb`, `generate-compile-commands`), `reorder-fields` (`reorder`), and `trace-preprocessor` (`trace-pp`, `pretrace`).
+
 ---
 
 ## Semantic Architecture (xmake + clangd LSP)
@@ -1007,6 +1015,19 @@ The workspace semantic engine is built specifically for modern C/C++ workflows:
 3. **Lightweight Clangd Client**: Spawns `clangd` as a child process using raw JSON-RPC over `stdio` with standard `Content-Length` framing, without heavyweight LSP library overhead.
 4. **Cold-Start Preloading**: Upon initialization, primary translation units from `compile_commands.json` are automatically preloaded (`textDocument/didOpen`), ensuring early symbol queries hit memory AST immediately instead of returning empty results.
 5. **Robust Process Lifecycle**: Drains `stderr` continuously to avoid 64 KB kernel pipe deadlocks, pools concurrent initialization requests to prevent duplicate orphan processes, and binds termination handlers (`SIGINT`, `SIGTERM`, `exit`) to ensure zero zombie `clangd` instances.
+
+---
+
+## Environment Variables
+
+| Variable | Description |
+|---|---|
+| `CPP_MCP_CACHE_DISABLE` | Set to `true` or `1` to disable the L2 on-disk cache (memory-only). |
+| `CPP_MCP_CACHE_DIR` | Overrides the base cache directory (default `~/.cache/cpp-mcp/`). |
+| `XDG_CACHE_HOME` | Used to derive the cache directory when `CPP_MCP_CACHE_DIR` is unset. |
+| `CLANGD_PATH` | Overrides the `clangd` executable used by the semantic tools. |
+| `CLANGD_QUERY_DRIVER` | Compiler driver(s) clangd may query for builtin system includes (gcc, cross-toolchains). Comma- or whitespace-separated; passed as `--query-driver`. |
+| `CLANG_FORMAT_PATH` | Overrides the `clang-format` executable used by `format_code` / `cpp-mcp code-format`. |
 
 ---
 
@@ -1031,7 +1052,7 @@ bun test --coverage  # Run test suite with coverage
 bun run build        # Compile self-contained bundle into dist/
 bun run compile      # Build native standalone binary (dist/bin/cpp-mcp)
 bun run compile:all  # Cross-compile native binaries for 5 platform targets
-bun run check:publint# Validate package distribution standards
+bun run check:publint # Validate package distribution standards
 ```
 
 ---
