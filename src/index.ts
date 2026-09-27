@@ -21,6 +21,7 @@ import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
 import { getCppModulesGuide } from "./tools/modules.js";
 import { getCppreferencePage } from "./tools/page.js";
+import { scaffoldProject } from "./tools/project-scaffold.js";
 import { searchCppreference } from "./tools/search.js";
 import { checkCppStandard } from "./tools/standards.js";
 import { getCppToolingGuide } from "./tools/tooling.js";
@@ -970,6 +971,132 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error formatting code: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "scaffold_project",
+    {
+      description:
+        "Scaffold a modern C++ project with best-practice configurations (xmake/CMake, C++11-26, Catch2/GTest/doctest, .clang-format, .clangd LSP, and git).",
+      inputSchema: {
+        project_name: z
+          .string()
+          .min(1)
+          .describe("Name of the project (alphanumeric, underscores, hyphens, and dots)."),
+        target_dir: z
+          .string()
+          .optional()
+          .describe(
+            "Directory where the project should be created. Defaults to './<project_name>'.",
+          ),
+        build_system: z
+          .enum(["xmake", "cmake"])
+          .optional()
+          .default("xmake")
+          .describe("Build system to use ('xmake' or 'cmake'). Defaults to 'xmake'."),
+        project_type: z
+          .enum(["executable", "library", "header-only", "cxx-modules", "qt", "cuda"])
+          .optional()
+          .default("executable")
+          .describe(
+            "Type of C++ project ('executable', 'library', 'header-only', 'cxx-modules', 'qt', 'cuda'). Defaults to 'executable'.",
+          ),
+        cpp_standard: z
+          .enum(["11", "14", "17", "20", "23", "26"])
+          .optional()
+          .default("20")
+          .describe("C++ standard version ('11', '14', '17', '20', '23', '26'). Defaults to '20'."),
+        test_framework: z
+          .enum(["catch2", "gtest", "doctest", "none"])
+          .optional()
+          .default("catch2")
+          .describe(
+            "Unit test framework ('catch2', 'gtest', 'doctest', 'none'). Defaults to 'catch2'.",
+          ),
+        package_manager: z
+          .enum(["xrepo", "vcpkg", "conan", "none"])
+          .optional()
+          .describe(
+            "Package manager ('xrepo', 'vcpkg', 'conan', 'none'). Defaults to 'xrepo' for xmake or 'none' for cmake.",
+          ),
+        init_clang_tools: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe(
+            "Whether to generate .clang-format and .clangd LSP configurations. Defaults to true.",
+          ),
+        init_git: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe(
+            "Whether to initialize a git repository in the target directory. Defaults to false.",
+          ),
+        dry_run: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe(
+            "If true, returns file tree and previews without writing to disk. Defaults to false.",
+          ),
+        overwrite: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe(
+            "If true, allows writing into an existing non-empty directory. Defaults to false.",
+          ),
+      },
+    },
+    async ({
+      project_name,
+      target_dir,
+      build_system,
+      project_type,
+      cpp_standard,
+      test_framework,
+      package_manager,
+      init_clang_tools,
+      init_git,
+      dry_run,
+      overwrite,
+    }) => {
+      try {
+        const result = await scaffoldProject({
+          projectName: project_name,
+          targetDir: target_dir,
+          buildSystem: build_system,
+          projectType: project_type,
+          cppStandard: cpp_standard,
+          testFramework: test_framework,
+          packageManager: package_manager,
+          initClangTools: init_clang_tools,
+          initGit: init_git,
+          dryRun: dry_run,
+          overwrite,
+        });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error scaffolding project: ${error instanceof Error ? error.message : String(error)}`,
             },
           ],
         };

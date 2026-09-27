@@ -35,6 +35,7 @@ flowchart TD
         Server --> T14["get_code_diagnostics"]
         Server --> T15["rename_code_symbol"]
         Server --> T16["format_code"]
+        Server --> T17["scaffold_project"]
     end
 
     subgraph Primitives ["MCP Native Primitives"]
@@ -57,6 +58,7 @@ flowchart TD
 - **Semantic Code Intelligence (xmake + clangd LSP)**: Deep AST understanding of your local codebase with automatic compilation database generation via `xmake`, symbol search, type inheritance, call hierarchies, and usage examples (`search_code_symbols`, `analyze_code_symbol`).
 - **Live Compiler Diagnostics & AST Renaming**: Real-time error detection with caret pointers (`^~~~`), AST-based safe symbol renaming across all workspace files, and automated header tracking (`get_code_diagnostics`, `rename_code_symbol`).
 - **C/C++ Code Formatter**: Instant in-memory and file formatting via `clang-format` with project `.clang-format` auto-discovery, standard presets (`LLVM`, `Google`), line ranges, and unified diff preview (`format_code`).
+- **Smart C++ Project Scaffolding**: One-command project bootstrapping with modern `xmake` / `CMake`, C++11-26 standards, Catch2/GTest/doctest, C++20 modules, Qt6, CUDA, `.clang-format`, and `.clangd` LSP configurations (`scaffold_project`).
 - **C++20/23/26 Modules Architecture**: Dedicated offline guide and best practices for `import std;`, interface & internal partitions, CMake 3.28+ (`FILE_SET CXX_MODULES`), and header migration (`get_cpp_modules_guide`).
 - **Modern C/C++ Tooling Ecosystem**: In-depth recipes and starter configs for `xmake` (Lua build system with native C++20 modules), `clang-format`, `clang-tidy`, and runtime sanitizers (`get_cpp_tooling_guide`).
 - **SEI CERT C++ Security Standard**: Complete catalog of 83 official rules with CWE mappings, heuristic auditing, and compliant fixes for memory safety, concurrency, strings, integers, and UB prevention (`check_secure_coding`).
@@ -532,6 +534,54 @@ Formats C/C++ source code snippets or files using `clang-format`. Ideal for form
   }
   ```
 
+### 17. `scaffold_project`
+
+Bootstraps a modern, production-ready C++ project configured with build systems (`xmake` or `CMake`), C++ standards (`11` through `26`), unit testing (`Catch2`, `GoogleTest`, `doctest`), package managers (`xrepo`, `vcpkg`, `conan`), and intelligent LSP configurations (`.clang-format`, `.clangd`).
+
+- **Parameters**:
+  - `project_name` (`string`, required): Project name (e.g. `"my_awesome_app"`).
+  - `target_dir` (`string`, optional): Target directory for scaffolding (default: `./<project_name>`).
+  - `build_system` (`string`, optional, default `"xmake"`): Build system (`"xmake"` or `"cmake"`).
+  - `project_type` (`string`, optional, default `"executable"`): Type of project (`"executable"`, `"library"`, `"header-only"`, `"cxx-modules"`, `"qt"`, `"cuda"`).
+  - `cpp_standard` (`string`, optional, default `"20"`): C++ standard (`"11"`, `"14"`, `"17"`, `"20"`, `"23"`, `"26"`).
+  - `test_framework` (`string`, optional, default `"catch2"`): Test framework (`"catch2"`, `"gtest"`, `"doctest"`, `"none"`).
+  - `package_manager` (`string`, optional): Package manager (`"xrepo"`, `"vcpkg"`, `"conan"`, `"none"`).
+  - `init_clang_tools` (`boolean`, optional, default `true`): Generates `.clang-format` and `.clangd`.
+  - `init_git` (`boolean`, optional, default `false`): Initializes local git repository.
+  - `dry_run` (`boolean`, optional, default `false`): Previews generated file tree without writing to disk.
+  - `overwrite` (`boolean`, optional, default `false`): Allows overwriting existing non-empty directory.
+
+- **Output Example**:
+  ```json
+  {
+    "success": true,
+    "projectName": "my_app",
+    "projectDir": "/home/user/my_app",
+    "buildSystem": "xmake",
+    "projectType": "executable",
+    "cppStandard": "20",
+    "testFramework": "catch2",
+    "filesCreated": [
+      "xmake.lua",
+      ".clang-format",
+      ".clangd",
+      ".gitignore",
+      "README.md",
+      "include/my_app/my_app.hpp",
+      "src/my_app.cpp",
+      "src/main.cpp",
+      "tests/test_main.cpp"
+    ],
+    "nextSteps": [
+      "cd my_app",
+      "xmake",
+      "xmake run",
+      "xmake test",
+      "xmake project -k compile_commands"
+    ]
+  }
+  ```
+
 ---
 
 ## Resources Catalog
@@ -758,6 +808,12 @@ cpp-mcp tooling xmake toolchains
 # Format in-memory snippet or source files via clang-format
 cpp-mcp code-format --code "int main(){int a=1;return a;}"
 cpp-mcp code-format src/main.cpp --apply
+
+# Scaffold a new modern C++ project (xmake/CMake, C++20/23, Catch2/GTest, .clangd)
+cpp-mcp scaffold my_app
+cpp-mcp scaffold my_lib --type library --std 23 --test gtest
+cpp-mcp scaffold my_mod --type cxx-modules --std 20 --dry-run
+cpp-mcp scaffold my_cmake_app --build cmake --test catch2
 ```
 
 ---
