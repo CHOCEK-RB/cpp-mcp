@@ -426,7 +426,7 @@ export async function runCli(args: string[]): Promise<number> {
           console.error("Error: 'demangle' command requires a mangled symbol or piped input.");
           return 1;
         }
-        const res = demangleSymbol({ symbol: symbolToDemangle });
+        const res = await demangleSymbol({ symbol: symbolToDemangle });
         if (isJson) {
           console.log(JSON.stringify(res, null, 2));
           return 0;

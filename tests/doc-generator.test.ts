@@ -140,6 +140,64 @@ describe("doc-generator - clang-doc Discovery & Execution", () => {
     // Generated files must only contain md files, not the stale html file
     expect(res.filesGenerated.every((f) => f.relativePath.endsWith(".md"))).toBe(true);
   });
+
+  it("preserves hand-written files that share the target extension", async () => {
+    const outputDir = path.join(TEST_WORKSPACE, "docs/preserve-written");
+    fs.mkdirSync(outputDir, { recursive: true });
+    const handwritten = path.join(outputDir, "handwritten.md");
+    fs.writeFileSync(handwritten, "# Hand-written\n", "utf-8");
+
+    const res = await generateDocumentation({
+      workspace: TEST_WORKSPACE,
+      outputDir: "docs/preserve-written",
+      format: "md",
+    });
+
+    expect(res.success).toBe(true);
+    expect(fs.existsSync(handwritten)).toBe(true);
+    expect(fs.readFileSync(handwritten, "utf-8")).toBe("# Hand-written\n");
+  });
+
+  it("removes only previously generated files recorded in the manifest", async () => {
+    const outputDir = path.join(TEST_WORKSPACE, "docs/manifest-cleanup");
+    fs.mkdirSync(outputDir, { recursive: true });
+    const obsolete = path.join(outputDir, "obsolete.md");
+    const handwritten = path.join(outputDir, "keep-me.md");
+    fs.writeFileSync(obsolete, "# obsolete\n", "utf-8");
+    fs.writeFileSync(handwritten, "# keep\n", "utf-8");
+    fs.writeFileSync(
+      path.join(outputDir, ".cpp-mcp-docs.json"),
+      JSON.stringify(["obsolete.md"]),
+      "utf-8",
+    );
+
+    const res = await generateDocumentation({
+      workspace: TEST_WORKSPACE,
+      outputDir: "docs/manifest-cleanup",
+      format: "md",
+    });
+
+    expect(res.success).toBe(true);
+    expect(fs.existsSync(obsolete)).toBe(false);
+    expect(fs.existsSync(handwritten)).toBe(true);
+  });
+
+  it("never reports its own manifest as a generated document", async () => {
+    const outputDir = path.join(TEST_WORKSPACE, "docs/manifest-reported");
+    fs.mkdirSync(outputDir, { recursive: true });
+    const manifest = path.join(outputDir, ".cpp-mcp-docs.json");
+    fs.writeFileSync(manifest, JSON.stringify(["previous.md"]), "utf-8");
+
+    const res = await generateDocumentation({
+      workspace: TEST_WORKSPACE,
+      outputDir: "docs/manifest-reported",
+      format: "md",
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.filesGenerated.some((f) => f.relativePath === ".cpp-mcp-docs.json")).toBe(false);
+    expect(fs.existsSync(manifest)).toBe(true);
+  });
 });
 
 describe("CLI - docs command", () => {

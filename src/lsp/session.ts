@@ -24,6 +24,20 @@ export type SpawnProcess = (
   options: { stdio: ["pipe", "pipe", "pipe"] },
 ) => ChildProcess;
 
+/**
+ * Normalizes the `queryDriver` option / `CLANGD_QUERY_DRIVER` env value into a
+ * de-duplicated list of compiler paths or globs.
+ */
+function normalizeQueryDriver(value?: string | string[]): string[] {
+  if (!value) return [];
+  const raw = Array.isArray(value) ? value.join(",") : value;
+  const parts = raw
+    .split(/[,\s]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return [...new Set(parts)];
+}
+
 export interface ClangdSessionOptions {
   compileCommandsDir?: string;
   workspaceDir?: string;
@@ -33,6 +47,12 @@ export interface ClangdSessionOptions {
   spawnProcess?: SpawnProcess;
   /** Timeout for the LSP initialize handshake, in milliseconds. */
   initializeTimeoutMs?: number;
+  /**
+   * Compiler driver(s) clangd may query for builtin system includes
+   * (gcc and cross-toolchains). Also read from `CLANGD_QUERY_DRIVER`
+   * (comma- or whitespace-separated).
+   */
+  queryDriver?: string | string[];
 }
 
 export class ClangdSession extends EventEmitter {
@@ -46,6 +66,7 @@ export class ClangdSession extends EventEmitter {
   private openDocuments = new Map<string, number>();
   private spawnFn: SpawnProcess;
   private initializeTimeoutMs: number;
+  private queryDriver: string[];
   private closing = false;
 
   constructor(options: ClangdSessionOptions = {}) {
@@ -58,6 +79,7 @@ export class ClangdSession extends EventEmitter {
     this.clangdPath = options.clangdPath || process.env.CLANGD_PATH || "clangd";
     this.spawnFn = options.spawnProcess ?? (spawn as unknown as SpawnProcess);
     this.initializeTimeoutMs = options.initializeTimeoutMs ?? 15000;
+    this.queryDriver = normalizeQueryDriver(options.queryDriver ?? process.env.CLANGD_QUERY_DRIVER);
   }
 
   /**
@@ -72,6 +94,11 @@ export class ClangdSession extends EventEmitter {
       "--clang-tidy=false",
       "--header-insertion=never",
     ];
+
+    // Without a query driver, clangd cannot resolve gcc/cross-toolchain builtin headers.
+    if (this.queryDriver.length > 0) {
+      args.push(`--query-driver=${this.queryDriver.join(",")}`);
+    }
 
     const child = this.spawnFn(this.clangdPath, args, {
       stdio: ["pipe", "pipe", "pipe"],

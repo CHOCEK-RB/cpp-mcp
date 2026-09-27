@@ -7,6 +7,7 @@ import { existsSync, promises as fs } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import { findExistingCompilationDb } from "../project/xmake.js";
+import { resolveClangTool } from "./clang-tool-resolver.js";
 import { generateSimpleDiff } from "./code-formatter.js";
 import { scanSourceFiles } from "./compile-db.js";
 
@@ -63,35 +64,7 @@ export async function findClangReorderFields(customPath?: string): Promise<{
   path?: string;
   version?: string;
 }> {
-  const candidates = customPath
-    ? [customPath]
-    : [
-        "clang-reorder-fields",
-        "/usr/bin/clang-reorder-fields",
-        "/usr/local/bin/clang-reorder-fields",
-        "clang-reorder-fields-22",
-        "clang-reorder-fields-21",
-        "clang-reorder-fields-20",
-        "clang-reorder-fields-19",
-        "clang-reorder-fields-18",
-        "clang-reorder-fields-17",
-      ];
-
-  for (const candidate of candidates) {
-    try {
-      const { stdout } = await execFileAsync(candidate, ["--version"], { timeout: 3000 });
-      const versionMatch = stdout.match(/version\s+([0-9]+\.[0-9]+(?:\.[0-9]+)?)/i);
-      return {
-        available: true,
-        path: candidate,
-        version: versionMatch ? versionMatch[1] : undefined,
-      };
-    } catch {
-      // Continue checking next candidate
-    }
-  }
-
-  return { available: false };
+  return resolveClangTool({ name: "clang-reorder-fields", customPath });
 }
 
 interface SingleFileOutcome {
