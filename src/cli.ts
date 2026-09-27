@@ -11,6 +11,7 @@ import { searchCodeSymbols } from "./tools/code-search.js";
 import { sessionManager } from "./tools/code-session-manager.js";
 import { type CompilerName, checkCompilerSupport } from "./tools/compiler-support.js";
 import { demangleSymbol } from "./tools/demangle.js";
+import { type DocFormat, generateDocumentation } from "./tools/doc-generator.js";
 import { explainCompilerError } from "./tools/error-explainer.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
@@ -51,6 +52,7 @@ Commands:
   code-format [file]                Format C/C++ source code or file via clang-format (--style, --apply)
   scaffold <name>                   Scaffold modern C++ project (xmake/CMake, C++20, Catch2, clangd)
   explain-error <text|->            Explain complex C++ compiler or linker errors (or pipe via stdin)
+  docs [files...]                   Generate API documentation via clang-doc (--format, --output)
   compiler <feature> [options]      Check compiler support matrix (GCC, Clang, MSVC, Apple Clang)
   demangle <symbol|->               Demangle Itanium or MSVC mangled symbols (or stdin)
   cert <rule_id|cwe|category>       Audit against SEI CERT C++ rules and CWEs
@@ -80,6 +82,10 @@ Options:
   --force, --overwrite              Overwrite existing non-empty directory during scaffold
   --severity <level>                Filter diagnostics (all, error, warning)
   --code <code>                     Inline code snippet to check or format without saving to disk
+  --output, -o <dir>                Output directory for generated documentation (default: docs/api)
+  --format <format>                 Doc format: 'md', 'html', 'json', 'yaml' (default: md)
+  --public                          Document only public declarations
+  --doxygen                         Parse only Doxygen-style comments
   --compiler <name>                 Compiler name for compatibility checks (gcc, clang, msvc, apple_clang)
   --version <ver>                   Compiler version to evaluate against feature requirement
   -v, --version                     Print version and exit
@@ -169,10 +175,30 @@ export async function runCli(args: string[]): Promise<number> {
   let flagGit = false;
   let flagForce = false;
   let flagDryRun = false;
+  let flagOutput: string | undefined;
+  let flagFormat: string | undefined;
+  let flagPublic = false;
+  let flagDoxygen = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (!arg || arg === "--json" || arg === "--raw") {
+      continue;
+    }
+    if (arg === "--public") {
+      flagPublic = true;
+      continue;
+    }
+    if (arg === "--doxygen") {
+      flagDoxygen = true;
+      continue;
+    }
+    if ((arg === "--output" || arg === "-o") && i + 1 < args.length) {
+      flagOutput = args[++i];
+      continue;
+    }
+    if (arg === "--format" && i + 1 < args.length) {
+      flagFormat = args[++i];
       continue;
     }
     if (arg === "--apply") {
@@ -1160,6 +1186,66 @@ export async function runCli(args: string[]): Promise<number> {
           }
         }
 
+        return 0;
+      }
+
+      case "docs":
+      case "generate-docs":
+      case "clang-doc": {
+        const VALID_FORMATS = new Set(["md", "html", "json", "yaml"]);
+        if (flagFormat && !VALID_FORMATS.has(flagFormat)) {
+          console.error(
+            `Error: Invalid format '${flagFormat}'. Supported formats: ${Array.from(VALID_FORMATS).join(", ")}.`,
+          );
+          return 1;
+        }
+
+        const filesToDoc = positionalArgs.slice(1);
+        const res = await generateDocumentation({
+          workspace: flagWorkspace,
+          files: filesToDoc.length > 0 ? filesToDoc : undefined,
+          outputDir: flagOutput,
+          format: flagFormat as DocFormat | undefined,
+          publicOnly: flagPublic,
+          doxygenOnly: flagDoxygen,
+          dryRun: flagDryRun,
+        });
+
+        if (isJson) {
+          console.log(JSON.stringify(res, null, 2));
+          return res.success ? 0 : 1;
+        }
+
+        if (isRaw) {
+          console.log(res.outputDir);
+          return res.success ? 0 : 1;
+        }
+
+        if (!res.success) {
+          console.error(`Error: ${res.summary}`);
+          if (res.error) {
+            console.error(`\n${res.error}`);
+          }
+          return 1;
+        }
+
+        console.log(`Documentation Generated (${res.tool}):`);
+        console.log(`Format:       ${res.format.toUpperCase()}`);
+        console.log(`Output Dir:   ${res.outputDir}`);
+        console.log(`Total Files:  ${res.totalFiles} generated`);
+        if (res.filesGenerated.length > 0) {
+          console.log("\nGenerated Files:");
+          for (const f of res.filesGenerated.slice(0, 10)) {
+            console.log(`  + ${f.relativePath} (${f.sizeBytes} bytes)`);
+          }
+          if (res.filesGenerated.length > 10) {
+            console.log(`  ... and ${res.filesGenerated.length - 10} more files`);
+          }
+        }
+        if (res.previewMarkdown) {
+          console.log("\nDocumentation Preview (index.md):");
+          console.log(res.previewMarkdown);
+        }
         return 0;
       }
 

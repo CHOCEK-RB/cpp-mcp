@@ -17,6 +17,7 @@ import { searchCodeSymbols } from "./tools/code-search.js";
 import { sessionManager } from "./tools/code-session-manager.js";
 import { checkCompilerSupport } from "./tools/compiler-support.js";
 import { demangleSymbol } from "./tools/demangle.js";
+import { generateDocumentation } from "./tools/doc-generator.js";
 import { explainCompilerError } from "./tools/error-explainer.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
@@ -1155,6 +1156,85 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error explaining compiler error: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "generate_documentation",
+    {
+      description:
+        "Generate API documentation from C/C++ source code using clang-doc (Markdown, HTML, JSON, YAML). Extracts Doxygen comments, types, and inheritance.",
+      inputSchema: {
+        workspace: z
+          .string()
+          .optional()
+          .describe(
+            "Project workspace directory containing compile_commands.json, xmake.lua, or CMakeLists.txt (defaults to current directory).",
+          ),
+        files: z
+          .array(z.string())
+          .optional()
+          .describe("Optional specific source or header files to document."),
+        output_dir: z
+          .string()
+          .optional()
+          .default("docs/api")
+          .describe("Destination output directory (default: 'docs/api')."),
+        format: z
+          .enum(["md", "html", "json", "yaml"])
+          .optional()
+          .default("md")
+          .describe(
+            "Documentation output format: 'md', 'html', 'json', or 'yaml'. Defaults to 'md'.",
+          ),
+        public_only: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe("Document only public declarations."),
+        doxygen_only: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe("Parse only Doxygen-style comments."),
+        dry_run: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe("Preview generation without writing files to disk."),
+      },
+    },
+    async ({ workspace, files, output_dir, format, public_only, doxygen_only, dry_run }) => {
+      try {
+        const result = await generateDocumentation({
+          workspace,
+          files,
+          outputDir: output_dir,
+          format,
+          publicOnly: public_only,
+          doxygenOnly: doxygen_only,
+          dryRun: dry_run,
+        });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error generating documentation: ${err instanceof Error ? err.message : String(err)}`,
             },
           ],
         };
