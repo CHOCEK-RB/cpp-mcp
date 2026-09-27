@@ -3,6 +3,7 @@
 
 import { execFile } from "node:child_process";
 import { existsSync, promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { resolveProjectBuildInfo } from "../project/xmake.js";
@@ -65,34 +66,98 @@ export const FORMAT_EXTENSIONS: Record<DocFormat, string[]> = {
 };
 
 /**
- * Removes stale files belonging to the target format prior to re-generation.
+ * Name of the manifest that records the files produced by this tool. It lets a later
+ * run remove only its own stale output instead of recursively deleting every file that
+ * happens to share the target extension.
  */
-async function cleanStaleDocs(dir: string, format: DocFormat): Promise<void> {
-  if (!existsSync(dir)) return;
-  const extensions = new Set(FORMAT_EXTENSIONS[format]);
+const DOCS_MANIFEST_FILE = ".cpp-mcp-docs.json";
+
+/**
+ * Reads the list of files produced by a previous run. Returns an empty list when the
+ * manifest is absent or unreadable.
+ */
+async function readDocsManifest(dir: string): Promise<string[]> {
   try {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        await cleanStaleDocs(fullPath, format);
-        try {
-          const remaining = await fs.readdir(fullPath);
-          if (remaining.length === 0) {
-            await fs.rmdir(fullPath);
-          }
-        } catch {
-          // Ignore rmdir errors
-        }
-      } else if (entry.isFile()) {
-        const ext = path.extname(entry.name).toLowerCase();
-        if (extensions.has(ext)) {
-          await fs.unlink(fullPath);
-        }
-      }
-    }
+    const raw = await fs.readFile(path.join(dir, DOCS_MANIFEST_FILE), "utf-8");
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((entry): entry is string => typeof entry === "string");
   } catch {
-    // Ignore cleanup errors
+    return [];
+  }
+}
+
+/**
+ * Persists the list of files produced by the current run. Best-effort: a failure to
+ * write the manifest must never fail generation.
+ */
+async function writeDocsManifest(dir: string, files: string[]): Promise<void> {
+  try {
+    await fs.writeFile(
+      path.join(dir, DOCS_MANIFEST_FILE),
+      `${JSON.stringify([...files].sort(), null, 2)}\n`,
+      "utf-8",
+    );
+  } catch {
+    // Ignore manifest write errors.
+  }
+}
+
+/**
+ * Removes documentation files produced by a previous run that clang-doc no longer
+ * regenerates. Only paths recorded in the manifest are touched, so hand-written files
+ * sharing the same extension survive.
+ */
+async function removeStaleDocs(
+  dir: string,
+  previousFiles: string[],
+  currentFiles: Set<string>,
+): Promise<void> {
+  const baseDir = path.resolve(dir);
+  for (const relativePath of previousFiles) {
+    if (currentFiles.has(relativePath)) continue;
+    const target = path.resolve(baseDir, relativePath);
+    // Never follow a manifest entry outside the output directory.
+    if (!target.startsWith(`${baseDir}${path.sep}`)) continue;
+    try {
+      await fs.rm(target, { force: true });
+      await pruneEmptyDirs(path.dirname(target), baseDir);
+    } catch {
+      // Best-effort cleanup.
+    }
+  }
+}
+
+/**
+ * Removes directories left empty after stale files were deleted, stopping at `stopDir`.
+ */
+async function pruneEmptyDirs(startDir: string, stopDir: string): Promise<void> {
+  let current = startDir;
+  while (current !== stopDir && current.startsWith(stopDir)) {
+    try {
+      const remaining = await fs.readdir(current);
+      if (remaining.length > 0) return;
+      await fs.rmdir(current);
+    } catch {
+      return;
+    }
+    current = path.dirname(current);
+  }
+}
+
+/**
+ * Recursively copies `source` into `destination`, overwriting files that already exist.
+ * Used to publish the staging directory produced by clang-doc into the output directory.
+ */
+async function copyTree(source: string, destination: string): Promise<void> {
+  const stats = await fs.stat(source);
+  if (stats.isDirectory()) {
+    await fs.mkdir(destination, { recursive: true });
+    for (const entry of await fs.readdir(source)) {
+      await copyTree(path.join(source, entry), path.join(destination, entry));
+    }
+  } else {
+    await fs.copyFile(source, destination);
   }
 }
 
@@ -118,7 +183,7 @@ async function collectGeneratedFiles(
       results.push(...nested);
     } else if (entry.isFile()) {
       const ext = path.extname(entry.name).toLowerCase();
-      if (validExtensions.has(ext)) {
+      if (entry.name !== DOCS_MANIFEST_FILE && validExtensions.has(ext)) {
         const stats = await fs.stat(fullPath);
         results.push({
           relativePath: path.relative(baseDir, fullPath),
@@ -195,12 +260,15 @@ export async function generateDocumentation(
     };
   }
 
-  // 3. Prepare output directory & clean stale files of target format
+  // 3. Stage generation in a temporary directory so a failed run never touches the
+  // existing documentation, and files clang-doc produced can be told apart from
+  // hand-written ones before publishing.
   await fs.mkdir(outputDir, { recursive: true });
-  await cleanStaleDocs(outputDir, format);
+  const previousDocs = await readDocsManifest(outputDir);
+  const stagingDir = await fs.mkdtemp(path.join(os.tmpdir(), "cpp-mcp-clang-doc-"));
 
   // 4. Construct clang-doc command arguments
-  const args: string[] = [`--format=${format}`, `--output=${outputDir}`];
+  const args: string[] = [`--format=${format}`, `--output=${stagingDir}`];
 
   if (params.publicOnly) {
     args.push("--public");
@@ -252,18 +320,18 @@ export async function generateDocumentation(
     args.push("--", "-std=c++20", `-I${path.join(workspaceDir, "include")}`);
   }
 
-  // 5. Execute clang-doc
+  // 5. Execute clang-doc into the staging directory, then publish the result.
   try {
     await execFileAsync(clangDocInfo.path, args, {
       cwd: workspaceDir,
       timeout: 60000,
     });
 
-    const generatedFiles = await collectGeneratedFiles(outputDir, outputDir, format);
+    const stagedFiles = await collectGeneratedFiles(stagingDir, stagingDir, format);
 
     const hasMeaningfulDocs =
-      generatedFiles.length > 0 &&
-      generatedFiles.some((f) => {
+      stagedFiles.length > 0 &&
+      stagedFiles.some((f) => {
         const rel = f.relativePath.toLowerCase();
         return (
           rel !== "index.md" &&
@@ -288,6 +356,18 @@ export async function generateDocumentation(
           "clang-doc finished with exit code 0 but emitted no symbol documentation. Ensure the source files contain valid C/C++ declarations, or check if --public excluded private symbols.",
       };
     }
+
+    // Publish the staged files into the output directory, then remove files this tool
+    // generated on a previous run that clang-doc no longer emits. Hand-written files are
+    // never recorded in the manifest, so they are left untouched.
+    const producedRelPaths = new Set(stagedFiles.map((file) => file.relativePath));
+    await copyTree(stagingDir, outputDir);
+    const generatedFiles = (await collectGeneratedFiles(outputDir, outputDir, format)).filter(
+      (file) => producedRelPaths.has(file.relativePath),
+    );
+
+    await removeStaleDocs(outputDir, previousDocs, producedRelPaths);
+    await writeDocsManifest(outputDir, [...producedRelPaths]);
 
     // Read index.md or primary documentation file for instant preview
     let previewMarkdown: string | undefined;
@@ -332,6 +412,8 @@ export async function generateDocumentation(
       summary: `clang-doc execution failed: ${errDetails.slice(0, 300)}`,
       error: errDetails,
     };
+  } finally {
+    await fs.rm(stagingDir, { recursive: true, force: true });
   }
 }
 
