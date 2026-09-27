@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/CHOCEK-RB/cpp-mcp/compare/cpp-mcp-v1.4.0...cpp-mcp-v1.5.0) (2026-09-27)
+
+
+### Features
+
+* live diagnostics, AST renamer, and official xmake skills ([#37](https://github.com/CHOCEK-RB/cpp-mcp/issues/37)) ([b385524](https://github.com/CHOCEK-RB/cpp-mcp/commit/b3855248c33c4166cdc6c6b15097c56b81fb5c8b))
+
 ## [1.4.0](https://github.com/CHOCEK-RB/cpp-mcp/compare/cpp-mcp-v1.3.0...cpp-mcp-v1.4.0) (2026-09-27)
 
 
