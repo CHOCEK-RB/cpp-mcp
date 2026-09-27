@@ -1,7 +1,11 @@
 // src/cli.ts
 // Direct CLI mode for cpp-mcp without an MCP client.
 import pkg from "../package.json" with { type: "json" };
+import { isExecutableAvailable, resolveProjectBuildInfo } from "./project/xmake.js";
 import { checkSecureCoding } from "./tools/cert.js";
+import { analyzeCodeSymbol } from "./tools/code-analyzer.js";
+import { searchCodeSymbols } from "./tools/code-search.js";
+import { sessionManager } from "./tools/code-session-manager.js";
 import { type CompilerName, checkCompilerSupport } from "./tools/compiler-support.js";
 import { demangleSymbol } from "./tools/demangle.js";
 import { getGuideline } from "./tools/guidelines.js";
@@ -22,6 +26,9 @@ Commands:
   header <symbol>                   Lookup standard header for a symbol (e.g. std::span -> <span>)
   query <symbol|concept>            Comprehensive lookup across headers and documentation
   search <query>                    Search cppreference.com for documentation and URLs
+  project [dir]                     Inspect workspace build configuration, compile_commands, and tools
+  code-search <query>               Search symbols in workspace code (clangd + xmake/CMake)
+  code-analyze <symbol>             Analyze symbol definition, hierarchy, and usage
   compiler <feature> [options]      Check compiler support matrix (GCC, Clang, MSVC, Apple Clang)
   demangle <symbol|->               Demangle Itanium or MSVC mangled symbols (or stdin)
   cert <rule_id|cwe|category>       Audit against SEI CERT C++ rules and CWEs
@@ -33,6 +40,9 @@ Commands:
 Options:
   --json                            Output response in raw JSON format
   --raw                             Print only primary scalar value (e.g. only header name)
+  --workspace <dir>                 Project root directory for code-search and code-analyze
+  --file <path>                     Source file path for symbol disambiguation
+  --line <num>                      Line number (1-indexed) for symbol disambiguation
   --compiler <name>                 Compiler name for compatibility checks (gcc, clang, msvc, apple_clang)
   --version <ver>                   Compiler version to evaluate against feature requirement
   -v, --version                     Print version and exit
@@ -72,6 +82,9 @@ export async function runCli(args: string[]): Promise<number> {
   const positionalArgs: string[] = [];
   let flagCompiler: string | undefined;
   let flagVersion: string | undefined;
+  let flagWorkspace: string | undefined;
+  let flagFile: string | undefined;
+  let flagLine: number | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -84,6 +97,18 @@ export async function runCli(args: string[]): Promise<number> {
     }
     if (arg === "--version" && i + 1 < args.length) {
       flagVersion = args[++i];
+      continue;
+    }
+    if (arg === "--workspace" && i + 1 < args.length) {
+      flagWorkspace = args[++i];
+      continue;
+    }
+    if (arg === "--file" && i + 1 < args.length) {
+      flagFile = args[++i];
+      continue;
+    }
+    if (arg === "--line" && i + 1 < args.length) {
+      flagLine = Number.parseInt(args[++i] ?? "0", 10);
       continue;
     }
     if (!arg.startsWith("-")) {
@@ -405,6 +430,126 @@ export async function runCli(args: string[]): Promise<number> {
         return 0;
       }
 
+      case "project": {
+        const ws = target || flagWorkspace || process.cwd();
+        const info = await resolveProjectBuildInfo({ workspaceDir: ws });
+        const [hasClangd, hasXmake] = await Promise.all([
+          isExecutableAvailable("clangd"),
+          isExecutableAvailable("xmake"),
+        ]);
+        const fullInfo = {
+          ...info,
+          toolchain: {
+            clangd: hasClangd,
+            xmake: hasXmake,
+          },
+        };
+
+        if (isJson) {
+          console.log(JSON.stringify(fullInfo, null, 2));
+          return 0;
+        }
+
+        console.log("C/C++ Project Build Details:");
+        console.log(`Build System:        ${fullInfo.buildSystem}`);
+        console.log(`Root Directory:      ${fullInfo.rootDir}`);
+        if (fullInfo.compileCommandsPath) {
+          console.log(`Compilation DB:      ${fullInfo.compileCommandsPath}`);
+        }
+        if (fullInfo.entryCount !== undefined) {
+          console.log(`Translation Units:   ${fullInfo.entryCount}`);
+        }
+        if (fullInfo.generated) {
+          console.log("Auto-Generated:      yes (via xmake)");
+        }
+        console.log("Toolchain Status:");
+        console.log(`  clangd:            ${hasClangd ? "available" : "not found in PATH"}`);
+        console.log(`  xmake:             ${hasXmake ? "available" : "not found in PATH"}`);
+        if (fullInfo.error) {
+          console.log(`Note:                ${fullInfo.error}`);
+        }
+        return fullInfo.found ? 0 : 1;
+      }
+
+      case "code-search": {
+        if (!target) {
+          console.error(
+            "Error: 'code-search' command requires a query (e.g. 'cpp-mcp code-search Calculator')",
+          );
+          return 1;
+        }
+        const res = await searchCodeSymbols({
+          query: target,
+          workspaceDir: flagWorkspace,
+        });
+        if (isJson) {
+          console.log(JSON.stringify(res, null, 2));
+          return res.found ? 0 : 1;
+        }
+        if (!res.found) {
+          console.error(res.error || `No symbols found matching '${target}'.`);
+          return 1;
+        }
+        if (isRaw) {
+          for (const s of res.symbols) {
+            console.log(`${s.name} ${s.file}:${s.line}`);
+          }
+          return 0;
+        }
+        console.log(`Found ${res.symbols.length} code symbols for '${target}':`);
+        for (const s of res.symbols) {
+          const container = s.container ? ` [${s.container}]` : "";
+          console.log(`- ${s.name} (${s.kind})${container} -> ${s.file}:${s.line}`);
+        }
+        return 0;
+      }
+
+      case "code-analyze": {
+        if (!target) {
+          console.error(
+            "Error: 'code-analyze' command requires a symbol name (e.g. 'cpp-mcp code-analyze Calculator::add')",
+          );
+          return 1;
+        }
+        const res = await analyzeCodeSymbol({
+          symbol: target,
+          workspaceDir: flagWorkspace,
+          file: flagFile,
+          line: flagLine,
+        });
+        if (isJson) {
+          console.log(JSON.stringify(res, null, 2));
+          return res.found ? 0 : 1;
+        }
+        if (!res.found) {
+          console.error(res.error || `Symbol '${target}' not found in workspace.`);
+          return 1;
+        }
+        if (isRaw) {
+          console.log(res.signature || res.symbol);
+          return 0;
+        }
+        console.log(`Symbol: ${res.symbol} (${res.kind || "symbol"})`);
+        if (res.signature) console.log(`Signature: ${res.signature}`);
+        if (res.declaration)
+          console.log(`Declaration: ${res.declaration.file}:${res.declaration.line}`);
+        if (res.definition)
+          console.log(`Definition: ${res.definition.file}:${res.definition.line}`);
+        if (res.members && res.members.length > 0) {
+          console.log(`Members (${res.members.length}):`);
+          for (const m of res.members.slice(0, 10)) {
+            console.log(`  - ${m.name} (${m.kind}) [L${m.line}]`);
+          }
+        }
+        if (res.callHierarchy?.incomingCalls?.length) {
+          console.log("Incoming Calls:");
+          for (const c of res.callHierarchy.incomingCalls.slice(0, 5)) {
+            console.log(`  <- ${c.from.name} (${c.from.file}:${c.from.line})`);
+          }
+        }
+        return 0;
+      }
+
       default: {
         // Direct shorthand query: e.g. `cpp-mcp std::span`
         const queryTerm = positionalArgs.join(" ").trim();
@@ -433,4 +578,17 @@ export async function runCli(args: string[]): Promise<number> {
     );
     return 1;
   }
+}
+
+if (typeof import.meta !== "undefined" && import.meta.main) {
+  runCli(process.argv.slice(2))
+    .then(async (code) => {
+      await sessionManager.closeAll();
+      process.exit(code);
+    })
+    .catch(async (err) => {
+      await sessionManager.closeAll();
+      console.error("Fatal CLI error:", err);
+      process.exit(1);
+    });
 }

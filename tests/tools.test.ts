@@ -150,5 +150,10 @@ describe("McpServer setup", () => {
   it("should create server with registered tools", () => {
     const server = createServer();
     expect(server).toBeDefined();
+    // @ts-expect-error accessing private property for test verification
+    const tools = server._registeredTools;
+    expect(tools.search_code_symbols).toBeDefined();
+    expect(tools.analyze_code_symbol).toBeDefined();
+    expect(tools.get_project_details).toBeDefined();
   });
 });
