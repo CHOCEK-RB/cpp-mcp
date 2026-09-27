@@ -1,9 +1,11 @@
 import * as cheerio from "cheerio";
 import TurndownService from "turndown";
+import pkg from "../../package.json" with { type: "json" };
 import { type PageResultPayload, pageCache } from "../cache.js";
+import { fetchWithRetry } from "./fetch-utils.js";
 
 export const PAGE_SIZE = 1024 * 16;
-export const USER_AGENT = "cpp-mcp/1.1.1 (+https://github.com/CHOCEK-RB/cpp-mcp)";
+export const USER_AGENT = `cpp-mcp/${pkg.version} (+https://github.com/CHOCEK-RB/cpp-mcp)`;
 export const HTTP_TIMEOUT_MS = 15_000;
 
 const turndownService = new TurndownService({
@@ -55,14 +57,18 @@ export async function getCppreferencePage(
   let fullMarkdown = await pageCache.get(url);
 
   if (!fullMarkdown) {
-    const response = await fetchFn(url, {
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept: "text/html,application/xhtml+xml",
+    const response = await fetchWithRetry(
+      url,
+      {
+        headers: {
+          "User-Agent": USER_AGENT,
+          Accept: "text/html,application/xhtml+xml",
+        },
+        redirect: "follow",
+        signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
       },
-      redirect: "follow",
-      signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
-    });
+      fetchFn,
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to retrieve page "${url}" (HTTP Status ${response.status})`);

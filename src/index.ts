@@ -3,9 +3,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import pkg from "../package.json" with { type: "json" };
+import { runCli } from "./cli.js";
 import { registerPrompts } from "./prompts/index.js";
 import { registerResources } from "./resources/index.js";
 import { checkSecureCoding } from "./tools/cert.js";
+import { checkCompilerSupport } from "./tools/compiler-support.js";
+import { demangleSymbol } from "./tools/demangle.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
 import { getCppModulesGuide } from "./tools/modules.js";
@@ -14,8 +18,9 @@ import { searchCppreference } from "./tools/search.js";
 import { checkCppStandard } from "./tools/standards.js";
 import { getCppToolingGuide } from "./tools/tooling.js";
 
+export { runCli } from "./cli.js";
 export const SERVER_NAME = "cpp-mcp";
-export const SERVER_VERSION = "1.1.1";
+export const SERVER_VERSION = pkg.version;
 
 /**
  * Creates and configures the C/C++ Reference MCP Server with tools.
@@ -317,10 +322,10 @@ export function createServer(): McpServer {
             "Specific SEI CERT rule ID (e.g. 'MEM50-CPP', 'OOP50-CPP', 'CON53-CPP', 'EXP54-CPP') or CWE ID (e.g. 'CWE-416', 'CWE-833')",
           ),
         category: z
-          .enum(["MEM", "EXP", "CTR", "ERR", "CON", "OOP", "MSC", "DCL", "FIO"])
+          .enum(["MEM", "EXP", "CTR", "ERR", "CON", "OOP", "MSC", "DCL", "FIO", "STR", "INT"])
           .optional()
           .describe(
-            "SEI CERT category filter ('MEM' memory, 'CON' concurrency, 'EXP' expressions, 'OOP' object-oriented, 'ERR' exceptions, 'CTR' containers)",
+            "SEI CERT category filter ('MEM' memory, 'CON' concurrency, 'EXP' expressions, 'OOP' object-oriented, 'ERR' exceptions, 'CTR' containers, 'STR' strings, 'INT' integers, 'FIO' input-output, 'DCL' declarations, 'MSC' miscellaneous)",
           ),
         query: z
           .string()
@@ -421,6 +426,112 @@ export function createServer(): McpServer {
     },
   );
 
+  server.registerTool(
+    "check_compiler_support",
+    {
+      description:
+        "Check minimum compiler support versions (GCC, Clang, MSVC, Apple Clang) for modern C++ features (e.g. std::print, std::expected, import std, std::generator, coroutines, concepts, modules). Optionally evaluate if a specific user compiler version is compatible.",
+      inputSchema: {
+        feature: z
+          .string()
+          .optional()
+          .describe(
+            "C++ standard feature, library symbol, or keyword (e.g. 'std::print', 'expected', 'import std', 'generator', 'deducing this'). If omitted, returns an overview of features.",
+          ),
+        standard: z
+          .string()
+          .optional()
+          .describe(
+            "Filter features by C++ standard version (e.g. 'C++20', 'C++23', 'C++26', 'C++17').",
+          ),
+        compiler: z
+          .enum(["gcc", "clang", "msvc", "apple_clang"])
+          .optional()
+          .describe("Specific compiler to check compatibility against."),
+        version: z
+          .union([z.string(), z.number()])
+          .optional()
+          .describe(
+            "User compiler version (e.g. '13.2', '16.0', 17) to evaluate compatibility against minimum requirements.",
+          ),
+      },
+    },
+    async ({ feature, standard, compiler, version }) => {
+      try {
+        const result = checkCompilerSupport({
+          feature,
+          standard,
+          compiler,
+          version,
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error checking compiler support: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "demangle_symbol",
+    {
+      description:
+        "Demangle C++ mangled symbol names (Itanium ABI for GCC/Clang, or MSVC) into human-readable function signatures, or translate entire compiler/linker error trace logs containing mangled identifiers.",
+      inputSchema: {
+        symbol: z
+          .string()
+          .min(1)
+          .describe(
+            "Mangled symbol (e.g. '_ZNSt6vectorIiSaIiEE9push_backERKi', '_Z3addii', '?func@@YAHXZ') or an entire compiler/linker error trace containing mangled symbols.",
+          ),
+        strip_params: z
+          .boolean()
+          .optional()
+          .describe("If true, strips function parameter types to return only the qualified name."),
+      },
+    },
+    async ({ symbol, strip_params }) => {
+      try {
+        const result = demangleSymbol({
+          symbol,
+          strip_params,
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error demangling symbol: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
   registerResources(server);
   registerPrompts(server);
 
@@ -444,8 +555,24 @@ const isDirectExecution =
       entryArg.includes("cpp-mcp")));
 
 if (isDirectExecution) {
-  main().catch((err) => {
-    console.error("Fatal error starting cpp-mcp server:", err);
-    process.exit(1);
-  });
+  const args = typeof process !== "undefined" ? process.argv.slice(2) : [];
+  const isStdioMode =
+    args.length === 0 ||
+    args.includes("--stdio") ||
+    args[0] === "stdio" ||
+    args.includes("--transport");
+
+  if (!isStdioMode) {
+    runCli(args)
+      .then((code) => process.exit(code))
+      .catch((err) => {
+        console.error("Fatal CLI error:", err);
+        process.exit(1);
+      });
+  } else {
+    main().catch((err) => {
+      console.error("Fatal error starting cpp-mcp server:", err);
+      process.exit(1);
+    });
+  }
 }

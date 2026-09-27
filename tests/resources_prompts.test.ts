@@ -218,6 +218,12 @@ describe("MCP Resources & Prompts", () => {
     expect(result.messages[0].content.text).toContain("SEI CERT C++");
     expect(result.messages[0].content.text).toContain("CWE");
     expect(result.messages[0].content.text).toContain("category MEM");
+
+    const strResult = await handler({
+      code: "char buf[10]; std::cin >> buf;",
+      category: "STR",
+    });
+    expect(strResult.messages[0].content.text).toContain("category STR");
   });
 
   it("should return complete tooling catalog for cppref://tooling", async () => {
@@ -254,5 +260,43 @@ describe("MCP Resources & Prompts", () => {
     expect(result.messages[0].content.text).toContain("xmake");
     expect(result.messages[0].content.text).toContain("C++23");
     expect(result.messages[0].content.text).toContain("modular");
+  });
+
+  it("should return complete compiler support catalog for cppref://compiler-support", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResources["cppref://compiler-support"].readCallback;
+    const result = await handler(new URL("cppref://compiler-support"));
+    expect(result.contents).toHaveLength(1);
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed.length).toBeGreaterThanOrEqual(10);
+  });
+
+  it("should return detailed feature info for cppref://compiler-support/std-print", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResourceTemplates.cpp_compiler_support_detail.readCallback;
+    const result = await handler(new URL("cppref://compiler-support/std-print"), {
+      feature: "std-print",
+    });
+    expect(result.contents).toHaveLength(1);
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(parsed.id).toBe("std-print");
+    expect(parsed.compilers.gcc).toBe("13");
+    expect(parsed.compilers.clang).toBe("17");
+  });
+
+  it("should generate compiler compatibility prompt for cpp_check_compiler_compatibility", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredPrompts.cpp_check_compiler_compatibility.callback;
+    const result = await handler({
+      features: "std::print, std::expected",
+      compiler: "gcc",
+      version: "12.2",
+    });
+
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0].content.text).toContain("gcc 12.2");
+    expect(result.messages[0].content.text).toContain("std::print, std::expected");
+    expect(result.messages[0].content.text).toContain("Polyfills & Fallbacks");
   });
 });

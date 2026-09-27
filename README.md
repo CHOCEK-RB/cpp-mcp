@@ -23,6 +23,12 @@ flowchart TD
         Server --> T2["get_cppreference_page"]
         Server --> T3["lookup_header"]
         Server --> T4["check_cpp_standard"]
+        Server --> T5["get_guideline"]
+        Server --> T6["get_cpp_modules_guide"]
+        Server --> T7["check_secure_coding"]
+        Server --> T8["get_cpp_tooling_guide"]
+        Server --> T9["check_compiler_support"]
+        Server --> T10["demangle_symbol"]
     end
 
     subgraph Primitives ["MCP Native Primitives"]
@@ -32,7 +38,7 @@ flowchart TD
 
     subgraph Storage ["Tiered Storage & Fallback"]
         T1 & T2 & T3 & T4 --> Cache[("TieredCache\n(L1 LRU Memory + L2 Disk with TTL)")]
-        T3 & T4 --> StaticIdx[("Static ISO Index\n(C++98-C++26 & C89-C23)")]
+        T3 & T4 & T5 & T6 & T7 & T8 & T9 & T10 --> StaticIdx[("Curated Engines & Datasets\n(Guidelines, Modules, CERT, Tooling, Compiler Support, Demangler)")]
         Cache -- Miss --> Web["cppreference.com\n(HTTPS Scraper + Sanitizer)"]
     end
 ```
@@ -44,12 +50,13 @@ flowchart TD
 - **Authoritative C/C++ Lookup**: Instant access to standard headers, containers, algorithms, keywords, and C++20/23/26 features.
 - **C++20/23/26 Modules Architecture**: Dedicated offline guide and best practices for `import std;`, interface & internal partitions, CMake 3.28+ (`FILE_SET CXX_MODULES`), and header migration (`get_cpp_modules_guide`).
 - **Modern C/C++ Tooling Ecosystem**: In-depth recipes and starter configs for `xmake` (Lua build system with native C++20 modules), `clang-format`, `clang-tidy`, and runtime sanitizers (`get_cpp_tooling_guide`).
-- **SEI CERT C++ Security Standard**: Rules, CWE mappings, and compliant fixes for memory safety, concurrency, and UB prevention (`check_secure_coding`).
+- **SEI CERT C++ Security Standard**: Complete catalog of 83 official rules with CWE mappings, heuristic auditing, and compliant fixes for memory safety, concurrency, strings, integers, and UB prevention (`check_secure_coding`).
 - **C++ Core Guidelines Engine**: Offline catalog of 513 official rules with rationale, enforcement, and code examples (`get_guideline`).
 - **Header & Version Resolution**: Offline static indexing for ISO C/C++ headers and SD-6 feature test macros (`lookup_header`, `check_cpp_standard`).
 - **Tiered Cache with TTL**: Blazing-fast L1 memory LRU cache backed by persistent L2 disk cache (`~/.cache/cpp-mcp/`).
 - **MCP Resources & Prompts**: Zero-token offline resources (`cppref://headers`, `cppref://modules`, `cppref://cert`, `cppref://tooling`, `cppref://guidelines`) and diagnostic prompt templates.
 - **Standalone Binaries & Zero Setup**: Self-contained native single-file binaries (no Node or Bun required) or instant execution via `npx` / `bunx`.
+- **Direct CLI Mode**: Run instant queries directly in your shell or build scripts (`xmake`, `Makefile`, `bash`) without an MCP client (e.g. `cpp-mcp header std::span`, `cpp-mcp demangle _Z3fooi`).
 - **Noise Elimination**: Strips MediaWiki navigation menus, edit buttons, login prompts, and notices before LLM consumption.
 - **Cursor Pagination**: Transparently handles oversized documentation pages in 16 KB chunks.
 
@@ -247,6 +254,63 @@ Retrieves documentation, directives, CLI commands, and production starter config
   }
   ```
 
+### 9. `check_compiler_support`
+
+Evaluates minimum compiler versions (GCC, Clang, MSVC, Apple Clang) required for modern C++ language and standard library features across C++17, C++20, C++23, and C++26. Optionally evaluates whether a specific compiler and version is compatible.
+
+- **Parameters**:
+  - `feature` (`string`, optional): Feature name, library symbol, or keyword (e.g. `"std::print"`, `"std::expected"`, `"import std"`, `"std::generator"`, `"deducing this"`, `"reflection"`).
+  - `standard` (`string`, optional): Filter features by C++ standard version (`"C++20"`, `"C++23"`, `"C++26"`, `"C++17"`).
+  - `compiler` (`string`, optional): Target compiler family (`"gcc"`, `"clang"`, `"msvc"`, `"apple_clang"`).
+  - `version` (`string` | `number`, optional): User's compiler version (e.g. `"13.2"`, `"16.0"`, `17`).
+
+- **Output Example**:
+  ```json
+  {
+    "found": true,
+    "entry": {
+      "id": "std-print",
+      "name": "std::print & std::println",
+      "standard": "C++23",
+      "paper": "P2093R14",
+      "macro": "__cpp_lib_print",
+      "header": "<print>",
+      "compilers": {
+        "gcc": "13",
+        "clang": "17",
+        "msvc": "19.38",
+        "apple_clang": "15.0"
+      }
+    },
+    "compatibility": {
+      "compiler": "gcc",
+      "userVersion": "12.2",
+      "minVersion": "13",
+      "compatible": false,
+      "message": "Incompatible: gcc 12.2 is older than the required 13."
+    }
+  }
+  ```
+
+### 10. `demangle_symbol`
+
+Demangles C++ symbol identifiers (Itanium ABI used by GCC/Clang, or MSVC) into human-readable function signatures and qualified class methods. Also detects, extracts, and translates mangled symbols in full compiler, linker, or crash stack trace logs.
+
+- **Parameters**:
+  - `symbol` (`string`, required): Mangled identifier (e.g. `"_ZNSt6vectorIiSaIiEE9push_backERKi"`, `"_Z3addii"`, `"?func@@YAHXZ"`) or full error log containing mangled symbols.
+  - `strip_params` (`boolean`, optional): When `true`, strips parameter signatures to return only the qualified name.
+
+- **Output Example**:
+  ```json
+  {
+    "original": "_ZNSt6vectorIiSaIiEE9push_backERKi",
+    "demangled": "std::vector<int, std::allocator<int>>::push_back(int const&)",
+    "abi": "itanium",
+    "method": "cxxfilt",
+    "isMangled": true
+  }
+  ```
+
 ---
 
 ## Resources Catalog
@@ -260,10 +324,12 @@ The server exposes read-only MCP resources providing zero-overhead offline datas
 - **`cppref://guidelines/{id}`**: Full specification, rationale, enforcement, and code examples for a specific Core Guidelines rule.
 - **`cppref://modules`**: Catalog of architectural guides and best practice rules for C++20, C++23, and C++26 Modules.
 - **`cppref://modules/{topic}`**: Full architectural specification, code patterns, and rules for a specific module topic.
-- **`cppref://cert`**: Complete catalog of SEI CERT C++ Coding Standard rules with categories, severity, and CWE mappings.
+- **`cppref://cert`**: Complete catalog of 83 official SEI CERT C++ Coding Standard rules with categories, severity, priority, and CWE mappings.
 - **`cppref://cert/{id}`**: Detailed SEI CERT rule specification with risk assessment, noncompliant code, and compliant solution.
 - **`cppref://tooling`**: Catalog of modern C/C++ developer tools (`xmake`, `clang-format`, `clang-tidy`, runtime sanitizers).
 - **`cppref://tooling/{tool}`**: In-depth documentation, CLI commands, and production starter configurations for a specific tool.
+- **`cppref://compiler-support`**: Comprehensive compiler support matrix (GCC, Clang, MSVC, Apple Clang) for modern C++ features.
+- **`cppref://compiler-support/{feature}`**: Detailed compiler support matrix, WG21 paper, and feature test macro for a specific feature.
 
 ---
 
@@ -278,6 +344,7 @@ Pre-engineered prompt templates for AI clients:
 - **`cpp_modularize_code`**: Converts classic C++ headers and translation units into modern C++20/C++23/C++26 Modules with primary interface units, partitions, GMF macro isolation, and CMake 3.28+ build configuration.
 - **`cpp_security_audit`**: Audits C++ code against the SEI CERT C++ Coding Standard and MITRE CWEs, identifying memory safety, concurrency races, and object lifetime violations with secure remediations.
 - **`cpp_generate_tooling_config`**: Generates production-grade, authoritative configuration files for modern C/C++ developer tools (`xmake.lua`, `.clang-format`, `.clang-tidy`, sanitizer flags) tailored to project requirements.
+- **`cpp_check_compiler_compatibility`**: Evaluates whether target C++ features will compile on specific compiler toolchain versions (GCC, Clang, MSVC, Apple Clang), proposing polyfills, fallback libraries, and feature test guards.
 
 ---
 
@@ -391,6 +458,34 @@ If you downloaded the precompiled binary from [GitHub Releases](https://github.c
     }
   }
 }
+```
+
+---
+
+## Direct CLI Usage (No MCP Client Required)
+
+`cpp-mcp` doubles as a standalone command-line developer utility that integrates into build scripts (`xmake`, `Makefile`, `bash`) without requiring an LLM:
+
+```bash
+# Fast header lookup (returns <span>)
+cpp-mcp header std::span --raw
+
+# Demangle Itanium or MSVC symbols directly (or pipe via stdin)
+cpp-mcp demangle "_Z3fooi"
+cat build.log | cpp-mcp demangle -
+
+# Check compiler support for modern features
+cpp-mcp compiler std-print --compiler gcc --version 13.1
+
+# Inspect SEI CERT rules or C++ Core Guidelines
+cpp-mcp cert MEM50-CPP
+cpp-mcp guideline F.16
+
+# Check standard availability and feature test macros
+cpp-mcp standard std::span C++20
+
+# Structured JSON output for shell pipelines and automation
+cpp-mcp header std::span --json
 ```
 
 ---

@@ -1,0 +1,495 @@
+[
+  {
+    "id": "std-print",
+    "name": "std::print & std::println",
+    "standard": "C++23",
+    "category": "library",
+    "paper": "P2093R14",
+    "macro": "__cpp_lib_print",
+    "header": "<print>",
+    "aliases": ["std::print", "std::println", "print", "println"],
+    "compilers": {
+      "gcc": "13",
+      "clang": "17",
+      "msvc": "19.38",
+      "apple_clang": "15.0"
+    },
+    "notes": "Fast, type-safe formatted I/O built on top of std::format."
+  },
+  {
+    "id": "std-expected",
+    "name": "std::expected",
+    "standard": "C++23",
+    "category": "library",
+    "paper": "P0323R12",
+    "macro": "__cpp_lib_expected",
+    "header": "<expected>",
+    "aliases": ["std::expected", "std::unexpected", "expected", "unexpected"],
+    "compilers": {
+      "gcc": "12",
+      "clang": "16",
+      "msvc": "19.33",
+      "apple_clang": "15.0"
+    },
+    "notes": "Monadic error handling without exceptions, inspired by Result<T, E>."
+  },
+  {
+    "id": "std-generator",
+    "name": "std::generator",
+    "standard": "C++23",
+    "category": "library",
+    "paper": "P2502R2",
+    "macro": "__cpp_lib_generator",
+    "header": "<generator>",
+    "aliases": ["std::generator", "generator", "coroutine generator"],
+    "compilers": {
+      "gcc": "14",
+      "clang": "18",
+      "msvc": "19.38",
+      "apple_clang": "16.0"
+    },
+    "notes": "Standard coroutine generator producing a range of values via co_yield."
+  },
+  {
+    "id": "std-mdspan",
+    "name": "std::mdspan",
+    "standard": "C++23",
+    "category": "library",
+    "paper": "P0009R18",
+    "macro": "__cpp_lib_mdspan",
+    "header": "<mdspan>",
+    "aliases": ["std::mdspan", "mdspan", "multidimensional span"],
+    "compilers": {
+      "gcc": "14",
+      "clang": "18",
+      "msvc": "19.38",
+      "apple_clang": "16.0"
+    },
+    "notes": "Non-owning multidimensional array view with custom layout mapping and accessor policies."
+  },
+  {
+    "id": "std-flat-map",
+    "name": "std::flat_map & std::flat_set",
+    "standard": "C++23",
+    "category": "library",
+    "paper": "P0429R9",
+    "macro": "__cpp_lib_flat_map",
+    "header": "<flat_map>",
+    "aliases": ["std::flat_map", "std::flat_set", "flat_map", "flat_set"],
+    "compilers": {
+      "gcc": "14",
+      "clang": "19",
+      "msvc": "19.38",
+      "apple_clang": "No"
+    },
+    "notes": "Cache-friendly sequence container adaptors behaving like associative maps/sets."
+  },
+  {
+    "id": "std-stacktrace",
+    "name": "std::stacktrace",
+    "standard": "C++23",
+    "category": "library",
+    "paper": "P0881R7",
+    "macro": "__cpp_lib_stacktrace",
+    "header": "<stacktrace>",
+    "aliases": ["std::stacktrace", "std::stacktrace_entry", "stacktrace"],
+    "compilers": {
+      "gcc": "12",
+      "clang": "18",
+      "msvc": "19.34",
+      "apple_clang": "No"
+    },
+    "notes": "Runtime call-stack capture. On GCC/Clang, may require linking with -lbacktrace or libstdc++exp."
+  },
+  {
+    "id": "import-std",
+    "name": "import std & import std.compat",
+    "standard": "C++23",
+    "category": "library",
+    "paper": "P2465R3",
+    "macro": "__cpp_lib_modules",
+    "header": "import std;",
+    "aliases": ["import std", "import std.compat", "std module"],
+    "compilers": {
+      "gcc": "15",
+      "clang": "17",
+      "msvc": "19.35",
+      "apple_clang": "No"
+    },
+    "notes": "Standard library modules. MSVC supported it first in VS 2022 17.5. Clang 17 requires libc++ build with modules enabled."
+  },
+  {
+    "id": "deducing-this",
+    "name": "Deducing this (Explicit object parameter)",
+    "standard": "C++23",
+    "category": "language",
+    "paper": "P0847R7",
+    "macro": "__cpp_explicit_this_parameter",
+    "header": "N/A",
+    "aliases": ["deducing this", "explicit this", "this auto", "pattern matching this"],
+    "compilers": {
+      "gcc": "14",
+      "clang": "18",
+      "msvc": "19.37",
+      "apple_clang": "16.0"
+    },
+    "notes": "Allows member functions to specify 'this' explicitly, simplifying CRTP and perfect forwarding."
+  },
+  {
+    "id": "multidimensional-subscript",
+    "name": "Multidimensional subscript operator[]",
+    "standard": "C++23",
+    "category": "language",
+    "paper": "P2128R6",
+    "macro": "__cpp_multidimensional_subscript",
+    "header": "N/A",
+    "aliases": ["multidimensional subscript", "operator[] with multiple args", "grid[x, y]"],
+    "compilers": {
+      "gcc": "12",
+      "clang": "15",
+      "msvc": "19.33",
+      "apple_clang": "15.0"
+    },
+    "notes": "Enables matrix[i, j] syntax natively without wrapping in parentheses."
+  },
+  {
+    "id": "if-consteval",
+    "name": "if consteval",
+    "standard": "C++23",
+    "category": "language",
+    "paper": "P1938R3",
+    "macro": "__cpp_if_consteval",
+    "header": "N/A",
+    "aliases": ["if consteval", "if !consteval", "consteval branch"],
+    "compilers": {
+      "gcc": "12",
+      "clang": "14",
+      "msvc": "19.31",
+      "apple_clang": "14.0"
+    },
+    "notes": "Replaces std::is_constant_evaluated() with clean compile-time branching syntax."
+  },
+  {
+    "id": "auto-decay-copy",
+    "name": "auto(x) and auto{x} (decay-copy)",
+    "standard": "C++23",
+    "category": "language",
+    "paper": "P0849R8",
+    "macro": "__cpp_auto_cast",
+    "header": "N/A",
+    "aliases": ["auto(x)", "auto{x}", "decay-copy", "auto cast"],
+    "compilers": {
+      "gcc": "12",
+      "clang": "15",
+      "msvc": "19.32",
+      "apple_clang": "15.0"
+    },
+    "notes": "Clean prvalue copy expression without having to write static_cast<decay_t<decltype(x)>>(x)."
+  },
+  {
+    "id": "std-format",
+    "name": "std::format",
+    "standard": "C++20",
+    "category": "library",
+    "paper": "P0645R10",
+    "macro": "__cpp_lib_format",
+    "header": "<format>",
+    "aliases": ["std::format", "format", "std::vformat"],
+    "compilers": {
+      "gcc": "13",
+      "clang": "14",
+      "msvc": "19.29",
+      "apple_clang": "15.0"
+    },
+    "notes": "Type-safe, extensible string formatting inspired by Python/Rust and {fmt}."
+  },
+  {
+    "id": "std-span",
+    "name": "std::span",
+    "standard": "C++20",
+    "category": "library",
+    "paper": "P0122R7",
+    "macro": "__cpp_lib_span",
+    "header": "<span>",
+    "aliases": ["std::span", "span"],
+    "compilers": {
+      "gcc": "10",
+      "clang": "9",
+      "msvc": "19.26",
+      "apple_clang": "11.0"
+    },
+    "notes": "Non-owning view over contiguous sequences with optional static or dynamic extent."
+  },
+  {
+    "id": "std-ranges",
+    "name": "std::ranges & Views",
+    "standard": "C++20",
+    "category": "library",
+    "paper": "P0896R4",
+    "macro": "__cpp_lib_ranges",
+    "header": "<ranges>",
+    "aliases": ["std::ranges", "ranges", "std::views", "views"],
+    "compilers": {
+      "gcc": "10",
+      "clang": "13",
+      "msvc": "19.29",
+      "apple_clang": "13.0"
+    },
+    "notes": "Composable pipeline operations for algorithms and lazy range views using the pipe operator |."
+  },
+  {
+    "id": "std-jthread",
+    "name": "std::jthread & std::stop_token",
+    "standard": "C++20",
+    "category": "library",
+    "paper": "P0660R10",
+    "macro": "__cpp_lib_jthread",
+    "header": "<thread>",
+    "aliases": ["std::jthread", "jthread", "std::stop_token", "stop_token"],
+    "compilers": {
+      "gcc": "10",
+      "clang": "13",
+      "msvc": "19.28",
+      "apple_clang": "13.0"
+    },
+    "notes": "Auto-joining thread with cooperative cancellation mechanism."
+  },
+  {
+    "id": "std-source-location",
+    "name": "std::source_location",
+    "standard": "C++20",
+    "category": "library",
+    "paper": "P1208R6",
+    "macro": "__cpp_lib_source_location",
+    "header": "<source_location>",
+    "aliases": ["std::source_location", "source_location"],
+    "compilers": {
+      "gcc": "11",
+      "clang": "15",
+      "msvc": "19.29",
+      "apple_clang": "15.0"
+    },
+    "notes": "Zero-overhead replacement for preprocessor __FILE__, __LINE__, and __func__."
+  },
+  {
+    "id": "std-bit-cast",
+    "name": "std::bit_cast",
+    "standard": "C++20",
+    "category": "library",
+    "paper": "P0476R2",
+    "macro": "__cpp_lib_bit_cast",
+    "header": "<bit>",
+    "aliases": ["std::bit_cast", "bit_cast"],
+    "compilers": {
+      "gcc": "11",
+      "clang": "11",
+      "msvc": "19.26",
+      "apple_clang": "11.0"
+    },
+    "notes": "Constexpr type punning adhering strictly to strict aliasing rules."
+  },
+  {
+    "id": "concepts",
+    "name": "Concepts & Requires Clauses",
+    "standard": "C++20",
+    "category": "language",
+    "paper": "P0734R0",
+    "macro": "__cpp_concepts",
+    "header": "<concepts>",
+    "aliases": ["concepts", "requires clause", "concept", "constrained templates"],
+    "compilers": {
+      "gcc": "10",
+      "clang": "10",
+      "msvc": "19.23",
+      "apple_clang": "11.0"
+    },
+    "notes": "Named predicate constraints on template arguments evaluated at compile time."
+  },
+  {
+    "id": "coroutines",
+    "name": "Coroutines (co_await, co_yield, co_return)",
+    "standard": "C++20",
+    "category": "language",
+    "paper": "P0912R5",
+    "macro": "__cpp_impl_coroutine",
+    "header": "<coroutine>",
+    "aliases": ["coroutines", "co_await", "co_yield", "co_return"],
+    "compilers": {
+      "gcc": "10",
+      "clang": "14",
+      "msvc": "19.28",
+      "apple_clang": "14.0"
+    },
+    "notes": "Stackless coroutine mechanism for asynchronous workflows and generators."
+  },
+  {
+    "id": "modules-core",
+    "name": "C++20 Modules (export module)",
+    "standard": "C++20",
+    "category": "language",
+    "paper": "P1103R3",
+    "macro": "__cpp_modules",
+    "header": "N/A",
+    "aliases": ["modules", "export module", "import module", "c++20 modules"],
+    "compilers": {
+      "gcc": "11",
+      "clang": "16",
+      "msvc": "19.28",
+      "apple_clang": "15.0"
+    },
+    "notes": "Componentization replacing #include headers with compiled BMI units. Clang 16+ and MSVC offer strongest support."
+  },
+  {
+    "id": "three-way-comparison",
+    "name": "Three-way comparison (Spaceship operator <=>)",
+    "standard": "C++20",
+    "category": "language",
+    "paper": "P0515R3",
+    "macro": "__cpp_impl_three_way_comparison",
+    "header": "<compare>",
+    "aliases": ["spaceship operator", "<=>", "three-way comparison", "default operator<=>"],
+    "compilers": {
+      "gcc": "10",
+      "clang": "10",
+      "msvc": "19.28",
+      "apple_clang": "10.0"
+    },
+    "notes": "Synthesizes <, <=, >, >= and == operators automatically via default operator<=>."
+  },
+  {
+    "id": "consteval",
+    "name": "Immediate functions (consteval)",
+    "standard": "C++20",
+    "category": "language",
+    "paper": "P1073R3",
+    "macro": "__cpp_consteval",
+    "header": "N/A",
+    "aliases": ["consteval", "immediate function"],
+    "compilers": {
+      "gcc": "10",
+      "clang": "14",
+      "msvc": "19.29",
+      "apple_clang": "14.0"
+    },
+    "notes": "Guarantees function execution occurs exclusively during compilation."
+  },
+  {
+    "id": "std-filesystem",
+    "name": "std::filesystem",
+    "standard": "C++17",
+    "category": "library",
+    "paper": "P0218R1",
+    "macro": "__cpp_lib_filesystem",
+    "header": "<filesystem>",
+    "aliases": ["std::filesystem", "filesystem", "std::filesystem::path"],
+    "compilers": {
+      "gcc": "8",
+      "clang": "7",
+      "msvc": "19.14",
+      "apple_clang": "10.0"
+    },
+    "notes": "Portable cross-platform filesystem path manipulation, directory iteration, and status queries."
+  },
+  {
+    "id": "std-string-view",
+    "name": "std::string_view",
+    "standard": "C++17",
+    "category": "library",
+    "paper": "P0254R2",
+    "macro": "__cpp_lib_string_view",
+    "header": "<string_view>",
+    "aliases": ["std::string_view", "string_view"],
+    "compilers": {
+      "gcc": "7",
+      "clang": "4",
+      "msvc": "19.10",
+      "apple_clang": "9.0"
+    },
+    "notes": "Non-owning constant view into a character buffer avoiding string allocation."
+  },
+  {
+    "id": "std-optional",
+    "name": "std::optional",
+    "standard": "C++17",
+    "category": "library",
+    "paper": "P0220R1",
+    "macro": "__cpp_lib_optional",
+    "header": "<optional>",
+    "aliases": ["std::optional", "optional", "std::nullopt"],
+    "compilers": {
+      "gcc": "7",
+      "clang": "4",
+      "msvc": "19.10",
+      "apple_clang": "9.0"
+    },
+    "notes": "Vocabulary type for nullable values stored inline without heap allocation."
+  },
+  {
+    "id": "std-variant",
+    "name": "std::variant",
+    "standard": "C++17",
+    "category": "library",
+    "paper": "P0088R3",
+    "macro": "__cpp_lib_variant",
+    "header": "<variant>",
+    "aliases": ["std::variant", "variant", "std::visit"],
+    "compilers": {
+      "gcc": "7",
+      "clang": "4",
+      "msvc": "19.10",
+      "apple_clang": "9.0"
+    },
+    "notes": "Type-safe discriminated union with pattern-matching support via std::visit."
+  },
+  {
+    "id": "reflection-preview",
+    "name": "Static Reflection (P2996)",
+    "standard": "C++26",
+    "category": "language",
+    "paper": "P2996R5",
+    "macro": "__cpp_reflection",
+    "header": "<experimental/meta>",
+    "aliases": ["reflection", "static reflection", "p2996", "^type", "reflexpr"],
+    "compilers": {
+      "gcc": "Experimental (branch)",
+      "clang": "Experimental (Bloomberg fork)",
+      "msvc": "No",
+      "apple_clang": "No"
+    },
+    "notes": "Compile-time introspection via the ^ reflexpr operator. Approved by EWG for C++26."
+  },
+  {
+    "id": "contracts-preview",
+    "name": "Contracts (P2900)",
+    "standard": "C++26",
+    "category": "language",
+    "paper": "P2900R6",
+    "macro": "__cpp_contracts",
+    "header": "<contract>",
+    "aliases": ["contracts", "contract", "preconditions", "postconditions", "contract_assert"],
+    "compilers": {
+      "gcc": "Experimental (-fcontracts)",
+      "clang": "Experimental",
+      "msvc": "No",
+      "apple_clang": "No"
+    },
+    "notes": "Formal pre/post-condition specification: pre, post, and contract_assert syntax approved for C++26."
+  },
+  {
+    "id": "std-submdspan",
+    "name": "std::submdspan",
+    "standard": "C++26",
+    "category": "library",
+    "paper": "P2630R4",
+    "macro": "__cpp_lib_submdspan",
+    "header": "<mdspan>",
+    "aliases": ["std::submdspan", "submdspan", "mdspan slice"],
+    "compilers": {
+      "gcc": "15",
+      "clang": "19",
+      "msvc": "Partial",
+      "apple_clang": "No"
+    },
+    "notes": "Slicing and sub-view operations for std::mdspan."
+  }
+]

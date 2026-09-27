@@ -231,10 +231,10 @@ Modularization Guidelines:
       argsSchema: {
         code: z.string().min(1).describe("The C++ source code to audit for security flaws"),
         category: z
-          .enum(["MEM", "EXP", "CTR", "ERR", "CON", "OOP", "MSC", "DCL", "FIO"])
+          .enum(["MEM", "EXP", "CTR", "ERR", "CON", "OOP", "MSC", "DCL", "FIO", "STR", "INT"])
           .optional()
           .describe(
-            "Specific CERT category to focus on (e.g. 'MEM' for memory, 'CON' for concurrency)",
+            "Specific CERT category to focus on (e.g. 'MEM' for memory, 'CON' for concurrency, 'STR' for strings, 'INT' for integers)",
           ),
       },
     },
@@ -301,6 +301,47 @@ Requirements:
 3. If tool is \`clang-format\`: configure pointer alignment (Left), include sorting, namespace comment fixes, and column limits.
 4. If tool is \`clang-tidy\`: select strict modern checks (modernize, bugprone, cert, performance, cppcoreguidelines) while disabling noisy rules.
 5. If tool is \`sanitizers\`: provide the compiler and linker flags for ASan, UBSan, and TSan with CMake/xmake recipes.`,
+            },
+          },
+        ],
+      };
+    },
+  );
+
+  // Prompt 6: Check compiler compatibility and migration requirements
+  server.registerPrompt(
+    "cpp_check_compiler_compatibility",
+    {
+      description:
+        "Evaluate whether a set of modern C++ features or target standard will compile under specific compiler toolchain versions (GCC, Clang, MSVC, Apple Clang) and propose fallbacks or flags if unsupported.",
+      argsSchema: {
+        features: z
+          .string()
+          .describe(
+            "Comma-separated list of modern features or symbols (e.g. 'std::print, std::expected, import std')",
+          ),
+        compiler: z
+          .enum(["gcc", "clang", "msvc", "apple_clang"])
+          .describe("Target compiler family"),
+        version: z.string().describe("Installed compiler version (e.g. '12.2', '16.0', '19.35')"),
+      },
+    },
+    async ({ features, compiler, version }) => {
+      return {
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: `Evaluate compiler compatibility for the following C++ features on **${compiler} ${version}**:
+
+Features: \`${features}\`
+
+Please provide:
+1. **Compatibility Status:** State which features are supported natively, which require flags (e.g. \`-fmodules-ts\`), and which are missing.
+2. **Minimum Versions:** List the exact compiler version where each feature was introduced.
+3. **Polyfills & Fallbacks:** Recommend portable fallback libraries for missing features (e.g. \`{fmt}\` for \`std::format\` / \`std::print\`, \`tl::expected\` for \`std::expected\`).
+4. **Feature Test Macros:** Provide the \`#ifdef __cpp_lib_...\` preprocessor checks to guard the code.`,
             },
           },
         ],
