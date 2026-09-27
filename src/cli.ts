@@ -4,6 +4,7 @@ import pkg from "../package.json" with { type: "json" };
 import { checkSecureCoding } from "./tools/cert.js";
 import { analyzeCodeSymbol } from "./tools/code-analyzer.js";
 import { searchCodeSymbols } from "./tools/code-search.js";
+import { sessionManager } from "./tools/code-session-manager.js";
 import { type CompilerName, checkCompilerSupport } from "./tools/compiler-support.js";
 import { demangleSymbol } from "./tools/demangle.js";
 import { getGuideline } from "./tools/guidelines.js";
@@ -520,4 +521,17 @@ export async function runCli(args: string[]): Promise<number> {
     );
     return 1;
   }
+}
+
+if (typeof import.meta !== "undefined" && import.meta.main) {
+  runCli(process.argv.slice(2))
+    .then(async (code) => {
+      await sessionManager.closeAll();
+      process.exit(code);
+    })
+    .catch(async (err) => {
+      await sessionManager.closeAll();
+      console.error("Fatal CLI error:", err);
+      process.exit(1);
+    });
 }
