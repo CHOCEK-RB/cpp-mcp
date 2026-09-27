@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { existsSync } from "node:fs";
 import { TARGETS } from "../scripts/compile-binaries.js";
 
 describe("Standalone Binary Compiler", () => {
@@ -25,6 +26,10 @@ describe("Standalone Binary Compiler", () => {
 
   it("should boot standalone binary and respond to JSON-RPC ping over stdio", () => {
     const binPath = "./dist/bin/cpp-mcp";
+    if (!existsSync(binPath)) {
+      const compileProc = Bun.spawnSync(["bun", "run", "compile"]);
+      expect(compileProc.exitCode).toBe(0);
+    }
     const payload = `${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" })}\n`;
     const proc = Bun.spawnSync([binPath], {
       stdin: Buffer.from(payload),
