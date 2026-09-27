@@ -36,6 +36,7 @@ flowchart TD
         Server --> T15["rename_code_symbol"]
         Server --> T16["format_code"]
         Server --> T17["scaffold_project"]
+        Server --> T18["explain_compiler_error"]
     end
 
     subgraph Primitives ["MCP Native Primitives"]
@@ -59,6 +60,7 @@ flowchart TD
 - **Live Compiler Diagnostics & AST Renaming**: Real-time error detection with caret pointers (`^~~~`), AST-based safe symbol renaming across all workspace files, and automated header tracking (`get_code_diagnostics`, `rename_code_symbol`).
 - **C/C++ Code Formatter**: Instant in-memory and file formatting via `clang-format` with project `.clang-format` auto-discovery, standard presets (`LLVM`, `Google`), line ranges, and unified diff preview (`format_code`).
 - **Smart C++ Project Scaffolding**: One-command project bootstrapping with modern `xmake` / `CMake`, C++11-26 standards, Catch2/GTest/doctest, C++20 modules, Qt6, CUDA, `.clang-format`, and `.clangd` LSP configurations (`scaffold_project`).
+- **Intelligent Compiler & Linker Error Explainer**: Translates intimidating template cascades, unsatisfied C++20 concepts, missing vtables, and undefined references into plain English root causes, simplified signatures, and concrete code fixes (`explain_compiler_error`).
 - **C++20/23/26 Modules Architecture**: Dedicated offline guide and best practices for `import std;`, interface & internal partitions, CMake 3.28+ (`FILE_SET CXX_MODULES`), and header migration (`get_cpp_modules_guide`).
 - **Modern C/C++ Tooling Ecosystem**: In-depth recipes and starter configs for `xmake` (Lua build system with native C++20 modules), `clang-format`, `clang-tidy`, and runtime sanitizers (`get_cpp_tooling_guide`).
 - **SEI CERT C++ Security Standard**: Complete catalog of 83 official rules with CWE mappings, heuristic auditing, and compliant fixes for memory safety, concurrency, strings, integers, and UB prevention (`check_secure_coding`).
@@ -582,6 +584,35 @@ Bootstraps a modern, production-ready C++ project configured with build systems 
   }
   ```
 
+### 18. `explain_compiler_error`
+
+Analyzes and explains complex, multi-page C++ compiler and linker errors in plain language. Demangles linker symbols, strips intimidating STL template expansion noise, pinpoints unsatisfied C++20 concepts, identifies missing vtables/destructors, and provides concrete remediation code.
+
+- **Parameters**:
+  - `error` (`string`, required): Compiler or linker error text (GCC, Clang, or MSVC).
+  - `compiler` (`string`, optional, default `"auto"`): Compiler flavor hint (`"gcc"`, `"clang"`, `"msvc"`, or `"auto"`).
+  - `code_snippet` (`string`, optional): Source code context around the failure point.
+  - `workspace_dir` (`string`, optional): Project root directory.
+
+- **Output Example**:
+  ```json
+  {
+    "success": true,
+    "category": "linker_undefined_reference",
+    "detectedCompiler": "gcc",
+    "summary": "Linker error: undefined reference to 'Calculator::add(int, int)'.",
+    "rootCause": "The declaration for 'Calculator::add(int, int)' was visible during compilation, but its compiled object code was not found during linking.",
+    "remediation": "1. Missing source file: Check if the .cpp containing 'Calculator::add' is included in your build.\n2. Template in .cpp: If 'add' is a template function, define it in the header.",
+    "demangledSymbols": [
+      {
+        "mangled": "_ZN10Calculator3addEii",
+        "demangled": "Calculator::add(int, int)"
+      }
+    ],
+    "simplifiedError": "main.cpp:(.text+0x15): undefined reference to `Calculator::add(int, int)'"
+  }
+  ```
+
 ---
 
 ## Resources Catalog
@@ -814,6 +845,10 @@ cpp-mcp scaffold my_app
 cpp-mcp scaffold my_lib --type library --std 23 --test gtest
 cpp-mcp scaffold my_mod --type cxx-modules --std 20 --dry-run
 cpp-mcp scaffold my_cmake_app --build cmake --test catch2
+
+# Explain complex compiler errors, template explosions, or linker traces
+cpp-mcp explain-error "main.cpp:8:5: error: 'vector' was not declared in this scope"
+cat build.log | cpp-mcp explain-error -
 ```
 
 ---
