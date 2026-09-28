@@ -6,6 +6,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { resolveProjectBuildInfo } from "../project/xmake.js";
 import { resolveClangTool } from "./clang-tool-resolver.js";
+import { type LoadedProjectPolicy, loadProjectPolicy } from "./project-policy.js";
 
 export type ClangTidyPreset =
   | "modernize"
@@ -79,6 +80,8 @@ export interface ClangTidyResult {
   totalErrors: number;
   diagnostics: ClangTidyDiagnostic[];
   compileCommandsDir?: string;
+  /** Path of the `.cpp-mcp.json` that supplied defaults, when any. */
+  policyPath?: string;
   error?: string;
   message?: string;
 }
@@ -192,6 +195,7 @@ export function runClangTidyProcess(
 export interface ClangTidyDeps {
   resolveTool?: typeof resolveClangTool;
   runProcess?: typeof runClangTidyProcess;
+  loadPolicy?: (rootDir?: string) => Promise<LoadedProjectPolicy>;
 }
 
 /**
@@ -216,9 +220,24 @@ export async function runClangTidy(
     return { ...base, error: "Either 'file' or 'files' must be specified." };
   }
 
-  const preset = params.preset ?? DEFAULT_CLANG_TIDY_PRESET;
-  const checks = params.checks ?? CLANG_TIDY_PRESETS[preset];
   const wsDir = path.resolve(params.workspace ?? process.cwd());
+
+  // Precedence: explicit params > project policy (.cpp-mcp.json) > built-in default.
+  let preset = params.preset;
+  let checks = params.checks;
+  let policyPath: string | undefined;
+  if (preset === undefined && checks === undefined) {
+    const loadPolicy = deps.loadPolicy ?? loadProjectPolicy;
+    const loaded = await loadPolicy(wsDir);
+    policyPath = loaded.path ?? undefined;
+    const policyPreset = loaded.policy.clangTidy?.preset;
+    if (policyPreset && isClangTidyPreset(policyPreset)) {
+      preset = policyPreset;
+    }
+    checks = loaded.policy.clangTidy?.checks;
+  }
+  const resolvedPreset = preset ?? DEFAULT_CLANG_TIDY_PRESET;
+  const resolvedChecks = checks ?? CLANG_TIDY_PRESETS[resolvedPreset];
 
   const files: string[] = [];
   for (const entry of requested) {
@@ -263,7 +282,7 @@ export async function runClangTidy(
     const { stdout, stderr, code } = await runProcess(files, {
       binaryPath: toolInfo.path,
       compileCommandsDir,
-      checks,
+      checks: resolvedChecks,
       fix: params.apply === true,
       cwd: wsDir,
       extraArgs: params.extraArgs,
@@ -290,14 +309,15 @@ export async function runClangTidy(
       success: true,
       tool: `clang-tidy${toolInfo.version ? ` (v${toolInfo.version})` : ""}`,
       version: toolInfo.version,
-      preset,
-      checks,
+      preset: resolvedPreset,
+      checks: resolvedChecks,
       applied,
       files,
       totalWarnings,
       totalErrors,
       diagnostics,
       compileCommandsDir,
+      policyPath,
       message: !applied
         ? findings > 0
           ? `${findings} finding(s) reported (dry-run). Re-run with apply=true to write fixes.`

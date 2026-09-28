@@ -156,6 +156,62 @@ describe("runClangTidy", () => {
     expect(capturedFiles).toEqual([a, b]);
   });
 
+  it("uses clangTidy defaults from the project policy when no preset is given", async () => {
+    const file = path.join(tempDir, "main.cpp");
+    await fs.writeFile(file, "int main() { return 0; }\n");
+
+    const res = await runClangTidy(
+      { file, workspace: tempDir },
+      {
+        ...fakeDeps(),
+        loadPolicy: async () => ({
+          policy: { clangTidy: { preset: "bugprone", checks: "bugprone-*" } },
+          path: path.join(tempDir, ".cpp-mcp.json"),
+        }),
+      },
+    );
+
+    expect(res.success).toBe(true);
+    expect(res.preset).toBe("bugprone");
+    expect(res.checks).toBe("bugprone-*");
+    expect(res.policyPath).toBe(path.join(tempDir, ".cpp-mcp.json"));
+  });
+
+  it("lets an explicit preset override the project policy", async () => {
+    const file = path.join(tempDir, "main.cpp");
+    await fs.writeFile(file, "int main() { return 0; }\n");
+
+    let policyLoaded = false;
+    const res = await runClangTidy(
+      { file, workspace: tempDir, preset: "performance" },
+      {
+        ...fakeDeps(),
+        loadPolicy: async () => {
+          policyLoaded = true;
+          return { policy: { clangTidy: { preset: "bugprone" } }, path: null };
+        },
+      },
+    );
+
+    expect(res.preset).toBe("performance");
+    expect(policyLoaded).toBe(false);
+  });
+
+  it("ignores an invalid preset from the project policy", async () => {
+    const file = path.join(tempDir, "main.cpp");
+    await fs.writeFile(file, "int main() { return 0; }\n");
+
+    const res = await runClangTidy(
+      { file, workspace: tempDir },
+      {
+        ...fakeDeps(),
+        loadPolicy: async () => ({ policy: { clangTidy: { preset: "nonsense" } }, path: null }),
+      },
+    );
+
+    expect(res.preset).toBe("modernize");
+  });
+
   it("returns an error when clang-tidy is unavailable", async () => {
     const file = path.join(tempDir, "main.cpp");
     await fs.writeFile(file, "int main() { return 0; }\n");

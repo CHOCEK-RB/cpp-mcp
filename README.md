@@ -1076,6 +1076,30 @@ The workspace semantic engine is built specifically for modern C/C++ workflows:
 | `CLANG_FORMAT_PATH` | Overrides the `clang-format` executable used by `format_code` / `cpp-mcp code-format`. |
 | `CLANG_TIDY_PATH` | Overrides the `clang-tidy` executable used by `run_clang_tidy` / `cpp-mcp clang-tidy`. |
 
+## Project Policy (`.cpp-mcp.json`)
+
+Drop a `.cpp-mcp.json` at your project root (discovered upward from the working directory) to set project-wide defaults. Precedence for every value is **explicit flag > `CPP_MCP_STD` > policy file > built-in default**.
+
+```json
+{
+  "std": "c++23",
+  "clangTidy": { "preset": "bugprone", "checks": "bugprone-*" },
+  "modernize": { "prefer": ["std::print", "std::format"] }
+}
+```
+
+- `std` — default C++ standard for `scaffold_project` when `--std` is not passed.
+- `clangTidy.preset` / `clangTidy.checks` — defaults for `run_clang_tidy` / `cpp-mcp clang-tidy` when `--preset`/`--checks` are omitted.
+- `modernize.prefer` — advisory list of preferred modern replacements.
+
+Unknown or malformed fields are ignored; a broken file never fails a command.
+
+Use it as a CI gate with the `--check` flag, which exits non-zero when any finding is reported:
+
+```bash
+cpp-mcp clang-tidy src/ --check
+```
+
 ---
 
 ## Development
