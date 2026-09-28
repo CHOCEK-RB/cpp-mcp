@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { pageCache, searchCache } from "../src/cache.js";
+import { htmlCache, pageCache, searchCache } from "../src/cache.js";
 import { createServer } from "../src/index.js";
 import { getCppreferencePage, isValidCppReferenceUrl } from "../src/tools/page.js";
 import { searchCppreference } from "../src/tools/search.js";
@@ -84,6 +84,7 @@ describe("getCppreferencePage", () => {
 
   it("should clean MediaWiki noise and convert HTML to Markdown", async () => {
     await pageCache.clear();
+    await htmlCache.clear();
     const sampleHtml = `
       <html>
         <body>
@@ -123,6 +124,7 @@ describe("getCppreferencePage", () => {
 
   it("should support pagination cursor", async () => {
     await pageCache.clear();
+    await htmlCache.clear();
     const longText = "A".repeat(20000);
     const mockHtml = `<div id="content"><p>${longText}</p></div>`;
     const mockFetch = async () => new Response(mockHtml, { status: 200 });

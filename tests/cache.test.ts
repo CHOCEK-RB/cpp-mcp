@@ -144,4 +144,82 @@ describe("TieredCache", () => {
     expect(cache.getNamespace()).toBe("test-meta");
     expect(cache.getCacheDir()).toContain("test-meta");
   });
+
+  it("should sweep expired disk entries and keep live ones", async () => {
+    const cache = new TieredCache<string>({
+      maxMemory: 10,
+      ttlMs: 20,
+      namespace: "test-sweep-ttl",
+      customBaseDir: tempDir,
+      sweepIntervalMs: Number.MAX_SAFE_INTEGER,
+    });
+
+    await cache.set("expired-a", "a");
+    await cache.set("expired-b", "b");
+    await cache.set("live", "c", 60_000);
+
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    const result = await cache.sweepDisk();
+    expect(result.removed).toBe(2);
+    expect(result.remaining).toBe(1);
+
+    const files = await fs.readdir(cache.getCacheDir());
+    expect(files.length).toBe(1);
+  });
+
+  it("should evict soonest-to-expire entries beyond maxDiskEntries", async () => {
+    const cache = new TieredCache<string>({
+      maxMemory: 10,
+      ttlMs: 60_000,
+      namespace: "test-sweep-cap",
+      customBaseDir: tempDir,
+      maxDiskEntries: 3,
+      sweepIntervalMs: Number.MAX_SAFE_INTEGER,
+    });
+
+    for (let i = 0; i < 6; i++) {
+      await cache.set(`key-${i}`, `value-${i}`, 60_000 + i * 1_000);
+    }
+
+    const result = await cache.sweepDisk();
+    expect(result.removed).toBe(3);
+    expect(result.remaining).toBe(3);
+
+    const files = await fs.readdir(cache.getCacheDir());
+    expect(files.length).toBe(3);
+  });
+
+  it("should remove corrupt disk entries during sweep", async () => {
+    const cache = new TieredCache<string>({
+      maxMemory: 10,
+      ttlMs: 60_000,
+      namespace: "test-sweep-corrupt",
+      customBaseDir: tempDir,
+      sweepIntervalMs: Number.MAX_SAFE_INTEGER,
+    });
+
+    await cache.set("corrupt", "value");
+    const files = await fs.readdir(cache.getCacheDir());
+    const fileName = files[0];
+    if (!fileName) throw new Error("Expected cached file");
+    await fs.writeFile(path.join(cache.getCacheDir(), fileName), "not valid json {{{", "utf-8");
+
+    const result = await cache.sweepDisk();
+    expect(result.removed).toBe(1);
+    expect(result.remaining).toBe(0);
+  });
+
+  it("should not throw when sweeping a missing cache directory", async () => {
+    const cache = new TieredCache<string>({
+      maxMemory: 10,
+      ttlMs: 60_000,
+      namespace: "test-sweep-missing",
+      customBaseDir: path.join(tempDir, "does-not-exist"),
+      sweepIntervalMs: Number.MAX_SAFE_INTEGER,
+    });
+
+    const result = await cache.sweepDisk();
+    expect(result).toEqual({ removed: 0, remaining: 0 });
+  });
 });

@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { Position, TextEdit, WorkspaceEdit } from "../lsp/types.js";
-import { openFileInSession } from "./code-document.js";
+import { openFileAndAwaitReady } from "./code-document.js";
 import { sessionManager } from "./code-session-manager.js";
 
 export interface CodeRenameOptions {
@@ -267,10 +267,7 @@ export async function renameCodeSymbol(options: CodeRenameOptions): Promise<Code
     try {
       const localFilePath = fileURLToPath(targetUri);
       if (existsSync(localFilePath)) {
-        const opened = await openFileInSession(session, targetUri, localFilePath);
-        if (opened) {
-          await new Promise((r) => setTimeout(r, 100));
-        }
+        await openFileAndAwaitReady(session, targetUri, localFilePath);
       }
     } catch {
       // Fallback to background index

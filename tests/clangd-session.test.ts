@@ -223,6 +223,61 @@ describe("ClangdSession lifecycle without a real clangd", () => {
 
     await session.close();
   });
+
+  it("should short-circuit waitForDiagnostics when the current version was already published", async () => {
+    const fake = new FakeChildProcess();
+    const uri = "file:///workspace/unit.cpp";
+    const parser = new LspMessageParser();
+    fake.stdin.on("data", (chunk: Buffer) => parser.append(chunk));
+    parser.on("message", (msg: { id?: number; method?: string }) => {
+      if (msg.method === "textDocument/didOpen") {
+        fake.stdout.write(
+          encodeLspMessage({
+            jsonrpc: "2.0",
+            method: "textDocument/publishDiagnostics",
+            params: {
+              uri,
+              version: 1,
+              diagnostics: [
+                {
+                  range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } },
+                  message: "boom",
+                  severity: 1,
+                },
+              ],
+            },
+          }),
+        );
+        return;
+      }
+      if (msg.id !== undefined) {
+        const result = msg.method === "initialize" ? { capabilities: {} } : null;
+        fake.stdout.write(encodeLspMessage({ jsonrpc: "2.0", id: msg.id, result }));
+      }
+    });
+
+    const session = new ClangdSession({
+      workspaceDir: tempDir,
+      spawnProcess: () => fake.asChildProcess(),
+    });
+    await session.start();
+
+    session.openDocument(uri, "cpp", "int x;", 1);
+
+    // First wait resolves once the publish arrives.
+    const first = await session.waitForDiagnostics(uri, 2000);
+    expect(first).toHaveLength(1);
+
+    // Second wait must be served from the cache, not block until the timeout.
+    const startedAt = Date.now();
+    const second = await session.waitForDiagnostics(uri, 5000);
+    const elapsed = Date.now() - startedAt;
+
+    expect(second).toHaveLength(1);
+    expect(elapsed).toBeLessThan(500);
+
+    await session.close();
+  });
 });
 
 describe("ClangdSession query driver configuration", () => {

@@ -152,6 +152,31 @@ describe("explainCompilerError - Modules, Const, and Ownership", () => {
     expect(res.suggestedHeaders).toContain("<vector>");
     expect(res.remediation).toContain("<vector>");
   });
+
+  it("explains import std failures and points at libc++ for Clang", async () => {
+    const errorText =
+      "main.cpp:1:10: error: module 'std' not found\n" +
+      "main.cpp:1:10: note: use 'import std.compat;' or a header include instead";
+
+    const res = await explainCompilerError({ error: errorText });
+
+    expect(res.success).toBe(true);
+    expect(res.category).toBe("cxx_modules");
+    expect(res.remediation).toContain("libc++");
+    expect(res.pitfalls?.some((p) => p.includes("libstdc++"))).toBe(true);
+  });
+
+  it("explains BMI/toolchain mismatch and warns against mixing toolchains", async () => {
+    const errorText =
+      "fatal error: module file 'foo.pcm' was built with a different version of the compiler";
+
+    const res = await explainCompilerError({ error: errorText });
+
+    expect(res.success).toBe(true);
+    expect(res.category).toBe("cxx_modules");
+    expect(res.rootCause).toContain(".pcm");
+    expect(res.pitfalls?.some((p) => p.includes("GCC-built BMI"))).toBe(true);
+  });
 });
 
 describe("explainCompilerError - Edge Cases & Robustness", () => {

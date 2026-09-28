@@ -302,21 +302,51 @@ export async function explainCompilerError(
   else if (
     /module [`']?([^'\n]+)[`']? not found/i.test(cleanedText) ||
     /fatal error: module file [`']?([^'\n]+)[`']? not found/i.test(cleanedText) ||
+    /could not build module [`']?([^'\n]+)[`']?/i.test(cleanedText) ||
+    /failed to import module/i.test(cleanedText) ||
+    /was built with a different version of the compiler/i.test(cleanedText) ||
+    /incompatible (?:module|BMI)/i.test(cleanedText) ||
     /BMI file for module/i.test(cleanedText) ||
     /export module/i.test(cleanedText)
   ) {
     category = "cxx_modules";
-    const modMatch = cleanedText.match(/module (?:file )?[`']?([a-zA-Z0-9_.:]+)[`']?/i);
+    const modMatch = cleanedText.match(
+      /(?:module (?:file )?[`']?|could not build module [`']?|failed to import module [`']?)([a-zA-Z0-9_.:]+)/i,
+    );
     const modName = modMatch?.[1] ?? "module";
+    const isStdModule = /^std(\.compat)?$/.test(modName);
+    const toolchainMismatch =
+      /was built with a different version of the compiler/i.test(cleanedText) ||
+      /incompatible (?:module|BMI)/i.test(cleanedText) ||
+      /BMI file for module/i.test(cleanedText);
 
     summary = `C++20 Module error: '${modName}' could not be resolved or compiled.`;
-    rootCause = `The build system has not compiled the primary module interface (BMI) for '${modName}' before compiling the importer, or module support is not enabled in the build configuration.`;
-    remediation =
-      `1. In Xmake: Ensure \`set_policy("build.c++.modules", true)\` is enabled on the target and that module files (.mpp or .cppm) are added to \`add_files\`. \n` +
-      `2. In CMake: Ensure CMake 3.28+ is used with \`FILE_SET CXX_MODULES\`.\n` +
-      `3. Verify there are no circular module imports (e.g. A imports B and B imports A).`;
-    pitfalls.push('Missing `set_policy("build.c++.modules", true)` in xmake.lua.');
-    pitfalls.push("Circular dependencies between C++20 module interfaces.");
+
+    if (toolchainMismatch) {
+      rootCause = `The module '${modName}' was pre-built as a Binary Module Interface (BMI) by a different compiler or version. BMIs are compiler-specific — GCC emits \`.gcm\`, Clang emits \`.pcm\` — so a toolchain cannot read another toolchain's BMIs.`;
+      remediation =
+        `1. Rebuild the module with the same compiler and version that compiles the importer (e.g. \`xmake clean --all\` then rebuild).\n` +
+        `2. Never mix toolchains: a GCC-built \`std\` module cannot be read by Clang/clangd, and vice versa.\n` +
+        `3. If clangd/your IDE reports \`module_not_found\` while the build succeeds, it is reading another toolchain's BMIs.`;
+      pitfalls.push("Mixing a GCC-built BMI with a Clang toolchain (or vice versa).");
+      pitfalls.push("A stale BMI left over from a previous compiler version, not regenerated.");
+    } else if (isStdModule) {
+      rootCause = `The standard library module '${modName}' is unavailable for the selected toolchain. \`import std;\` needs C++23 plus a modularized standard library: MSVC ships it, GCC 14+ provides it, but Clang requires a modularized **libc++** (libstdc++'s \`std\` module targets GCC, not Clang).`;
+      remediation =
+        `1. Compile as C++23 or later (\`set_languages("c++23")\` in xmake, \`set(CMAKE_CXX_STANDARD 23)\` in CMake).\n` +
+        `2. With Clang, install and use libc++ (\`libc++-dev\`/\`libc++abi-dev\`) so the \`std\` module can be built.\n` +
+        `3. If \`import std;\` is not viable, fall back to header includes (\`#include <vector>\`) or \`import std.compat;\`.`;
+      pitfalls.push("Using Clang with libstdc++ and expecting `import std;` to work.");
+      pitfalls.push("Building as C++20 (not C++23) while using `import std;`.");
+    } else {
+      rootCause = `The build system has not compiled the primary module interface (BMI) for '${modName}' before compiling the importer, or module support is not enabled in the build configuration.`;
+      remediation =
+        `1. In Xmake: Ensure \`set_policy("build.c++.modules", true)\` is enabled on the target and that module files (.mpp or .cppm) are added to \`add_files\`. \n` +
+        `2. In CMake: Ensure CMake 3.28+ is used with \`FILE_SET CXX_MODULES\`.\n` +
+        `3. Verify there are no circular module imports (e.g. A imports B and B imports A).`;
+      pitfalls.push('Missing `set_policy("build.c++.modules", true)` in xmake.lua.');
+      pitfalls.push("Circular dependencies between C++20 module interfaces.");
+    }
   }
 
   // Check 6: Const Correctness / Discarding Qualifiers

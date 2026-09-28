@@ -19,6 +19,10 @@ export interface CacheOptions {
   ttlMs: number;
   namespace: string;
   customBaseDir?: string;
+  /** Maximum number of L2 files kept in the namespace. Defaults to 500. */
+  maxDiskEntries?: number;
+  /** Minimum delay between background disk sweeps. Defaults to 1 hour. */
+  sweepIntervalMs?: number;
 }
 
 interface DiskCacheEnvelope<T> {
@@ -39,6 +43,10 @@ export class TieredCache<T extends {}> {
   private readonly namespace: string;
   private readonly baseDir: string;
   private readonly disabled: boolean;
+  private readonly maxDiskEntries: number;
+  private readonly sweepIntervalMs: number;
+  private lastSweepAt = 0;
+  private sweepInFlight = false;
 
   constructor(options: CacheOptions) {
     this.l1 = new LRUCache<string, T>({
@@ -49,6 +57,9 @@ export class TieredCache<T extends {}> {
 
     this.disabled =
       process.env.CPP_MCP_CACHE_DISABLE === "true" || process.env.CPP_MCP_CACHE_DISABLE === "1";
+
+    this.maxDiskEntries = options.maxDiskEntries ?? 500;
+    this.sweepIntervalMs = options.sweepIntervalMs ?? 60 * 60 * 1000;
 
     const customBase = options.customBaseDir || process.env.CPP_MCP_CACHE_DIR;
     const xdgBase = process.env.XDG_CACHE_HOME;
@@ -126,6 +137,8 @@ export class TieredCache<T extends {}> {
     } catch {
       // Silently fall back to memory-only on disk write failure
     }
+
+    this.maybeSweepDisk();
   }
 
   /**
@@ -148,6 +161,7 @@ export class TieredCache<T extends {}> {
    */
   async clear(): Promise<void> {
     this.l1.clear();
+    this.lastSweepAt = 0;
     if (!this.disabled) {
       try {
         await fs.rm(this.baseDir, { recursive: true, force: true });
@@ -155,6 +169,73 @@ export class TieredCache<T extends {}> {
         // Ignore disk removal errors
       }
     }
+  }
+
+  /**
+   * Scans the namespace directory and removes expired entries, then enforces
+   * `maxDiskEntries` by evicting the soonest-to-expire files. Triggered in the
+   * background by `set()` at most once per `sweepIntervalMs`.
+   */
+  async sweepDisk(): Promise<{ removed: number; remaining: number }> {
+    if (this.disabled) {
+      return { removed: 0, remaining: 0 };
+    }
+
+    let files: string[];
+    try {
+      files = await fs.readdir(this.baseDir);
+    } catch {
+      return { removed: 0, remaining: 0 };
+    }
+
+    const now = Date.now();
+    const survivors: { file: string; expiresAt: number }[] = [];
+    let removed = 0;
+
+    for (const file of files) {
+      if (!file.endsWith(".json")) {
+        continue;
+      }
+      const filePath = path.join(this.baseDir, file);
+      try {
+        const raw = await fs.readFile(filePath, "utf-8");
+        const envelope: DiskCacheEnvelope<T> = JSON.parse(raw);
+        if (typeof envelope.expiresAt === "number" && now <= envelope.expiresAt) {
+          survivors.push({ file, expiresAt: envelope.expiresAt });
+          continue;
+        }
+      } catch {
+        // Corrupt or unreadable entry: fall through and remove it.
+      }
+      await fs.unlink(filePath).catch(() => {});
+      removed++;
+    }
+
+    if (survivors.length > this.maxDiskEntries) {
+      survivors.sort((a, b) => a.expiresAt - b.expiresAt);
+      for (const entry of survivors.splice(0, survivors.length - this.maxDiskEntries)) {
+        await fs.unlink(path.join(this.baseDir, entry.file)).catch(() => {});
+        removed++;
+      }
+    }
+
+    return { removed, remaining: survivors.length };
+  }
+
+  private maybeSweepDisk(): void {
+    if (this.disabled || this.sweepInFlight) {
+      return;
+    }
+    if (Date.now() - this.lastSweepAt < this.sweepIntervalMs) {
+      return;
+    }
+    this.sweepInFlight = true;
+    this.sweepDisk()
+      .catch(() => {})
+      .finally(() => {
+        this.sweepInFlight = false;
+        this.lastSweepAt = Date.now();
+      });
   }
 
   /**
@@ -178,11 +259,23 @@ export const searchCache = new TieredCache<SearchResultPayload>({
   maxMemory: 200,
   ttlMs: 24 * 60 * 60 * 1000,
   namespace: "search",
+  maxDiskEntries: 500,
 });
 
-// 7 days for documentation pages
+// 7 days for documentation pages (sanitized Markdown, parsed by get_cppreference_page)
 export const pageCache = new TieredCache<string>({
   maxMemory: 50,
   ttlMs: 7 * 24 * 60 * 60 * 1000,
-  namespace: "pages",
+  namespace: "pages-md",
+  maxDiskEntries: 200,
+});
+
+// 7 days for raw cppreference HTML (scraped by lookup_header / check_cpp_standard).
+// Kept in a separate namespace because the same URL yields Markdown in pageCache and
+// HTML here; sharing a namespace would let each tool read the other's format.
+export const htmlCache = new TieredCache<string>({
+  maxMemory: 50,
+  ttlMs: 7 * 24 * 60 * 60 * 1000,
+  namespace: "html",
+  maxDiskEntries: 200,
 });

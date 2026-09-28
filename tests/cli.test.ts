@@ -263,6 +263,38 @@ describe("Direct CLI Mode", () => {
     }
   });
 
+  it("should return code 1 when clang-tidy is called without files", async () => {
+    let errOutput = "";
+    const origErr = console.error;
+    console.error = (msg: string) => {
+      errOutput += `${msg}\n`;
+    };
+
+    try {
+      const code = await runCli(["clang-tidy"]);
+      expect(code).toBe(1);
+      expect(errOutput).toContain("'clang-tidy' requires at least one file");
+    } finally {
+      console.error = origErr;
+    }
+  });
+
+  it("should return code 1 for an invalid clang-tidy preset", async () => {
+    let errOutput = "";
+    const origErr = console.error;
+    console.error = (msg: string) => {
+      errOutput += `${msg}\n`;
+    };
+
+    try {
+      const code = await runCli(["clang-tidy", "main.cpp", "--preset", "nope"]);
+      expect(code).toBe(1);
+      expect(errOutput).toContain("Invalid preset 'nope'");
+    } finally {
+      console.error = origErr;
+    }
+  });
+
   it("should return code 1 when code-analyze is called without arguments", async () => {
     let errOutput = "";
     const origErr = console.error;

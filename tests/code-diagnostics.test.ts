@@ -156,4 +156,51 @@ int calculate() {
       console.error = origError;
     }
   });
+
+  it("should re-sync files from disk instead of reporting stale cached diagnostics", async () => {
+    const hasClangd = await isExecutableAvailable("clangd");
+    if (!hasClangd) {
+      console.log("Skipping test: clangd is not installed");
+      return;
+    }
+
+    const srcDir = path.join(tempDir, "src");
+    await fs.mkdir(srcDir, { recursive: true });
+    const file = path.join(srcDir, "mutable.cpp");
+    await fs.writeFile(file, `#include <vector>\nint ok() { return 0; }\n`);
+
+    await fs.writeFile(
+      path.join(tempDir, "compile_commands.json"),
+      JSON.stringify(
+        [
+          {
+            directory: tempDir,
+            file,
+            command: `clang++ -c ${file} -o mutable.o`,
+          },
+        ],
+        null,
+        2,
+      ),
+    );
+
+    // Warm the session cache with a clean file.
+    const first = await getCodeDiagnostics({ file, workspaceDir: tempDir, waitTimeout: 2 });
+    expect(first.success).toBe(true);
+    expect(first.totalErrors).toBe(0);
+
+    // Rewrite the file on disk with an error, then ask for ALL diagnostics
+    // (no `file`): the tool must re-read and re-sync from disk instead of
+    // trusting the diagnostics cached for the previous revision.
+    await fs.writeFile(file, `int broken() { return missing_symbol; }\n`);
+    const second = await getCodeDiagnostics({ workspaceDir: tempDir, waitTimeout: 2 });
+
+    expect(second.success).toBe(true);
+    expect(second.totalErrors).toBeGreaterThanOrEqual(1);
+    const summary = second.files.find((f) => f.file.includes("mutable.cpp"));
+    expect(summary).toBeDefined();
+    expect(
+      summary?.diagnostics.some((d) => d.message.toLowerCase().includes("missing_symbol")),
+    ).toBe(true);
+  });
 });

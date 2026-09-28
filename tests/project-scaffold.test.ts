@@ -1,6 +1,7 @@
 // tests/project-scaffold.test.ts
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { existsSync, promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { runCli } from "../src/cli.js";
 import { type BuildSystem, scaffoldProject } from "../src/tools/project-scaffold.js";
@@ -15,6 +16,45 @@ afterAll(async () => {
   if (existsSync(TEST_SCRATCH_DIR)) {
     await fs.rm(TEST_SCRATCH_DIR, { recursive: true, force: true });
   }
+});
+
+describe("scaffoldProject - project policy", () => {
+  it("uses the .cpp-mcp.json standard when none is given", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "scaffold-policy-"));
+    const originalCwd = process.cwd();
+    try {
+      await fs.writeFile(path.join(dir, ".cpp-mcp.json"), JSON.stringify({ std: "23" }));
+      process.chdir(dir);
+
+      const res = await scaffoldProject({ projectName: "policy_app", dryRun: true });
+
+      expect(res.success).toBe(true);
+      expect(res.cppStandard).toBe("23");
+    } finally {
+      process.chdir(originalCwd);
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("lets an explicit standard override the project policy", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "scaffold-policy-"));
+    const originalCwd = process.cwd();
+    try {
+      await fs.writeFile(path.join(dir, ".cpp-mcp.json"), JSON.stringify({ std: "23" }));
+      process.chdir(dir);
+
+      const res = await scaffoldProject({
+        projectName: "policy_app",
+        dryRun: true,
+        cppStandard: "17",
+      });
+
+      expect(res.cppStandard).toBe("17");
+    } finally {
+      process.chdir(originalCwd);
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("scaffoldProject - In-Memory / Dry Run", () => {

@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it } from "bun:test";
-import { searchCache } from "../src/cache.js";
+import { htmlCache, searchCache } from "../src/cache.js";
 import { createServer } from "../src/index.js";
 import { extractHeaderFromHtml, lookupHeader } from "../src/tools/header.js";
 
 beforeEach(async () => {
   await searchCache.clear();
+  await htmlCache.clear();
 });
 
 describe("extractHeaderFromHtml", () => {
@@ -105,7 +106,7 @@ describe("lookupHeader", () => {
     expect(result.since).toBe("C++26");
     expect(result.source).toBe("cppreference_scrape");
 
-    // Second call should hit pageCache without calling network fetch
+    // Second call should hit htmlCache without calling network fetch
     let networkHit = false;
     const trackingFetch = async (url: string | URL | Request) => {
       const urlStr = decodeURIComponent(url.toString());
@@ -116,7 +117,7 @@ describe("lookupHeader", () => {
         );
       }
       networkHit = true;
-      throw new Error("Should have used pageCache");
+      throw new Error("Should have used htmlCache");
     };
 
     const cachedResult = await lookupHeader(
