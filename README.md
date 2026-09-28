@@ -18,10 +18,10 @@ Model Context Protocol (MCP) server that empowers AI coding assistants with auth
 flowchart TB
     Client["AI Clients\n(Antigravity / Claude / VS Code / Cursor / Zed)"] -->|stdio · JSON-RPC| Server["cpp-mcp Server"]
 
-    subgraph Tools ["23 MCP Tools by Functional Domain"]
+    subgraph Tools ["24 MCP Tools by Functional Domain"]
         direction LR
         D1["Reference & Standards\n• search_cppreference\n• get_cppreference_page\n• lookup_header\n• check_cpp_standard"]
-        D2["Safety & Guidelines\n• check_secure_coding (CERT)\n• get_guideline (Core Guidelines)\n• get_cpp_modules_guide\n• get_cpp_tooling_guide"]
+        D2["Safety & Guidelines\n• check_secure_coding (CERT)\n• get_guideline (Core Guidelines)\n• get_cpp_modules_guide\n• check_module_toolchain\n• get_cpp_tooling_guide"]
         D3["Semantic Intelligence (AST)\n• search_code_symbols\n• analyze_code_symbol\n• rename_code_symbol\n• get_code_diagnostics\n• get_project_details"]
         D4["Developer Productivity\n• format_code (clang-format)\n• run_clang_tidy (clang-tidy)\n• generate_documentation (clang-doc)\n• reorder_struct_fields (clang-reorder-fields)\n• trace_preprocessor (pp-trace)\n• generate_compilation_database\n• scaffold_project (xmake / CMake)\n• explain_compiler_error\n• demangle_symbol\n• check_compiler_support"]
     end
@@ -48,6 +48,7 @@ flowchart TB
 - **Live Compiler Diagnostics & AST Renaming**: Real-time error detection with caret pointers (`^~~~`), AST-based safe symbol renaming across all workspace files, and automated header tracking (`get_code_diagnostics`, `rename_code_symbol`).
 - **C/C++ Code Formatter**: Instant in-memory and file formatting via `clang-format` with project `.clang-format` auto-discovery, standard presets (`LLVM`, `Google`), line ranges, and unified diff preview (`format_code`).
 - **Host-Aware clang-tidy Linting**: Runs `clang-tidy` over project files with check presets (`modernize`, `bugprone`, `performance`, `portability`, `cppcoreguidelines`, `cert`, `security`, `all`), reports diagnostics with caret positions, and applies fixes in place only when explicitly requested (`run_clang_tidy`).
+- **Host-Aware Module Toolchain Detection**: Inspects the host `clang++`, `g++`, `libc++` and `clangd` to state which `import std;` setup is viable, including the clangd vs GCC `.gcm` BMI mismatch (`check_module_toolchain`).
 - **C/C++ Documentation Generator (clang-doc)**: Generates comprehensive API documentation from source code and Doxygen comments in Markdown, HTML, JSON, or YAML with compilation database integration and public API filtering (`generate_documentation`).
 - **Semantic Field Reordering (clang-reorder-fields)**: Optimizes struct/class memory layout and padding while automatically rewriting member declarations, constructor initializer lists, aggregate initializers, and C++20 designated initializers across the entire codebase (`reorder_struct_fields`).
 - **Preprocessor Tracer (pp-trace)**: Streams and aggregates the Clang preprocessor callback dump into a compact report of macro definitions, `#include` chains, `#if`/`#ifdef` branch decisions, pragmas, and C++20 module imports, filtered to project files by default (`trace_preprocessor`).
@@ -779,6 +780,26 @@ Traces the C/C++ preprocessor with `pp-trace` (clang-tools-extra) and returns a 
     "modules": [],
     "warnings": []
   }
+### 24. `check_module_toolchain`
+
+Inspects the host toolchain (`clang++`, `g++`, a modularized `libc++`, and `clangd`) and reports which `import std;` setup is actually viable here, including the compiler-specific BMI formats that break clangd navigation.
+
+- **Parameters**: none.
+- **Output fields**: `host` (`clang`, `gcc` with `stdModule`, `clangd`, `libcxx`), `recommended` (`clang-libc++`, `gcc-native`, or `hybrid`), `options[]` (id, label, viable, reason, requirements), and `notes[]`.
+
+- **Output Example**:
+  ```json
+  {
+    "success": true,
+    "host": {
+      "clang": { "available": true, "version": "18.1.3" },
+      "gcc": { "available": true, "version": "14.2.0", "stdModule": true },
+      "clangd": { "available": true, "version": "18.1.3" },
+      "libcxx": false
+    },
+    "recommended": "gcc-native",
+    "notes": ["GCC can build `import std;` but clangd/clang cannot read GCC `.gcm` BMIs: expect `module_not_found` in the editor even when the build succeeds."]
+  }
   ```
 
 ---
@@ -1046,9 +1067,9 @@ cpp-mcp docs --dry-run --json
 
 ### Command Reference & Aliases
 
-Run `cpp-mcp <command>` for any of: `header`, `query`, `search`, `standard`, `guideline`, `cert`, `module`, `tooling`, `compiler`, `demangle`, `project`, `code-search`, `code-analyze`, `code-diagnostics`, `code-rename`, `code-format`, `clang-tidy`, `scaffold`, `explain-error`, `docs`, `compile-db`, `reorder-fields`, `trace-preprocessor`.
+Run `cpp-mcp <command>` for any of: `header`, `query`, `search`, `standard`, `guideline`, `cert`, `module`, `module-toolchain`, `tooling`, `compiler`, `demangle`, `project`, `code-search`, `code-analyze`, `code-diagnostics`, `code-rename`, `code-format`, `clang-tidy`, `scaffold`, `explain-error`, `docs`, `compile-db`, `reorder-fields`, `trace-preprocessor`.
 
-`query` looks up the ISO header for a symbol and falls back to a cppreference search when the symbol is unknown. Several commands accept short aliases: `code-diagnostics` (`diagnostics`, `check`), `code-rename` (`rename`), `code-format` (`format`), `clang-tidy` (`tidy`, `modernize`), `scaffold` (`init`), `explain-error` (`explain`), `docs` (`generate-docs`, `clang-doc`), `compile-db` (`compiledb`, `generate-compile-commands`), `reorder-fields` (`reorder`), and `trace-preprocessor` (`trace-pp`, `pretrace`).
+`query` looks up the ISO header for a symbol and falls back to a cppreference search when the symbol is unknown. Several commands accept short aliases: `code-diagnostics` (`diagnostics`, `check`), `code-rename` (`rename`), `code-format` (`format`), `clang-tidy` (`tidy`, `modernize`), `module-toolchain` (`module-check`), `scaffold` (`init`), `explain-error` (`explain`), `docs` (`generate-docs`, `clang-doc`), `compile-db` (`compiledb`, `generate-compile-commands`), `reorder-fields` (`reorder`), and `trace-preprocessor` (`trace-pp`, `pretrace`).
 
 ---
 

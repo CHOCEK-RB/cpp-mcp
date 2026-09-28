@@ -22,6 +22,7 @@ import { explainCompilerError } from "./tools/error-explainer.js";
 import { reorderStructFields } from "./tools/field-reorderer.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
+import { checkModuleToolchain } from "./tools/module-toolchain.js";
 import { getCppModulesGuide } from "./tools/modules.js";
 import { tracePreprocessor } from "./tools/preprocessor-tracer.js";
 import {
@@ -71,6 +72,7 @@ Commands:
   guideline <rule_id|query>         Lookup C++ Core Guidelines rules and enforcement
   standard <version>                Inspect C or C++ standard features and test macros
   module <topic>                    Inspect C++20/23/26 modules architecture guides
+  module-toolchain                  Check which 'import std;' / modules toolchain is viable on this host
   tooling <tool> [topic]            Inspect modern C++ tooling & official xmake recipes (58 skills)
 
 Options:
@@ -625,6 +627,38 @@ export async function runCli(args: string[]): Promise<number> {
             console.log(`- ${t.id}: ${t.title}`);
           }
           return 0;
+        }
+        return 0;
+      }
+
+      case "module-toolchain":
+      case "module-check": {
+        const res = await checkModuleToolchain();
+
+        if (isJson || isRaw) {
+          console.log(JSON.stringify(res, null, 2));
+          return 0;
+        }
+
+        const { host } = res;
+        console.log("Host module toolchain:");
+        console.log(
+          `  clang++: ${host.clang.available ? (host.clang.version ?? "yes") : "not found"}`,
+        );
+        console.log(
+          `  g++:     ${host.gcc.available ? `${host.gcc.version ?? "yes"}${host.gcc.stdModule ? " (std module)" : ""}` : "not found"}`,
+        );
+        console.log(`  libc++:  ${host.libcxx ? "present" : "missing"}`);
+        console.log(
+          `  clangd:  ${host.clangd.available ? (host.clangd.version ?? "yes") : "not found"}`,
+        );
+        console.log(`\nRecommended: ${res.recommended}`);
+        for (const opt of res.options) {
+          console.log(`  [${opt.viable ? "x" : " "}] ${opt.label} - ${opt.reason}`);
+        }
+        if (res.notes.length > 0) {
+          console.log("\nNotes:");
+          for (const note of res.notes) console.log(`- ${note}`);
         }
         return 0;
       }

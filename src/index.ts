@@ -26,6 +26,7 @@ import { explainCompilerError } from "./tools/error-explainer.js";
 import { reorderStructFields } from "./tools/field-reorderer.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
+import { checkModuleToolchain } from "./tools/module-toolchain.js";
 import { getCppModulesGuide } from "./tools/modules.js";
 import { getCppreferencePage } from "./tools/page.js";
 import { tracePreprocessor } from "./tools/preprocessor-tracer.js";
@@ -318,6 +319,38 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error retrieving C++ modules guide: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "check_module_toolchain",
+    {
+      description:
+        "Inspect the host toolchain (clang++, g++, libc++, clangd) and report which `import std;` / C++20 modules setup is actually viable. Distinguishes GCC-native `import std;` from Clang + modularized libc++, and warns when clangd cannot read GCC's `.gcm` BMIs.",
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const result = await checkModuleToolchain();
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error checking module toolchain: ${error instanceof Error ? error.message : String(error)}`,
             },
           ],
         };
