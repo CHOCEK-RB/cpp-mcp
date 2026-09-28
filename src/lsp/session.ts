@@ -63,6 +63,7 @@ export class ClangdSession extends EventEmitter {
   private compileCommandsDir: string;
   private clangdPath: string;
   private diagnosticsMap = new Map<string, Diagnostic[]>();
+  private publishedVersion = new Map<string, number>();
   private openDocuments = new Map<string, number>();
   private spawnFn: SpawnProcess;
   private initializeTimeoutMs: number;
@@ -135,6 +136,15 @@ export class ClangdSession extends EventEmitter {
         if (params?.uri) {
           const diags = params.diagnostics || [];
           this.diagnosticsMap.set(params.uri, diags);
+          // clangd may publish diagnostics for an older document version after
+          // a didChange; only record the version that produced these diagnostics.
+          const version =
+            typeof params.version === "number"
+              ? params.version
+              : this.openDocuments.get(params.uri);
+          if (typeof version === "number") {
+            this.publishedVersion.set(params.uri, version);
+          }
           this.emit("diagnostics", params);
           this.emit(`diagnostics:${params.uri}`, diags);
         }
@@ -222,6 +232,8 @@ export class ClangdSession extends EventEmitter {
   public openDocument(uri: string, languageId: string, text: string, version = 1): void {
     if (!this.client) throw new Error("Clangd session is not running");
     this.openDocuments.set(uri, version);
+    // A fresh didOpen supersedes any diagnostics published for a previous lifetime.
+    this.publishedVersion.delete(uri);
     this.client.notify("textDocument/didOpen", {
       textDocument: {
         uri,
@@ -238,6 +250,9 @@ export class ClangdSession extends EventEmitter {
   public openOrUpdateDocument(uri: string, languageId: string, text: string): void {
     if (!this.client) throw new Error("Clangd session is not running");
     const currentVersion = this.openDocuments.get(uri);
+    // New content invalidates the previously published diagnostics until clangd
+    // republishes for the new version.
+    this.publishedVersion.delete(uri);
     if (currentVersion === undefined) {
       this.openDocuments.set(uri, 1);
       this.client.notify("textDocument/didOpen", {
@@ -266,6 +281,13 @@ export class ClangdSession extends EventEmitter {
    */
   public async waitForDiagnostics(uri: string, timeoutMs = 2000): Promise<Diagnostic[]> {
     if (!this.client) throw new Error("Clangd session is not running");
+
+    // If clangd has already published for the current document version there is
+    // nothing to wait for; return the cached result immediately.
+    const currentVersion = this.openDocuments.get(uri);
+    if (currentVersion !== undefined && this.publishedVersion.get(uri) === currentVersion) {
+      return this.diagnosticsMap.get(uri) || [];
+    }
 
     return new Promise<Diagnostic[]>((resolve) => {
       let resolved = false;
@@ -500,6 +522,7 @@ export class ClangdSession extends EventEmitter {
     }
 
     this.diagnosticsMap.clear();
+    this.publishedVersion.clear();
     this.openDocuments.clear();
     this.removeAllListeners();
     this.initialized = false;

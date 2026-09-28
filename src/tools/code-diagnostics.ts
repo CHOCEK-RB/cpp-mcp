@@ -107,6 +107,30 @@ function formatDiagnostic(
   };
 }
 
+function summarizeDiagnostics(
+  relPath: string,
+  rawDiagnostics: Diagnostic[],
+  content: string | undefined,
+  severityFilter: CodeDiagnosticsOptions["severity"],
+): FileDiagnosticsSummary {
+  const filtered = rawDiagnostics.filter((d) => {
+    if (severityFilter === "error") {
+      return d.severity === DiagnosticSeverity.Error;
+    }
+    if (severityFilter === "warning") {
+      return d.severity === DiagnosticSeverity.Warning;
+    }
+    return true;
+  });
+
+  return {
+    file: relPath,
+    errorCount: rawDiagnostics.filter((d) => d.severity === DiagnosticSeverity.Error).length,
+    warningCount: rawDiagnostics.filter((d) => d.severity === DiagnosticSeverity.Warning).length,
+    diagnostics: filtered.map((d) => formatDiagnostic(d, relPath, content)),
+  };
+}
+
 /**
  * Retrieves live compiler diagnostics (errors, warnings) using clangd LSP.
  */
@@ -161,76 +185,40 @@ export async function getCodeDiagnostics(
 
       const rawDiagnostics = await session.waitForDiagnostics(uri, waitTimeout);
 
-      const filtered = rawDiagnostics.filter((d) => {
-        if (severityFilter === "error") {
-          return d.severity === DiagnosticSeverity.Error;
-        }
-        if (severityFilter === "warning") {
-          return d.severity === DiagnosticSeverity.Warning;
-        }
-        return true;
-      });
-
-      const formattedDiags = filtered.map((d) => formatDiagnostic(d, relPath, content));
-      const errorCount = rawDiagnostics.filter(
-        (d) => d.severity === DiagnosticSeverity.Error,
-      ).length;
-      const warningCount = rawDiagnostics.filter(
-        (d) => d.severity === DiagnosticSeverity.Warning,
-      ).length;
-
-      fileSummaries.push({
-        file: relPath,
-        errorCount,
-        warningCount,
-        diagnostics: formattedDiags,
-      });
+      fileSummaries.push(summarizeDiagnostics(relPath, rawDiagnostics, content, severityFilter));
     } else {
-      // Query all tracked/open documents in session
+      // Query all tracked documents. Re-read and re-sync each file from disk
+      // before reporting: clangd analyzes the text it was last sent, so cached
+      // diagnostics can describe an older revision (e.g. includes that no
+      // longer exist) and produce false positives no real build confirms.
       const cached = session.getCachedDiagnostics() as Map<string, Diagnostic[]>;
 
-      for (const [uri, rawDiagnostics] of cached.entries()) {
+      for (const uri of cached.keys()) {
         let filePath = uri;
         try {
           filePath = fileURLToPath(uri);
         } catch {
           // Keep raw uri if fileURLToPath fails
         }
-        const relPath = path.relative(wsDir, filePath);
 
-        let content: string | undefined;
-        if (existsSync(filePath)) {
-          try {
-            content = await fs.readFile(filePath, "utf-8");
-          } catch {
-            // Content reading is optional for snippet generation
-          }
+        if (!existsSync(filePath)) {
+          // A tracked document that no longer exists on disk cannot produce
+          // trustworthy diagnostics; report nothing for it.
+          continue;
         }
 
-        const filtered = rawDiagnostics.filter((d) => {
-          if (severityFilter === "error") {
-            return d.severity === DiagnosticSeverity.Error;
-          }
-          if (severityFilter === "warning") {
-            return d.severity === DiagnosticSeverity.Warning;
-          }
-          return true;
-        });
+        let content: string;
+        try {
+          content = await fs.readFile(filePath, "utf-8");
+        } catch {
+          continue;
+        }
 
-        const formattedDiags = filtered.map((d) => formatDiagnostic(d, relPath, content));
-        const errorCount = rawDiagnostics.filter(
-          (d) => d.severity === DiagnosticSeverity.Error,
-        ).length;
-        const warningCount = rawDiagnostics.filter(
-          (d) => d.severity === DiagnosticSeverity.Warning,
-        ).length;
+        const relPath = path.relative(wsDir, filePath);
+        session.openOrUpdateDocument(uri, inferLanguageId(filePath), content);
+        const rawDiagnostics = await session.waitForDiagnostics(uri, waitTimeout);
 
-        fileSummaries.push({
-          file: relPath,
-          errorCount,
-          warningCount,
-          diagnostics: formattedDiags,
-        });
+        fileSummaries.push(summarizeDiagnostics(relPath, rawDiagnostics, content, severityFilter));
       }
     }
 

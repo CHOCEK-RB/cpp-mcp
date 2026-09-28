@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -1536,14 +1538,24 @@ export async function main(): Promise<void> {
 }
 
 const entryArg = typeof process !== "undefined" ? process.argv[1] : undefined;
+
+/**
+ * True when argv[1] resolves to this very module. Comparing real paths is
+ * precise: import.meta.main is false under `bun test`, and the previous
+ * substring heuristic (`arg.includes("test")`) silently disabled CLI mode for
+ * any argument or path containing "test" (e.g. `code-diagnostics tests/a.cpp`).
+ */
+export function isEntryPoint(entry: string): boolean {
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
 const isDirectExecution =
   (typeof import.meta !== "undefined" && Boolean(import.meta.main)) ||
-  (typeof process !== "undefined" &&
-    entryArg !== undefined &&
-    !process.argv.some((arg) => arg.includes("test")) &&
-    (entryArg.endsWith("index.js") ||
-      entryArg.endsWith("index.ts") ||
-      entryArg.includes("cpp-mcp")));
+  (typeof process !== "undefined" && entryArg !== undefined && isEntryPoint(entryArg));
 
 if (isDirectExecution) {
   const args = typeof process !== "undefined" ? process.argv.slice(2) : [];
