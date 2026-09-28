@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { fileURLToPath } from "node:url";
 import pkg from "../package.json" with { type: "json" };
 import serverJson from "../server.json" with { type: "json" };
-import { isEntryPoint, SERVER_NAME, SERVER_VERSION } from "../src/index.js";
+import { createServer, isEntryPoint, SERVER_NAME, SERVER_VERSION } from "../src/index.js";
 
 describe("cpp-mcp server metadata", () => {
   it("should have correct server name and version", () => {
@@ -22,5 +22,19 @@ describe("direct execution detection", () => {
   it("rejects unrelated files and missing paths", () => {
     expect(isEntryPoint(`${process.cwd()}/package.json`)).toBe(false);
     expect(isEntryPoint("/definitely/not/here/index.js")).toBe(false);
+  });
+});
+
+describe("tool descriptions", () => {
+  it("leads every registered tool description with its trigger", () => {
+    const server = createServer();
+    // @ts-expect-error accessing private property for test verification
+    const tools = server._registeredTools as Record<string, { description?: string }>;
+    const names = Object.keys(tools);
+
+    expect(names.length).toBeGreaterThanOrEqual(24);
+    for (const name of names) {
+      expect(tools[name]?.description?.startsWith("Use when")).toBe(true);
+    }
   });
 });
