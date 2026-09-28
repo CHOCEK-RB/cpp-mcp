@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { DocumentSymbol, Position } from "../lsp/types.js";
 import { symbolKindToString } from "../lsp/types.js";
-import { openFileInSession } from "./code-document.js";
+import { openFileAndAwaitReady } from "./code-document.js";
 import { sessionManager } from "./code-session-manager.js";
 
 export interface CodeAnalyzerOptions {
@@ -215,10 +215,7 @@ export async function analyzeCodeSymbol(options: CodeAnalyzerOptions): Promise<C
 
     // Notify clangd to open document so AST is built in memory for hover & definitions
     if (existsSync(localFilePath)) {
-      const opened = await openFileInSession(session, targetUri, localFilePath);
-      if (opened) {
-        await new Promise((r) => setTimeout(r, 60));
-      }
+      await openFileAndAwaitReady(session, targetUri, localFilePath);
     }
 
     // 3. Concurrently fetch hover, definitions, references, type, call hierarchy, and document symbols

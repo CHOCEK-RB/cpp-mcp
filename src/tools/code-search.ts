@@ -50,9 +50,13 @@ export async function searchCodeSymbols(options: CodeSearchOptions): Promise<Cod
   try {
     let rawSymbols = await session.searchSymbols(options.query || "");
     if (rawSymbols.length === 0 && options.query) {
-      // Allow brief settling time for clangd AST indexer on cold start
-      await new Promise((r) => setTimeout(r, 200));
-      rawSymbols = await session.searchSymbols(options.query);
+      // Give the background indexer a bounded window to catch up, polling in
+      // short steps so a warm index returns as soon as symbols appear instead
+      // of always paying the full settle delay.
+      for (let waitedMs = 0; rawSymbols.length === 0 && waitedMs < 200; waitedMs += 50) {
+        await new Promise((r) => setTimeout(r, 50));
+        rawSymbols = await session.searchSymbols(options.query);
+      }
     }
 
     const formatted: FormattedCodeSymbol[] = [];
