@@ -5,7 +5,14 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { isExecutableAvailable, resolveProjectBuildInfo } from "./project/xmake.js";
 import { checkSecureCoding } from "./tools/cert.js";
+import { analyzeCodeSymbol } from "./tools/code-analyzer.js";
+import { getCodeDiagnostics } from "./tools/code-diagnostics.js";
+import { renameCodeSymbol } from "./tools/code-renamer.js";
+import { searchCodeSymbols } from "./tools/code-search.js";
+import { checkCompilerSupport } from "./tools/compiler-support.js";
+import { demangleSymbol } from "./tools/demangle.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
 import { checkModuleToolchain } from "./tools/module-toolchain.js";
@@ -13,6 +20,7 @@ import { getCppModulesGuide } from "./tools/modules.js";
 import { getCppreferencePage } from "./tools/page.js";
 import { searchCppreference } from "./tools/search.js";
 import { checkCppStandard } from "./tools/standards.js";
+import { getCppToolingGuide } from "./tools/tooling.js";
 
 /**
  * Invocation arguments arrive as the validated Zod shape output. The registry is
@@ -240,5 +248,255 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     },
     invoke: ({ rule_id, category, query, code }) =>
       checkSecureCoding({ rule_id, category, query, code }),
+  },
+  {
+    name: "get_cpp_tooling_guide",
+    description:
+      "Use when configuring or asking about C/C++ build and tooling (xmake with C++20 modules and official agent skills, .clang-format, .clang-tidy, LLVM/GCC sanitizers). Returns authoritative commands and production starter configs.",
+    errorLabel: "retrieving C++ tooling guide",
+    inputSchema: {
+      tool: z
+        .string()
+        .optional()
+        .describe(
+          "Target tool ID or alias (e.g. 'xmake', 'clang-format', 'clang-tidy', 'sanitizers', 'format', 'tidy', 'asan')",
+        ),
+      topic: z
+        .string()
+        .optional()
+        .describe(
+          "Specific tooling topic or official xmake recipe (e.g. 'cxx-modules', 'cross-compilation', 'packages', 'cuda', 'unity', 'zigcc')",
+        ),
+      category: z
+        .string()
+        .optional()
+        .describe(
+          "Category filter for official xmake recipes (e.g. 'basics', 'cli', 'languages', 'ops', 'packages', 'packaging', 'performance', 'project-config', 'scripting', 'testing', 'toolchains')",
+        ),
+      query: z
+        .string()
+        .optional()
+        .describe(
+          "Search query across directives, CLI commands, configuration options, and xmake recipes (e.g. 'compile_commands', 'add_requires', 'modernize', 'IndentWidth', 'cuda')",
+        ),
+      generate_config: z
+        .boolean()
+        .optional()
+        .describe(
+          "If true, outputs the raw, copy-pasteable production configuration file (e.g. xmake.lua, .clang-format, .clang-tidy)",
+        ),
+    },
+    invoke: ({ tool, topic, category, query, generate_config }) =>
+      getCppToolingGuide({ tool, topic, category, query, generate_config }),
+  },
+  {
+    name: "check_compiler_support",
+    description:
+      "Use when you need the minimum compiler versions (GCC, Clang, MSVC, Apple Clang) for a modern C++ feature, or to check whether a specific compiler version supports it (std::print, std::expected, import std, std::generator, coroutines, concepts, modules).",
+    errorLabel: "checking compiler support",
+    inputSchema: {
+      feature: z
+        .string()
+        .optional()
+        .describe(
+          "C++ standard feature, library symbol, or keyword (e.g. 'std::print', 'expected', 'import std', 'generator', 'deducing this'). If omitted, returns an overview of features.",
+        ),
+      standard: z
+        .string()
+        .optional()
+        .describe(
+          "Filter features by C++ standard version (e.g. 'C++20', 'C++23', 'C++26', 'C++17').",
+        ),
+      compiler: z
+        .enum(["gcc", "clang", "msvc", "apple_clang"])
+        .optional()
+        .describe("Specific compiler to check compatibility against."),
+      version: z
+        .union([z.string(), z.number()])
+        .optional()
+        .describe(
+          "User compiler version (e.g. '13.2', '16.0', 17) to evaluate compatibility against minimum requirements.",
+        ),
+    },
+    invoke: ({ feature, standard, compiler, version }) =>
+      checkCompilerSupport({ feature, standard, compiler, version }),
+  },
+  {
+    name: "demangle_symbol",
+    description:
+      "Use when a compiler or linker log contains mangled names (_ZN..., ?...) and you need readable signatures — or when you need to demangle a single symbol. Handles Itanium ABI (GCC/Clang) and MSVC.",
+    errorLabel: "demangling symbol",
+    inputSchema: {
+      symbol: z
+        .string()
+        .min(1)
+        .describe(
+          "Mangled symbol (e.g. '_ZNSt6vectorIiSaIiEE9push_backERKi', '_Z3addii', '?func@@YAHXZ') or an entire compiler/linker error trace containing mangled symbols.",
+        ),
+      strip_params: z
+        .boolean()
+        .optional()
+        .describe("If true, strips function parameter types to return only the qualified name."),
+    },
+    invoke: ({ symbol, strip_params }) => demangleSymbol({ symbol, strip_params }),
+  },
+  {
+    name: "search_code_symbols",
+    description:
+      "Use when you know a symbol's name but not where it is defined, or before calling analyze_code_symbol. Searches the indexed project workspace via clangd for classes, structs, functions, methods, and variables.",
+    errorLabel: "searching workspace code symbols",
+    inputSchema: {
+      query: z
+        .string()
+        .describe(
+          "Symbol name or partial query to search for in workspace code (e.g. 'Calculator', 'Vec2', 'render').",
+        ),
+      workspaceDir: z
+        .string()
+        .optional()
+        .describe(
+          "Project root directory containing xmake.lua, CMakeLists.txt, or compile_commands.json. Defaults to cwd.",
+        ),
+      files: z
+        .array(z.string())
+        .optional()
+        .describe("Filter results to matching file names or relative paths."),
+      limit: z
+        .number()
+        .optional()
+        .describe("Maximum number of matching symbols to return (default: 25)."),
+    },
+    invoke: ({ query, workspaceDir, files, limit }) =>
+      searchCodeSymbols({ query, workspaceDir, files, limit }),
+  },
+  {
+    name: "analyze_code_symbol",
+    description:
+      "Use when you need deep semantics for one C++ symbol: definition, hover signature, docstrings, inheritance, incoming/outgoing call hierarchy, members, and usage examples. Runs a multi-dimensional clangd analysis.",
+    errorLabel: "analyzing code symbol",
+    inputSchema: {
+      symbol: z
+        .string()
+        .describe(
+          "Symbol name or qualified name to analyze (e.g. 'Calculator::add', 'Vec2', 'process').",
+        ),
+      workspaceDir: z
+        .string()
+        .optional()
+        .describe(
+          "Project root directory containing xmake.lua, CMakeLists.txt, or compile_commands.json. Defaults to cwd.",
+        ),
+      file: z.string().optional().describe("Source file path hint for disambiguation."),
+      line: z.number().optional().describe("Line number hint (1-indexed) for disambiguation."),
+      maxExamples: z
+        .number()
+        .optional()
+        .describe("Maximum number of usage references to extract (default: 5)."),
+    },
+    invoke: ({ symbol, workspaceDir, file, line, maxExamples }) =>
+      analyzeCodeSymbol({ symbol, workspaceDir, file, line, maxExamples }),
+  },
+  {
+    name: "get_project_details",
+    description:
+      "Use when you need to know how a workspace is built, why clangd tools fail, or which toolchain is available: returns the detected build system (xmake, CMake, compile_commands.json), indexed translation units, and clangd/xmake availability.",
+    errorLabel: "inspecting project details",
+    inputSchema: {
+      workspaceDir: z
+        .string()
+        .optional()
+        .describe(
+          "Project root directory containing xmake.lua, CMakeLists.txt, or compile_commands.json. Defaults to cwd.",
+        ),
+      autoGenerate: z
+        .boolean()
+        .optional()
+        .describe(
+          "Automatically generate compile_commands.json via xmake if missing (default: true).",
+        ),
+    },
+    invoke: async ({ workspaceDir, autoGenerate }) => {
+      const info = await resolveProjectBuildInfo({ workspaceDir, autoGenerate });
+      const [hasClangd, hasXmake] = await Promise.all([
+        isExecutableAvailable("clangd"),
+        isExecutableAvailable("xmake"),
+      ]);
+      return { ...info, toolchain: { clangd: hasClangd, xmake: hasXmake } };
+    },
+  },
+  {
+    name: "get_code_diagnostics",
+    description:
+      "Use when you need live compile errors and warnings for a file or in-memory snippet without running the build. Returns clangd diagnostics with line snippets and caret indicators; supports a severity filter.",
+    errorLabel: "retrieving code diagnostics",
+    inputSchema: {
+      file: z
+        .string()
+        .optional()
+        .describe(
+          "Source or header file path to analyze (e.g. 'src/main.cpp'). If omitted, returns diagnostics across all tracked project files.",
+        ),
+      code: z
+        .string()
+        .optional()
+        .describe(
+          "Optional in-memory source code to check without saving to disk. Requires 'file' to determine path and file type.",
+        ),
+      workspaceDir: z
+        .string()
+        .optional()
+        .describe(
+          "Project root directory containing xmake.lua, CMakeLists.txt, or compile_commands.json. Defaults to cwd.",
+        ),
+      severity: z
+        .enum(["all", "error", "warning"])
+        .optional()
+        .describe("Filter diagnostics by severity level (default: 'all')."),
+      waitTimeout: z
+        .number()
+        .optional()
+        .describe(
+          "Maximum seconds to wait for clangd to parse and publish diagnostics (default: 3).",
+        ),
+    },
+    invoke: ({ file, code, workspaceDir, severity, waitTimeout }) =>
+      getCodeDiagnostics({ file, code, workspaceDir, severity, waitTimeout }),
+  },
+  {
+    name: "rename_code_symbol",
+    description:
+      "Use when renaming a C++ symbol safely across the whole workspace. Performs AST-level rename of declarations, definitions and references via clangd without textual false positives; dry_run previews first.",
+    errorLabel: "renaming symbol",
+    inputSchema: {
+      symbol: z
+        .string()
+        .describe(
+          "Symbol name or qualified identifier to rename (e.g. 'Calculator::add', 'process_data').",
+        ),
+      new_name: z.string().describe("New identifier name. Must be a valid C/C++ identifier."),
+      workspaceDir: z
+        .string()
+        .optional()
+        .describe(
+          "Project root directory containing xmake.lua, CMakeLists.txt, or compile_commands.json. Defaults to cwd.",
+        ),
+      file: z.string().optional().describe("Source file path hint for symbol location."),
+      line: z.number().optional().describe("Line number hint (1-indexed) for symbol location."),
+      dry_run: z
+        .boolean()
+        .optional()
+        .describe(
+          "If true (default), returns preview diff of all affected files without modifying disk. If false, writes changes to disk.",
+        ),
+    },
+    invoke: ({ symbol, new_name, workspaceDir, file, line, dry_run }) =>
+      renameCodeSymbol({
+        symbol,
+        newName: new_name,
+        workspaceDir,
+        file,
+        line,
+        dryRun: dry_run,
+      }),
   },
 ];
