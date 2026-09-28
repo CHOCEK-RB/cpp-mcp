@@ -52,7 +52,7 @@ export function createServer(): McpServer {
     "search_cppreference",
     {
       description:
-        "Search cppreference.com for C or C++ standard library, language, and compiler documentation. Returns up to 5 matching URLs.",
+        "Use when you need to find the official cppreference page for a C/C++ symbol, header, or language feature and don't know its URL. Returns up to 5 matching cppreference.com URLs; follow up with get_cppreference_page for the contents.",
       inputSchema: {
         query: z
           .string()
@@ -90,7 +90,7 @@ export function createServer(): McpServer {
     "get_cppreference_page",
     {
       description:
-        "Retrieve a cppreference.com documentation page and return its sanitized content as Markdown.",
+        "Use when you have a cppreference.com URL and need the authoritative reference text for a symbol (semantics, overloads, since/deprecated/removed notes). Returns sanitized Markdown, paginated with a cursor for long pages.",
       inputSchema: {
         url: z.url().describe("HTTPS URL of a cppreference.com documentation page to retrieve."),
         cursor: z
@@ -131,7 +131,7 @@ export function createServer(): McpServer {
     "lookup_header",
     {
       description:
-        "Find the standard C or C++ header (<vector>, <algorithm>, <cstdio>, etc.) required for a given function, type, class, or symbol, including standard version and category.",
+        "Use when you need to know which ISO C/C++ header declares a symbol (e.g. 'where is std::span defined?'). Returns the header (<vector>, <algorithm>, <cstdio>, ...), first standard, category, and the C equivalent when one exists.",
       inputSchema: {
         symbol: z
           .string()
@@ -170,7 +170,7 @@ export function createServer(): McpServer {
     "check_cpp_standard",
     {
       description:
-        "Check which C or C++ standard version introduced, deprecated, or removed a given symbol, function, class, or header, and verify compatibility against a target language standard (e.g. C++17, C++20, C++23).",
+        "Use when you must confirm whether a symbol/header exists in a target C/C++ standard (C++17, C++20, C++23, ...) or when it was introduced, deprecated, or removed. Returns the status and feature-test macro for that standard.",
       inputSchema: {
         symbol: z
           .string()
@@ -215,7 +215,7 @@ export function createServer(): McpServer {
     "get_guideline",
     {
       description:
-        "Look up rules, modern idioms, and best practices from the official C++ Core Guidelines (Bjarne Stroustrup & Herb Sutter) by rule ID (e.g. 'F.16', 'R.1', 'C.21', 'I.11') or keyword query (e.g. 'RAII', 'ownership', 'smart pointers', 'rule of five').",
+        "Use when you need the official C++ Core Guidelines rule for an ID (F.16, R.1, C.21, I.11) or advice on an idiom (RAII, ownership, smart pointers, rule of five). Returns rule text, rationale, and enforcement.",
       inputSchema: {
         rule_id: z
           .string()
@@ -277,7 +277,7 @@ export function createServer(): McpServer {
     "get_cpp_modules_guide",
     {
       description:
-        "Retrieve authoritative architecture guides, rules, code patterns, and best practices for C++ Modules in C++20, C++23, and C++26. Covers 'import std;', interface & implementation partitions, Global Module Fragment macro isolation, CMake 3.28+ setup, and header migration.",
+        "Use when writing or migrating to C++20/23/26 modules ('import std;', partitions, global module fragment, CMake 3.28+ setup, header migration). Returns architecture guides, rules, and code patterns by topic.",
       inputSchema: {
         topic: z
           .string()
@@ -330,7 +330,7 @@ export function createServer(): McpServer {
     "check_module_toolchain",
     {
       description:
-        "Inspect the host toolchain (clang++, g++, libc++, clangd) and report which `import std;` / C++20 modules setup is actually viable. Distinguishes GCC-native `import std;` from Clang + modularized libc++, and warns when clangd cannot read GCC's `.gcm` BMIs.",
+        "Use when modules fail to build or navigate (module_not_found, 'import std' errors, incompatible BMI) or before choosing a toolchain for modules. Inspects clang++, g++, libc++ and clangd and reports which import std; setup is viable on this host.",
       inputSchema: {},
     },
     async () => {
@@ -362,7 +362,7 @@ export function createServer(): McpServer {
     "check_secure_coding",
     {
       description:
-        "Audit C++ code for security vulnerabilities, undefined behavior (UB), and safety violations against the official SEI CERT C++ Coding Standard and MITRE CWEs. Provides noncompliant code explanations and secure modern fixes.",
+        "Use when auditing C++ code for security, undefined behavior, or safety (e.g. before a commit or review), or to look up a SEI CERT C++ rule or CWE. Returns noncompliant examples and secure modern fixes.",
       inputSchema: {
         rule_id: z
           .string()
@@ -424,7 +424,7 @@ export function createServer(): McpServer {
     "get_cpp_tooling_guide",
     {
       description:
-        "Retrieve authoritative documentation, commands, and production starter configurations for modern C/C++ developer tools (xmake build system with C++20 modules and 58 official agent skills, .clang-format, .clang-tidy, and LLVM/GCC runtime sanitizers).",
+        "Use when configuring or asking about C/C++ build and tooling (xmake with C++20 modules and official agent skills, .clang-format, .clang-tidy, LLVM/GCC sanitizers). Returns authoritative commands and production starter configs.",
       inputSchema: {
         tool: z
           .string()
@@ -493,7 +493,7 @@ export function createServer(): McpServer {
     "check_compiler_support",
     {
       description:
-        "Check minimum compiler support versions (GCC, Clang, MSVC, Apple Clang) for modern C++ features (e.g. std::print, std::expected, import std, std::generator, coroutines, concepts, modules). Optionally evaluate if a specific user compiler version is compatible.",
+        "Use when you need the minimum compiler versions (GCC, Clang, MSVC, Apple Clang) for a modern C++ feature, or to check whether a specific compiler version supports it (std::print, std::expected, import std, std::generator, coroutines, concepts, modules).",
       inputSchema: {
         feature: z
           .string()
@@ -553,7 +553,7 @@ export function createServer(): McpServer {
     "demangle_symbol",
     {
       description:
-        "Demangle C++ mangled symbol names (Itanium ABI for GCC/Clang, or MSVC) into human-readable function signatures, or translate entire compiler/linker error trace logs containing mangled identifiers.",
+        "Use when a compiler or linker log contains mangled names (_ZN..., ?...) and you need readable signatures — or when you need to demangle a single symbol. Handles Itanium ABI (GCC/Clang) and MSVC.",
       inputSchema: {
         symbol: z
           .string()
@@ -599,7 +599,7 @@ export function createServer(): McpServer {
     "search_code_symbols",
     {
       description:
-        "Search for C++ symbols (classes, structs, functions, methods, variables) across your project workspace using clangd LSP and xmake/CMake build integration.",
+        "Use when you know a symbol's name but not where it is defined, or before calling analyze_code_symbol. Searches the indexed project workspace via clangd for classes, structs, functions, methods, and variables.",
       inputSchema: {
         query: z
           .string()
@@ -656,7 +656,7 @@ export function createServer(): McpServer {
     "analyze_code_symbol",
     {
       description:
-        "Perform deep multi-dimensional semantic analysis of a C++ symbol (definition, declaration, hover signature, docstrings, inheritance hierarchy, incoming/outgoing call hierarchy, class members, and usage examples) via clangd LSP and xmake/CMake.",
+        "Use when you need deep semantics for one C++ symbol: definition, hover signature, docstrings, inheritance, incoming/outgoing call hierarchy, members, and usage examples. Runs a multi-dimensional clangd analysis.",
       inputSchema: {
         symbol: z
           .string()
@@ -712,7 +712,7 @@ export function createServer(): McpServer {
     "get_project_details",
     {
       description:
-        "Inspect C/C++ workspace build configuration, detected build system (xmake, CMake, compile_commands.json), indexed compilation units, and toolchain availability (clangd, xmake).",
+        "Use when you need to know how a workspace is built, why clangd tools fail, or which toolchain is available: returns the detected build system (xmake, CMake, compile_commands.json), indexed translation units, and clangd/xmake availability.",
       inputSchema: {
         workspaceDir: z
           .string()
@@ -771,7 +771,7 @@ export function createServer(): McpServer {
     "get_code_diagnostics",
     {
       description:
-        "Retrieve live C/C++ compilation diagnostics (errors, warnings) using clangd LSP and project compilation database. Supports checking saved files or in-memory code snippets with line snippets and caret indicators.",
+        "Use when you need live compile errors and warnings for a file or in-memory snippet without running the build. Returns clangd diagnostics with line snippets and caret indicators; supports a severity filter.",
       inputSchema: {
         file: z
           .string()
@@ -838,7 +838,7 @@ export function createServer(): McpServer {
     "rename_code_symbol",
     {
       description:
-        "Perform AST-level semantic symbol renaming across all workspace files via clangd LSP. Accurately updates declarations, definitions, and references without false positives. Supports dry_run preview.",
+        "Use when renaming a C++ symbol safely across the whole workspace. Performs AST-level rename of declarations, definitions and references via clangd without textual false positives; dry_run previews first.",
       inputSchema: {
         symbol: z
           .string()
@@ -898,7 +898,7 @@ export function createServer(): McpServer {
     "format_code",
     {
       description:
-        "Format C/C++ source code or files using clang-format. Supports in-memory code snippets, project-specific .clang-format styles, standard presets (LLVM, Google, Chromium, Mozilla, WebKit, Microsoft), line ranges, and atomic disk application.",
+        "Use when code must match the project's style (before a commit, after generation) or to format a snippet. Runs clang-format with .clang-format discovery, presets (LLVM, Google, Chromium, Mozilla, WebKit, Microsoft), line ranges, and atomic disk apply.",
       inputSchema: {
         code: z
           .string()
@@ -1023,7 +1023,7 @@ export function createServer(): McpServer {
     "run_clang_tidy",
     {
       description:
-        "Run clang-tidy over C/C++ files with a preset check group (modernize, bugprone, performance, portability, cppcoreguidelines, cert, security, all) or a raw --checks expression. Reports findings with file, line and check name by default; set apply=true to write clang-tidy fixes to disk. Uses the project's compile_commands.json when available so checks run with the real build flags.",
+        "Use when modernizing or linting C/C++ code (e.g. std::cout -> std::print, NULL -> nullptr, raw new/delete) or gating CI on a check preset. Runs clang-tidy with presets (modernize, bugprone, performance, portability, cppcoreguidelines, cert, security, all) or a raw --checks expression; reports findings by default, apply=true writes fixes to disk.",
       inputSchema: {
         file: z.string().optional().describe("Single C/C++ file to analyze."),
         files: z
@@ -1110,7 +1110,7 @@ export function createServer(): McpServer {
     "scaffold_project",
     {
       description:
-        "Scaffold a modern C++ project with best-practice configurations (xmake/CMake, C++11-26, Catch2/GTest/doctest, .clang-format, .clangd LSP, and git).",
+        "Use when starting a new C/C++ project and you want a best-practice skeleton. Scaffolds xmake/CMake with a chosen standard (C++11-26), test framework (Catch2/GTest/doctest), .clang-format, .clangd LSP config, and git.",
       inputSchema: {
         project_name: z
           .string()
@@ -1236,7 +1236,7 @@ export function createServer(): McpServer {
     "explain_compiler_error",
     {
       description:
-        "Explain complex C++ compiler and linker errors in plain language (massive template/SFINAE backtraces, unsatisfied C++20 concepts, undefined references, vtable issues, module resolution failures).",
+        "Use when a C/C++ build fails and you need the error decoded: massive template/SFINAE backtraces, unsatisfied C++20 concepts, undefined references, vtable issues, missing includes, or module resolution failures. Returns a plain-language diagnosis and fix.",
       inputSchema: {
         error: z
           .string()
@@ -1293,7 +1293,7 @@ export function createServer(): McpServer {
     "generate_documentation",
     {
       description:
-        "Generate API documentation from C/C++ source code using clang-doc (Markdown, HTML, JSON, YAML). Extracts Doxygen comments, types, and inheritance.",
+        "Use when you need API documentation generated from C/C++ sources (Markdown, HTML, JSON, YAML) with Doxygen comments, types, and inheritance. Runs clang-doc non-destructively (manifest-tracked outputs).",
       inputSchema: {
         workspace: z
           .string()
@@ -1372,7 +1372,7 @@ export function createServer(): McpServer {
     "generate_compilation_database",
     {
       description:
-        "Generate or resolve a compile_commands.json database for C/C++ projects (CMake, xmake, Meson, Bear, or synthetic mode without a build system). Unlocks clangd semantic intelligence and clang-doc.",
+        "Use when clangd or clang tools report a missing compile_commands.json, when symbols don't resolve, or when setting up semantic intelligence for a project without a build system. Generates or resolves the database for CMake, xmake, Meson, Bear, or synthetic mode.",
       inputSchema: {
         workspace: z
           .string()
@@ -1468,7 +1468,7 @@ export function createServer(): McpServer {
     "reorder_struct_fields",
     {
       description:
-        "Reorder fields in C/C++ structs and classes using clang-reorder-fields. Optimizes memory layout and padding, and automatically updates field declarations, constructor initializer lists, aggregate initializers, and C++20 designated initializers across the codebase.",
+        "Use when optimizing a struct/class memory layout or reordering members safely. Runs clang-reorder-fields and updates field declarations, constructor initializer lists, aggregate initializers, and C++20 designated initializers across the codebase.",
       inputSchema: {
         record_name: z
           .string()
@@ -1538,7 +1538,7 @@ export function createServer(): McpServer {
     "trace_preprocessor",
     {
       description:
-        "Trace C/C++ preprocessor activity with clang-tools-extra's pp-trace. Returns an aggregated summary of macro definitions/undefinitions, #include directives, conditional branches (#if/#ifdef/#elif), pragmas, and module imports, filtering out system-header noise by default.",
+        "Use when debugging macro expansion or conditional compilation. Traces pp-trace activity — #define/#undef, #include, #if/#ifdef/#elif branches, pragmas, module imports — as an aggregated summary, filtering system-header noise by default.",
       inputSchema: {
         file: z
           .string()
