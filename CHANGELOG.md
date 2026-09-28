@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/CHOCEK-RB/cpp-mcp/compare/cpp-mcp-v1.7.0...cpp-mcp-v1.8.0) (2026-09-28)
+
+
+### Features
+
+* clang-tidy, module toolchain, project policy and trigger-first tool descriptions ([#60](https://github.com/CHOCEK-RB/cpp-mcp/issues/60)) ([1315280](https://github.com/CHOCEK-RB/cpp-mcp/commit/1315280837fa5021b3bdad88baec17c4de2057a5))
+
 ## [1.7.0](https://github.com/CHOCEK-RB/cpp-mcp/compare/cpp-mcp-v1.6.0...cpp-mcp-v1.7.0) (2026-09-27)
 
 
