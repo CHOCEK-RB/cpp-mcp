@@ -1,8 +1,7 @@
 import * as cheerio from "cheerio";
-import { pageCache } from "../cache.js";
 import { HEADER_MAP, SYMBOL_MAP } from "../data/headers.js";
-import { fetchWithRetry } from "./fetch-utils.js";
-import { isValidCppReferenceUrl, USER_AGENT } from "./page.js";
+import { getHtmlCached } from "./cached-html.js";
+import { isValidCppReferenceUrl } from "./page.js";
 import { searchCppreference } from "./search.js";
 
 export interface HeaderLookupResult {
@@ -117,25 +116,7 @@ export async function lookupHeader(
     const searchResult = await searchCppreference(rawQuery, fetchFn);
     const targetUrl = searchResult.result_urls[0];
     if (targetUrl && isValidCppReferenceUrl(targetUrl)) {
-      let html = await pageCache.get(targetUrl);
-      if (!html) {
-        const pageResponse = await fetchWithRetry(
-          targetUrl,
-          {
-            headers: {
-              "User-Agent": USER_AGENT,
-              Accept: "text/html,application/xhtml+xml",
-            },
-            signal: AbortSignal.timeout(15_000),
-          },
-          fetchFn,
-        );
-
-        if (pageResponse.ok) {
-          html = await pageResponse.text();
-          await pageCache.set(targetUrl, html);
-        }
-      }
+      const html = await getHtmlCached(targetUrl, fetchFn);
 
       if (html) {
         const extracted = extractHeaderFromHtml(html);

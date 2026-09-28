@@ -180,9 +180,18 @@ export const searchCache = new TieredCache<SearchResultPayload>({
   namespace: "search",
 });
 
-// 7 days for documentation pages
+// 7 days for documentation pages (sanitized Markdown, parsed by get_cppreference_page)
 export const pageCache = new TieredCache<string>({
   maxMemory: 50,
   ttlMs: 7 * 24 * 60 * 60 * 1000,
-  namespace: "pages",
+  namespace: "pages-md",
+});
+
+// 7 days for raw cppreference HTML (scraped by lookup_header / check_cpp_standard).
+// Kept in a separate namespace because the same URL yields Markdown in pageCache and
+// HTML here; sharing a namespace would let each tool read the other's format.
+export const htmlCache = new TieredCache<string>({
+  maxMemory: 50,
+  ttlMs: 7 * 24 * 60 * 60 * 1000,
+  namespace: "html",
 });
