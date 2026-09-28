@@ -6,6 +6,50 @@ import { C_STANDARDS, CPP_STANDARDS, FEATURE_TEST_MACROS } from "../tools/standa
 /**
  * Registers native MCP resources for C and C++ standard reference.
  */
+// Resource 15: Modernize Cheat Sheet (offline, zero-token reference)
+const MODERNIZE_CHEATSHEET = [
+  "# Modern C++ Cheat Sheet",
+  "",
+  "Old idiom -> modern C++ replacement, with the `clang-tidy` check that automates it.",
+  "Use `run_clang_tidy` (or `cpp-mcp clang-tidy <files> --preset modernize`) to detect candidates.",
+  "",
+  "| Old idiom | Modern (since) | clang-tidy check |",
+  "| --- | --- | --- |",
+  '| `std::cout << x` / `std::cout << x << "\\n"` | `std::print("{}", x)` / `std::println("{}", x)` (C++23, `<print>`) | `modernize-use-std-print` |',
+  '| `printf("%d", x)` / `sprintf` | `std::format("{}", x)` (C++20, `<format>`) or `std::print` (C++23) | `modernize-use-std-print` |',
+  "| `new T(...)` followed by `delete` | `std::make_unique<T>(...)` / `std::make_shared<T>(...)` (C++14) | `modernize-make-unique`, `modernize-make-shared` |",
+  "| `NULL` or `0` as a pointer | `nullptr` (C++11) | `modernize-use-nullptr` |",
+  "| `typedef X Y;` | `using Y = X;` (C++11) | `modernize-use-using` |",
+  "| `(T)x` C-style cast | `static_cast<T>(x)`, `reinterpret_cast`, `const_cast` | `cppcoreguidelines-pro-type-cstyle-cast` |",
+  "| `for (size_t i = 0; i < v.size(); ++i)` | range-based `for (const auto& e : v)` (C++11) | `modernize-loop-convert` |",
+  "| `std::bind` / `std::mem_fn` | a lambda (`[&](...) { ... }`) (C++11) | `modernize-avoid-bind` |",
+  "| `v.push_back(T(...))` | `v.emplace_back(...)` | `modernize-use-emplace` |",
+  "| missing `override` on virtual overrides | `void f() override;` (C++11) | `modernize-use-override` |",
+  "| empty `{}` special members | `= default;` / `= delete;` (C++11) | `modernize-use-equals-default`, `modernize-use-equals-delete` |",
+  "| `std::auto_ptr<T>` | `std::unique_ptr<T>` (C++11) | `modernize-replace-auto-ptr` |",
+  "| `std::random_shuffle` | `std::shuffle` (C++11) | `modernize-replace-random-shuffle` |",
+  "| `#define MAX 100` | `constexpr int MAX = 100;` (C++11) | `cppcoreguidelines-macro-usage` |",
+  "",
+  "## Applying the rewrites",
+  "",
+  "```bash",
+  "# Report modernize candidates (no changes written)",
+  "cpp-mcp clang-tidy src/ --preset modernize",
+  "# Gate CI: exit non-zero when findings exist",
+  "cpp-mcp clang-tidy src/ --preset modernize --check",
+  "# Apply the fixes in place",
+  "cpp-mcp clang-tidy src/ --preset modernize --apply",
+  "```",
+  "",
+  "Pin the standard so `modernize-use-std-print` can fire (it needs C++23 and `<print>`):",
+  "",
+  "```json",
+  '{ "std": "c++23", "clangTidy": { "preset": "modernize" } }',
+  "```",
+  "",
+  "> Note: some conversions are intentionally partial. Stream manipulators (`std::hex`, `std::setw`, `std::setprecision`), locale-sensitive formatting, and non-constant format strings are left unchanged; review the report instead of assuming a full rewrite.",
+].join("\n");
+
 export function registerResources(server: McpServer): void {
   // Resource 1: Complete Standard Headers Index
   server.registerResource(
@@ -593,6 +637,28 @@ export function registerResources(server: McpServer): void {
             uri: uri.href,
             text: JSON.stringify(entry, null, 2),
             mimeType: "application/json",
+          },
+        ],
+      };
+    },
+  );
+
+  // Resource 16: Modernize Cheat Sheet
+  server.registerResource(
+    "cpp_modernize_cheatsheet",
+    "cppref://modernize/cheatsheet",
+    {
+      description:
+        "Offline old-to-modern C++ idiom cheatsheet (C++17/20/23): std::cout -> std::print, printf -> std::format, new/delete -> make_unique, NULL -> nullptr, typedef -> using, C-style casts -> named casts, plus the clang-tidy checks that automate each rewrite.",
+      mimeType: "text/markdown",
+    },
+    async () => {
+      return {
+        contents: [
+          {
+            uri: "cppref://modernize/cheatsheet",
+            text: MODERNIZE_CHEATSHEET,
+            mimeType: "text/markdown",
           },
         ],
       };

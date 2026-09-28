@@ -61,7 +61,7 @@ flowchart TB
 - **C++ Core Guidelines Engine**: Offline catalog of 513 official rules with rationale, enforcement, and code examples (`get_guideline`).
 - **Header & Version Resolution**: Offline static indexing for ISO C/C++ headers and SD-6 feature test macros (`lookup_header`, `check_cpp_standard`).
 - **Tiered Cache with TTL**: Blazing-fast L1 memory LRU cache backed by persistent L2 disk cache (`~/.cache/cpp-mcp/`).
-- **MCP Resources & Prompts**: Zero-token offline resources (`cppref://headers`, `cppref://modules`, `cppref://cert`, `cppref://tooling`, `cppref://guidelines`) and diagnostic prompt templates.
+- **MCP Resources & Prompts**: Zero-token offline resources (`cppref://headers`, `cppref://modules`, `cppref://cert`, `cppref://tooling`, `cppref://guidelines`, `cppref://modernize/cheatsheet`) and diagnostic prompt templates.
 - **Standalone Binaries & Zero Setup**: Self-contained native single-file binaries (no Node or Bun required) or instant execution via `npx` / `bunx`.
 - **Direct CLI Mode**: Run instant queries directly in your shell or build scripts (`xmake`, `Makefile`, `bash`) without an MCP client (e.g. `cpp-mcp header std::span`, `cpp-mcp demangle _Z3fooi`).
 - **Noise Elimination**: Strips MediaWiki navigation menus, edit buttons, login prompts, and notices before LLM consumption.
@@ -823,6 +823,7 @@ The server exposes read-only MCP resources providing zero-overhead offline datas
 - **`cppref://tooling/xmake/{topic}`**: Full recipe and tutorial markdown for a specific xmake capability (`cxx-modules`, `cross-compilation`, `packages`, etc.).
 - **`cppref://compiler-support`**: Comprehensive compiler support matrix (GCC, Clang, MSVC, Apple Clang) for modern C++ features.
 - **`cppref://compiler-support/{feature}`**: Detailed compiler support matrix, WG21 paper, and feature test macro for a specific feature.
+- **`cppref://modernize/cheatsheet`**: Offline old-to-modern C++ idiom cheatsheet (`std::cout` → `std::print`, `printf` → `std::format`, `new`/`delete` → `make_unique`, `NULL` → `nullptr`, …) with the clang-tidy check that automates each rewrite.
 
 ---
 
