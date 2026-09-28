@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -9,6 +11,7 @@ import { isExecutableAvailable, resolveProjectBuildInfo } from "./project/xmake.
 import { registerPrompts } from "./prompts/index.js";
 import { registerResources } from "./resources/index.js";
 import { checkSecureCoding } from "./tools/cert.js";
+import { runClangTidy } from "./tools/clang-tidy.js";
 import { analyzeCodeSymbol } from "./tools/code-analyzer.js";
 import { getCodeDiagnostics } from "./tools/code-diagnostics.js";
 import { formatCode } from "./tools/code-formatter.js";
@@ -23,6 +26,7 @@ import { explainCompilerError } from "./tools/error-explainer.js";
 import { reorderStructFields } from "./tools/field-reorderer.js";
 import { getGuideline } from "./tools/guidelines.js";
 import { lookupHeader } from "./tools/header.js";
+import { checkModuleToolchain } from "./tools/module-toolchain.js";
 import { getCppModulesGuide } from "./tools/modules.js";
 import { getCppreferencePage } from "./tools/page.js";
 import { tracePreprocessor } from "./tools/preprocessor-tracer.js";
@@ -315,6 +319,38 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error retrieving C++ modules guide: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "check_module_toolchain",
+    {
+      description:
+        "Inspect the host toolchain (clang++, g++, libc++, clangd) and report which `import std;` / C++20 modules setup is actually viable. Distinguishes GCC-native `import std;` from Clang + modularized libc++, and warns when clangd cannot read GCC's `.gcm` BMIs.",
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const result = await checkModuleToolchain();
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error checking module toolchain: ${error instanceof Error ? error.message : String(error)}`,
             },
           ],
         };
@@ -984,6 +1020,93 @@ export function createServer(): McpServer {
   );
 
   server.registerTool(
+    "run_clang_tidy",
+    {
+      description:
+        "Run clang-tidy over C/C++ files with a preset check group (modernize, bugprone, performance, portability, cppcoreguidelines, cert, security, all) or a raw --checks expression. Reports findings with file, line and check name by default; set apply=true to write clang-tidy fixes to disk. Uses the project's compile_commands.json when available so checks run with the real build flags.",
+      inputSchema: {
+        file: z.string().optional().describe("Single C/C++ file to analyze."),
+        files: z
+          .array(z.string())
+          .optional()
+          .describe("Multiple files to analyze. Ignored when 'file' is set."),
+        preset: z
+          .enum([
+            "modernize",
+            "bugprone",
+            "performance",
+            "portability",
+            "cppcoreguidelines",
+            "cert",
+            "security",
+            "all",
+          ])
+          .optional()
+          .default("modernize")
+          .describe(
+            "Check group preset: 'modernize' (std::print/format, ranges, nullptr), 'bugprone', 'performance', 'portability', 'cppcoreguidelines', 'cert', 'security', or 'all'. Defaults to 'modernize'.",
+          ),
+        checks: z
+          .string()
+          .optional()
+          .describe("Raw clang-tidy --checks expression; overrides 'preset' when set."),
+        apply: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe(
+            "If true, write clang-tidy fixes to disk (--fix --fix-errors). Defaults to false (report only, dry-run).",
+          ),
+        workspace: z
+          .string()
+          .optional()
+          .describe("Root workspace directory. Defaults to the current working directory."),
+        build_dir: z
+          .string()
+          .optional()
+          .describe("Directory containing compile_commands.json. Auto-resolved when omitted."),
+        extra_args: z
+          .array(z.string())
+          .optional()
+          .describe("Extra raw arguments appended to every clang-tidy invocation."),
+      },
+    },
+    async ({ file, files, preset, checks, apply, workspace, build_dir, extra_args }) => {
+      try {
+        const result = await runClangTidy({
+          file,
+          files,
+          preset,
+          checks,
+          apply,
+          workspace,
+          buildDir: build_dir,
+          extraArgs: extra_args,
+        });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error running clang-tidy: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
     "scaffold_project",
     {
       description:
@@ -1536,14 +1659,24 @@ export async function main(): Promise<void> {
 }
 
 const entryArg = typeof process !== "undefined" ? process.argv[1] : undefined;
+
+/**
+ * True when argv[1] resolves to this very module. Comparing real paths is
+ * precise: import.meta.main is false under `bun test`, and the previous
+ * substring heuristic (`arg.includes("test")`) silently disabled CLI mode for
+ * any argument or path containing "test" (e.g. `code-diagnostics tests/a.cpp`).
+ */
+export function isEntryPoint(entry: string): boolean {
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
 const isDirectExecution =
   (typeof import.meta !== "undefined" && Boolean(import.meta.main)) ||
-  (typeof process !== "undefined" &&
-    entryArg !== undefined &&
-    !process.argv.some((arg) => arg.includes("test")) &&
-    (entryArg.endsWith("index.js") ||
-      entryArg.endsWith("index.ts") ||
-      entryArg.includes("cpp-mcp")));
+  (typeof process !== "undefined" && entryArg !== undefined && isEntryPoint(entryArg));
 
 if (isDirectExecution) {
   const args = typeof process !== "undefined" ? process.argv.slice(2) : [];

@@ -9,6 +9,7 @@ describe("MCP Resources & Prompts", () => {
     const resources = server._registeredResources;
     expect(resources["cppref://headers"]).toBeDefined();
     expect(resources["cppref://standards"]).toBeDefined();
+    expect(resources["cppref://modernize/cheatsheet"]).toBeDefined();
 
     // @ts-expect-error accessing private property for test verification
     const templates = server._registeredResourceTemplates;
@@ -57,6 +58,16 @@ describe("MCP Resources & Prompts", () => {
     expect(parsed.cppStandards).toContain("C++20");
     expect(parsed.cStandards).toContain("C11");
     expect(parsed.featureTestMacros["std::span"]).toBeDefined();
+  });
+
+  it("should return the old-to-modern cheatsheet for cppref://modernize/cheatsheet", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const handler = server._registeredResources["cppref://modernize/cheatsheet"].readCallback;
+    const result = await handler(new URL("cppref://modernize/cheatsheet"));
+
+    expect(result.contents[0].uri).toBe("cppref://modernize/cheatsheet");
+    expect(result.contents[0].text).toContain("std::print");
+    expect(result.contents[0].text).toContain("modernize-use-std-print");
   });
 
   it("should have native prompts registered in server", () => {

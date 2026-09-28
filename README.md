@@ -18,12 +18,12 @@ Model Context Protocol (MCP) server that empowers AI coding assistants with auth
 flowchart TB
     Client["AI Clients\n(Antigravity / Claude / VS Code / Cursor / Zed)"] -->|stdio · JSON-RPC| Server["cpp-mcp Server"]
 
-    subgraph Tools ["22 MCP Tools by Functional Domain"]
+    subgraph Tools ["24 MCP Tools by Functional Domain"]
         direction LR
         D1["Reference & Standards\n• search_cppreference\n• get_cppreference_page\n• lookup_header\n• check_cpp_standard"]
-        D2["Safety & Guidelines\n• check_secure_coding (CERT)\n• get_guideline (Core Guidelines)\n• get_cpp_modules_guide\n• get_cpp_tooling_guide"]
+        D2["Safety & Guidelines\n• check_secure_coding (CERT)\n• get_guideline (Core Guidelines)\n• get_cpp_modules_guide\n• check_module_toolchain\n• get_cpp_tooling_guide"]
         D3["Semantic Intelligence (AST)\n• search_code_symbols\n• analyze_code_symbol\n• rename_code_symbol\n• get_code_diagnostics\n• get_project_details"]
-        D4["Developer Productivity\n• format_code (clang-format)\n• generate_documentation (clang-doc)\n• reorder_struct_fields (clang-reorder-fields)\n• trace_preprocessor (pp-trace)\n• generate_compilation_database\n• scaffold_project (xmake / CMake)\n• explain_compiler_error\n• demangle_symbol\n• check_compiler_support"]
+        D4["Developer Productivity\n• format_code (clang-format)\n• run_clang_tidy (clang-tidy)\n• generate_documentation (clang-doc)\n• reorder_struct_fields (clang-reorder-fields)\n• trace_preprocessor (pp-trace)\n• generate_compilation_database\n• scaffold_project (xmake / CMake)\n• explain_compiler_error\n• demangle_symbol\n• check_compiler_support"]
     end
 
     subgraph Backends ["Execution & Storage Engines"]
@@ -47,6 +47,8 @@ flowchart TB
 - **Semantic Code Intelligence (xmake + clangd LSP)**: Deep AST understanding of your local codebase with automatic compilation database generation via `xmake`, symbol search, type inheritance, call hierarchies, and usage examples (`search_code_symbols`, `analyze_code_symbol`).
 - **Live Compiler Diagnostics & AST Renaming**: Real-time error detection with caret pointers (`^~~~`), AST-based safe symbol renaming across all workspace files, and automated header tracking (`get_code_diagnostics`, `rename_code_symbol`).
 - **C/C++ Code Formatter**: Instant in-memory and file formatting via `clang-format` with project `.clang-format` auto-discovery, standard presets (`LLVM`, `Google`), line ranges, and unified diff preview (`format_code`).
+- **Host-Aware clang-tidy Linting**: Runs `clang-tidy` over project files with check presets (`modernize`, `bugprone`, `performance`, `portability`, `cppcoreguidelines`, `cert`, `security`, `all`), reports diagnostics with caret positions, and applies fixes in place only when explicitly requested (`run_clang_tidy`).
+- **Host-Aware Module Toolchain Detection**: Inspects the host `clang++`, `g++`, `libc++` and `clangd` to state which `import std;` setup is viable, including the clangd vs GCC `.gcm` BMI mismatch (`check_module_toolchain`).
 - **C/C++ Documentation Generator (clang-doc)**: Generates comprehensive API documentation from source code and Doxygen comments in Markdown, HTML, JSON, or YAML with compilation database integration and public API filtering (`generate_documentation`).
 - **Semantic Field Reordering (clang-reorder-fields)**: Optimizes struct/class memory layout and padding while automatically rewriting member declarations, constructor initializer lists, aggregate initializers, and C++20 designated initializers across the entire codebase (`reorder_struct_fields`).
 - **Preprocessor Tracer (pp-trace)**: Streams and aggregates the Clang preprocessor callback dump into a compact report of macro definitions, `#include` chains, `#if`/`#ifdef` branch decisions, pragmas, and C++20 module imports, filtered to project files by default (`trace_preprocessor`).
@@ -59,7 +61,7 @@ flowchart TB
 - **C++ Core Guidelines Engine**: Offline catalog of 513 official rules with rationale, enforcement, and code examples (`get_guideline`).
 - **Header & Version Resolution**: Offline static indexing for ISO C/C++ headers and SD-6 feature test macros (`lookup_header`, `check_cpp_standard`).
 - **Tiered Cache with TTL**: Blazing-fast L1 memory LRU cache backed by persistent L2 disk cache (`~/.cache/cpp-mcp/`).
-- **MCP Resources & Prompts**: Zero-token offline resources (`cppref://headers`, `cppref://modules`, `cppref://cert`, `cppref://tooling`, `cppref://guidelines`) and diagnostic prompt templates.
+- **MCP Resources & Prompts**: Zero-token offline resources (`cppref://headers`, `cppref://modules`, `cppref://cert`, `cppref://tooling`, `cppref://guidelines`, `cppref://modernize/cheatsheet`) and diagnostic prompt templates.
 - **Standalone Binaries & Zero Setup**: Self-contained native single-file binaries (no Node or Bun required) or instant execution via `npx` / `bunx`.
 - **Direct CLI Mode**: Run instant queries directly in your shell or build scripts (`xmake`, `Makefile`, `bash`) without an MCP client (e.g. `cpp-mcp header std::span`, `cpp-mcp demangle _Z3fooi`).
 - **Noise Elimination**: Strips MediaWiki navigation menus, edit buttons, login prompts, and notices before LLM consumption.
@@ -706,7 +708,47 @@ Reorders fields in C/C++ structs and classes using `clang-reorder-fields`. Optim
   }
   ```
 
-### 22. `trace_preprocessor`
+### 22. `run_clang_tidy`
+
+Runs `clang-tidy` over one or more project files using check-group presets, resolves the compilation database automatically (xmake / CMake / existing `compile_commands.json`), and returns a structured diagnostic report. Reporting is the default; fixes are written to disk only when `apply` is set.
+
+- **Parameters**:
+  - `file` (`string`, optional): Single file to analyze.
+  - `files` (`string[]`, optional): Multiple files to analyze (ignored when `file` is set).
+  - `preset` (`string`, optional, default `modernize`): Check group — `modernize`, `bugprone`, `performance`, `portability`, `cppcoreguidelines`, `cert`, `security`, or `all`.
+  - `checks` (`string`, optional): Raw `--checks` value; overrides `preset` (e.g. `-*,modernize-use-nullptr`).
+  - `apply` (`boolean`, optional, default `false`): When `true`, apply fixes in place (`--fix --fix-errors --format-style=file`). Default is a non-destructive report.
+  - `workspace` (`string`, optional): Workspace directory (defaults to cwd).
+  - `build_dir` (`string`, optional): Directory containing `compile_commands.json`; auto-resolved when omitted.
+  - `extra_args` (`string[]`, optional): Extra raw arguments appended to the `clang-tidy` invocation.
+
+- **Output Example**:
+  ```json
+  {
+    "success": true,
+    "tool": "clang-tidy (v22.1.8)",
+    "version": "22.1.8",
+    "preset": "modernize",
+    "checks": "modernize-*",
+    "applied": false,
+    "files": ["/home/user/project/src/main.cpp"],
+    "totalWarnings": 1,
+    "totalErrors": 0,
+    "diagnostics": [
+      {
+        "file": "/home/user/project/src/main.cpp",
+        "line": 12,
+        "column": 13,
+        "severity": "warning",
+        "message": "use nullptr",
+        "check": "modernize-use-nullptr"
+      }
+    ],
+    "message": "1 finding(s) reported (dry-run). Re-run with apply=true to write fixes."
+  }
+  ```
+
+### 23. `trace_preprocessor`
 
 Traces the C/C++ preprocessor with `pp-trace` (clang-tools-extra) and returns a compact, filtered report instead of the raw multi-megabyte YAML callback dump. Summarizes macro definitions/undefinitions, `#include` directives, conditional compilation branch decisions (`#if`/`#ifdef`/`#elif`/`#else`), pragmas, and C++20 module imports. By default only events from project files are reported, keeping standard-library noise out.
 
@@ -738,6 +780,26 @@ Traces the C/C++ preprocessor with `pp-trace` (clang-tools-extra) and returns a 
     "modules": [],
     "warnings": []
   }
+### 24. `check_module_toolchain`
+
+Inspects the host toolchain (`clang++`, `g++`, a modularized `libc++`, and `clangd`) and reports which `import std;` setup is actually viable here, including the compiler-specific BMI formats that break clangd navigation.
+
+- **Parameters**: none.
+- **Output fields**: `host` (`clang`, `gcc` with `stdModule`, `clangd`, `libcxx`), `recommended` (`clang-libc++`, `gcc-native`, or `hybrid`), `options[]` (id, label, viable, reason, requirements), and `notes[]`.
+
+- **Output Example**:
+  ```json
+  {
+    "success": true,
+    "host": {
+      "clang": { "available": true, "version": "18.1.3" },
+      "gcc": { "available": true, "version": "14.2.0", "stdModule": true },
+      "clangd": { "available": true, "version": "18.1.3" },
+      "libcxx": false
+    },
+    "recommended": "gcc-native",
+    "notes": ["GCC can build `import std;` but clangd/clang cannot read GCC `.gcm` BMIs: expect `module_not_found` in the editor even when the build succeeds."]
+  }
   ```
 
 ---
@@ -761,6 +823,7 @@ The server exposes read-only MCP resources providing zero-overhead offline datas
 - **`cppref://tooling/xmake/{topic}`**: Full recipe and tutorial markdown for a specific xmake capability (`cxx-modules`, `cross-compilation`, `packages`, etc.).
 - **`cppref://compiler-support`**: Comprehensive compiler support matrix (GCC, Clang, MSVC, Apple Clang) for modern C++ features.
 - **`cppref://compiler-support/{feature}`**: Detailed compiler support matrix, WG21 paper, and feature test macro for a specific feature.
+- **`cppref://modernize/cheatsheet`**: Offline old-to-modern C++ idiom cheatsheet (`std::cout` → `std::print`, `printf` → `std::format`, `new`/`delete` → `make_unique`, `NULL` → `nullptr`, …) with the clang-tidy check that automates each rewrite.
 
 ---
 
@@ -982,6 +1045,11 @@ cpp-mcp tooling xmake toolchains
 cpp-mcp code-format --code "int main(){int a=1;return a;}"
 cpp-mcp code-format src/main.cpp --apply
 
+# Lint and modernize C/C++ files via clang-tidy (dry-run by default)
+cpp-mcp clang-tidy src/main.cpp --preset modernize
+cpp-mcp clang-tidy src/ --preset bugprone --check
+cpp-mcp clang-tidy src/main.cpp --checks "-*,modernize-use-nullptr" --apply
+
 # Scaffold a new modern C++ project (xmake/CMake, C++20/23, Catch2/GTest, .clangd)
 cpp-mcp scaffold my_app
 cpp-mcp scaffold my_lib --type library --std 23 --test gtest
@@ -1000,9 +1068,9 @@ cpp-mcp docs --dry-run --json
 
 ### Command Reference & Aliases
 
-Run `cpp-mcp <command>` for any of: `header`, `query`, `search`, `standard`, `guideline`, `cert`, `module`, `tooling`, `compiler`, `demangle`, `project`, `code-search`, `code-analyze`, `code-diagnostics`, `code-rename`, `code-format`, `scaffold`, `explain-error`, `docs`, `compile-db`, `reorder-fields`, `trace-preprocessor`.
+Run `cpp-mcp <command>` for any of: `header`, `query`, `search`, `standard`, `guideline`, `cert`, `module`, `module-toolchain`, `tooling`, `compiler`, `demangle`, `project`, `code-search`, `code-analyze`, `code-diagnostics`, `code-rename`, `code-format`, `clang-tidy`, `scaffold`, `explain-error`, `docs`, `compile-db`, `reorder-fields`, `trace-preprocessor`.
 
-`query` looks up the ISO header for a symbol and falls back to a cppreference search when the symbol is unknown. Several commands accept short aliases: `code-diagnostics` (`diagnostics`, `check`), `code-rename` (`rename`), `code-format` (`format`), `scaffold` (`init`), `explain-error` (`explain`), `docs` (`generate-docs`, `clang-doc`), `compile-db` (`compiledb`, `generate-compile-commands`), `reorder-fields` (`reorder`), and `trace-preprocessor` (`trace-pp`, `pretrace`).
+`query` looks up the ISO header for a symbol and falls back to a cppreference search when the symbol is unknown. Several commands accept short aliases: `code-diagnostics` (`diagnostics`, `check`), `code-rename` (`rename`), `code-format` (`format`), `clang-tidy` (`tidy`, `modernize`), `module-toolchain` (`module-check`), `scaffold` (`init`), `explain-error` (`explain`), `docs` (`generate-docs`, `clang-doc`), `compile-db` (`compiledb`, `generate-compile-commands`), `reorder-fields` (`reorder`), and `trace-preprocessor` (`trace-pp`, `pretrace`).
 
 ---
 
@@ -1028,6 +1096,31 @@ The workspace semantic engine is built specifically for modern C/C++ workflows:
 | `CLANGD_PATH` | Overrides the `clangd` executable used by the semantic tools. |
 | `CLANGD_QUERY_DRIVER` | Compiler driver(s) clangd may query for builtin system includes (gcc, cross-toolchains). Comma- or whitespace-separated; passed as `--query-driver`. |
 | `CLANG_FORMAT_PATH` | Overrides the `clang-format` executable used by `format_code` / `cpp-mcp code-format`. |
+| `CLANG_TIDY_PATH` | Overrides the `clang-tidy` executable used by `run_clang_tidy` / `cpp-mcp clang-tidy`. |
+
+## Project Policy (`.cpp-mcp.json`)
+
+Drop a `.cpp-mcp.json` at your project root (discovered upward from the working directory) to set project-wide defaults. Precedence for every value is **explicit flag > `CPP_MCP_STD` > policy file > built-in default**.
+
+```json
+{
+  "std": "c++23",
+  "clangTidy": { "preset": "bugprone", "checks": "bugprone-*" },
+  "modernize": { "prefer": ["std::print", "std::format"] }
+}
+```
+
+- `std` — default C++ standard for `scaffold_project` when `--std` is not passed.
+- `clangTidy.preset` / `clangTidy.checks` — defaults for `run_clang_tidy` / `cpp-mcp clang-tidy` when `--preset`/`--checks` are omitted.
+- `modernize.prefer` — advisory list of preferred modern replacements.
+
+Unknown or malformed fields are ignored; a broken file never fails a command.
+
+Use it as a CI gate with the `--check` flag, which exits non-zero when any finding is reported:
+
+```bash
+cpp-mcp clang-tidy src/ --check
+```
 
 ---
 

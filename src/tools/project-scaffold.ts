@@ -6,6 +6,7 @@ import { existsSync, promises as fs } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import { isExecutableAvailable } from "../project/xmake.js";
+import { loadProjectPolicy, resolveStandard } from "./project-policy.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -629,7 +630,7 @@ export async function scaffoldProject(
     targetDir: rawTargetDir,
     buildSystem = "xmake",
     projectType = "executable",
-    cppStandard = "20",
+    cppStandard: rawCppStandard,
     testFramework = "catch2",
     packageManager = buildSystem === "xmake" ? "xrepo" : "none",
     initClangTools = true,
@@ -637,6 +638,10 @@ export async function scaffoldProject(
     dryRun = false,
     overwrite = false,
   } = options;
+
+  // No explicit flag or CPP_MCP_STD: fall back to the project policy, then "20".
+  const { policy } = await loadProjectPolicy(process.cwd());
+  const cppStandard = (resolveStandard({ flag: rawCppStandard, policy }) ?? "20") as CppStandard;
 
   if (!VALID_BUILD_SYSTEMS.has(buildSystem)) {
     throw new Error(
