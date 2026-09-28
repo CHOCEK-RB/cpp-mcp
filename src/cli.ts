@@ -3,6 +3,7 @@
 import pkg from "../package.json" with { type: "json" };
 import { isExecutableAvailable, resolveProjectBuildInfo } from "./project/xmake.js";
 import { checkSecureCoding } from "./tools/cert.js";
+import { isClangTidyPreset, runClangTidy } from "./tools/clang-tidy.js";
 import { analyzeCodeSymbol } from "./tools/code-analyzer.js";
 import { getCodeDiagnostics } from "./tools/code-diagnostics.js";
 import { formatCode } from "./tools/code-formatter.js";
@@ -57,6 +58,7 @@ Commands:
   code-diagnostics [file]           Inspect live compiler errors and warnings via clangd
   code-rename <symbol> <new_name>   Rename symbol across project using AST analysis (clangd)
   code-format [file]                Format C/C++ source code or file via clang-format (--style, --apply)
+  clang-tidy [files...]             Lint/auto-fix C/C++ files via clang-tidy (--preset, --checks, --apply, --check)
   scaffold <name>                   Scaffold modern C++ project (xmake/CMake, C++20, Catch2, clangd)
   explain-error <text|->            Explain complex C++ compiler or linker errors (or pipe via stdin)
   docs [files...]                   Generate API documentation via clang-doc (--format, --output)
@@ -183,6 +185,9 @@ export async function runCli(args: string[]): Promise<number> {
   let flagCode: string | undefined;
   let flagStyle: string | undefined;
   let flagLines: string | undefined;
+  let flagPreset: string | undefined;
+  let flagChecks: string | undefined;
+  let flagCheckGate = false;
   let flagApply = false;
   let flagDir: string | undefined;
   let flagBuildSystem: string | undefined;
@@ -342,6 +347,18 @@ export async function runCli(args: string[]): Promise<number> {
     }
     if (arg === "--lines" && i + 1 < args.length) {
       flagLines = args[++i];
+      continue;
+    }
+    if (arg === "--preset" && i + 1 < args.length) {
+      flagPreset = args[++i];
+      continue;
+    }
+    if (arg === "--checks" && i + 1 < args.length) {
+      flagChecks = args[++i];
+      continue;
+    }
+    if (arg === "--check") {
+      flagCheckGate = true;
       continue;
     }
     if (!arg.startsWith("-")) {
@@ -1085,6 +1102,63 @@ export async function runCli(args: string[]): Promise<number> {
         console.log(`Format Preview (Dry Run) for '${res.file}':\n`);
         if (res.diff) console.log(res.diff);
         console.log(`\nTip: Run with --apply to write formatting changes to disk.`);
+        return 0;
+      }
+
+      case "clang-tidy":
+      case "tidy":
+      case "modernize": {
+        const filesArg = positionalArgs.slice(1);
+        if (!flagFile && filesArg.length === 0) {
+          console.error(
+            "Error: 'clang-tidy' requires at least one file (e.g. 'cpp-mcp clang-tidy src/main.cpp' or '--file src/main.cpp').",
+          );
+          return 1;
+        }
+
+        const preset = flagPreset ?? "modernize";
+        if (!isClangTidyPreset(preset)) {
+          console.error(
+            `Error: Invalid preset '${preset}'. Supported: modernize, bugprone, performance, portability, cppcoreguidelines, cert, security, all.`,
+          );
+          return 1;
+        }
+
+        const res = await runClangTidy({
+          file: flagFile ?? (filesArg.length === 1 ? filesArg[0] : undefined),
+          files: flagFile ? undefined : filesArg,
+          preset,
+          checks: flagChecks,
+          apply: flagApply,
+          workspace: flagWorkspace,
+          extraArgs: flagExtraArgs.length > 0 ? flagExtraArgs : undefined,
+        });
+
+        if (!res.success) {
+          if (isJson) {
+            console.log(JSON.stringify(res, null, 2));
+          } else {
+            console.error(`Error: ${res.error}`);
+          }
+          return 1;
+        }
+
+        if (isJson || isRaw) {
+          console.log(JSON.stringify(res, null, 2));
+        } else {
+          console.log(
+            `clang-tidy [${res.preset}] - ${res.files.length} file(s), checks: ${res.checks}`,
+          );
+          for (const d of res.diagnostics) {
+            const check = d.check ? ` [${d.check}]` : "";
+            console.log(`${d.file}:${d.line}:${d.column}: ${d.severity}: ${d.message}${check}`);
+          }
+          console.log(res.message ?? "");
+        }
+
+        if (flagCheckGate && res.totalWarnings + res.totalErrors > 0) {
+          return 1;
+        }
         return 0;
       }
 

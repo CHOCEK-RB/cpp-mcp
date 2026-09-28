@@ -11,6 +11,7 @@ import { isExecutableAvailable, resolveProjectBuildInfo } from "./project/xmake.
 import { registerPrompts } from "./prompts/index.js";
 import { registerResources } from "./resources/index.js";
 import { checkSecureCoding } from "./tools/cert.js";
+import { runClangTidy } from "./tools/clang-tidy.js";
 import { analyzeCodeSymbol } from "./tools/code-analyzer.js";
 import { getCodeDiagnostics } from "./tools/code-diagnostics.js";
 import { formatCode } from "./tools/code-formatter.js";
@@ -978,6 +979,93 @@ export function createServer(): McpServer {
             {
               type: "text" as const,
               text: `Error formatting code: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "run_clang_tidy",
+    {
+      description:
+        "Run clang-tidy over C/C++ files with a preset check group (modernize, bugprone, performance, portability, cppcoreguidelines, cert, security, all) or a raw --checks expression. Reports findings with file, line and check name by default; set apply=true to write clang-tidy fixes to disk. Uses the project's compile_commands.json when available so checks run with the real build flags.",
+      inputSchema: {
+        file: z.string().optional().describe("Single C/C++ file to analyze."),
+        files: z
+          .array(z.string())
+          .optional()
+          .describe("Multiple files to analyze. Ignored when 'file' is set."),
+        preset: z
+          .enum([
+            "modernize",
+            "bugprone",
+            "performance",
+            "portability",
+            "cppcoreguidelines",
+            "cert",
+            "security",
+            "all",
+          ])
+          .optional()
+          .default("modernize")
+          .describe(
+            "Check group preset: 'modernize' (std::print/format, ranges, nullptr), 'bugprone', 'performance', 'portability', 'cppcoreguidelines', 'cert', 'security', or 'all'. Defaults to 'modernize'.",
+          ),
+        checks: z
+          .string()
+          .optional()
+          .describe("Raw clang-tidy --checks expression; overrides 'preset' when set."),
+        apply: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe(
+            "If true, write clang-tidy fixes to disk (--fix --fix-errors). Defaults to false (report only, dry-run).",
+          ),
+        workspace: z
+          .string()
+          .optional()
+          .describe("Root workspace directory. Defaults to the current working directory."),
+        build_dir: z
+          .string()
+          .optional()
+          .describe("Directory containing compile_commands.json. Auto-resolved when omitted."),
+        extra_args: z
+          .array(z.string())
+          .optional()
+          .describe("Extra raw arguments appended to every clang-tidy invocation."),
+      },
+    },
+    async ({ file, files, preset, checks, apply, workspace, build_dir, extra_args }) => {
+      try {
+        const result = await runClangTidy({
+          file,
+          files,
+          preset,
+          checks,
+          apply,
+          workspace,
+          buildDir: build_dir,
+          extraArgs: extra_args,
+        });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error running clang-tidy: ${error instanceof Error ? error.message : String(error)}`,
             },
           ],
         };
