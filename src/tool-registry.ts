@@ -4,10 +4,12 @@
 // registers them in a loop, so a tool is declared exactly once.
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { isExecutableAvailable, resolveProjectBuildInfo } from "./project/xmake.js";
 import { checkSecureCoding } from "./tools/cert.js";
 import { runClangTidy } from "./tools/clang-tidy.js";
+import { resolveClangTool } from "./tools/clang-tool-resolver.js";
 import { analyzeCodeSymbol } from "./tools/code-analyzer.js";
 import { getCodeDiagnostics } from "./tools/code-diagnostics.js";
 import { formatCode } from "./tools/code-formatter.js";
@@ -38,17 +40,75 @@ import { getCppToolingGuide } from "./tools/tooling.js";
 // biome-ignore lint/suspicious/noExplicitAny: heterogeneous registry of tool-specific shapes
 type ToolArgs = any;
 
+/**
+ * External executable a tool needs at runtime. Checked before invoking so a missing
+ * dependency fails fast with an actionable message instead of a partial result.
+ */
+export interface ToolDependency {
+  /** Executable base name, e.g. "clang-format". */
+  tool: string;
+  /** Environment variable that overrides the executable path, when one exists. */
+  envVar?: string;
+}
+
+/**
+ * MCP behaviour hints shared across tools. Hosts use these to warn before
+ * invoking (e.g. a client can auto-approve read-only tools). Every tool must
+ * declare all four explicitly; see README "Tool annotations".
+ */
+export const ANNOTATIONS = {
+  /** Reads only, never touches the network (local data, datasets, clangd queries). */
+  readOnlyLocal: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+  /** Reads only, but reaches external hosts (cppreference.com). */
+  readOnlyWeb: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  /** May write to the workspace (e.g. compile_commands.json) but never destroys data. */
+  localMutating: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+  /** Creates new artifacts; repeated calls produce the same path/contents. */
+  localCreating: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
+  /** Rewrites identifiers across the workspace; use dry_run to preview. */
+  rename: {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
+} satisfies Record<string, ToolAnnotations>;
+
 export interface ToolDefinition {
   /** MCP tool name (snake_case). */
   name: string;
   /** Trigger-first description shown to the model. */
   description: string;
+  /** MCP behaviour hints so hosts can gate or warn before invoking. */
+  annotations: ToolAnnotations;
   /** Zod raw shape for the tool inputs. */
   inputSchema: z.ZodRawShape;
   /** Message prefix for a failed invocation; a function receives the arguments. */
   errorLabel: string | ((args: ToolArgs) => string);
   /** Optional guard that returns a verbatim error message before invoking. */
-  precheck?: (args: ToolArgs) => string | undefined;
+  precheck?: (args: ToolArgs) => string | undefined | Promise<string | undefined>;
+  /** External executable required at runtime; checked before invoking. */
+  requires?: ToolDependency;
   /** Pure tool function. Must not touch MCP types. */
   invoke: (args: ToolArgs) => unknown | Promise<unknown>;
 }
@@ -57,25 +117,60 @@ function labelFor(def: ToolDefinition, args: ToolArgs): string {
   return typeof def.errorLabel === "function" ? def.errorLabel(args) : def.errorLabel;
 }
 
+/**
+ * True when a tool result explicitly reports failure. Only `success: false` counts;
+ * `found: false` (e.g. a search with no matches) is a legitimate empty result.
+ */
+export function isFailureResult(result: unknown): boolean {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    "success" in result &&
+    (result as { success?: unknown }).success === false
+  );
+}
+
+/** Resolves a tool dependency and returns an actionable message when it is missing. */
+async function missingDependency(def: ToolDefinition): Promise<string | undefined> {
+  const dep = def.requires;
+  if (!dep) {
+    return undefined;
+  }
+  const info = await resolveClangTool({ name: dep.tool, envVar: dep.envVar });
+  if (info.available) {
+    return undefined;
+  }
+  const override = dep.envVar ? ` or set ${dep.envVar} to its executable path` : "";
+  return `${dep.tool} not found. Install the LLVM ${dep.tool} tool${override}.`;
+}
+
 /** Registers every definition on the MCP server with the shared envelope/error contract. */
 export function registerToolDefinitions(server: McpServer): void {
   for (const def of TOOL_DEFINITIONS) {
     server.registerTool(
       def.name,
-      { description: def.description, inputSchema: def.inputSchema },
+      { description: def.description, inputSchema: def.inputSchema, annotations: def.annotations },
       async (args) => {
-        const precheckMessage = def.precheck?.(args);
+        const precheckMessage = await def.precheck?.(args);
         if (precheckMessage) {
           return {
             isError: true,
             content: [{ type: "text" as const, text: precheckMessage }],
           };
         }
+        const dependencyMessage = await missingDependency(def);
+        if (dependencyMessage) {
+          return {
+            isError: true,
+            content: [{ type: "text" as const, text: dependencyMessage }],
+          };
+        }
         try {
           const result = await def.invoke(args);
-          return {
-            content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-          };
+          const text = JSON.stringify(result, null, 2);
+          return isFailureResult(result)
+            ? { isError: true, content: [{ type: "text" as const, text }] }
+            : { content: [{ type: "text" as const, text }] };
         } catch (error) {
           return {
             isError: true,
@@ -98,6 +193,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when you need to find the official cppreference page for a C/C++ symbol, header, or language feature and don't know its URL. Returns up to 5 matching cppreference.com URLs; follow up with get_cppreference_page for the contents.",
     errorLabel: "searching cppreference",
+    annotations: ANNOTATIONS.readOnlyWeb,
     inputSchema: {
       query: z
         .string()
@@ -112,6 +208,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when you have a cppreference.com URL and need the authoritative reference text for a symbol (semantics, overloads, since/deprecated/removed notes). Returns sanitized Markdown, paginated with a cursor for long pages.",
     errorLabel: "retrieving cppreference page",
+    annotations: ANNOTATIONS.readOnlyWeb,
     inputSchema: {
       url: z.url().describe("HTTPS URL of a cppreference.com documentation page to retrieve."),
       cursor: z
@@ -129,6 +226,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when you need to know which ISO C/C++ header declares a symbol (e.g. 'where is std::span defined?'). Returns the header (<vector>, <algorithm>, <cstdio>, ...), first standard, category, and the C equivalent when one exists.",
     errorLabel: (args) => `looking up header for "${args.symbol}"`,
+    annotations: ANNOTATIONS.readOnlyWeb,
     inputSchema: {
       symbol: z
         .string()
@@ -144,6 +242,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when you must confirm whether a symbol/header exists in a target C/C++ standard (C++17, C++20, C++23, ...) or when it was introduced, deprecated, or removed. Returns the status and feature-test macro for that standard.",
     errorLabel: (args) => `checking standard version for "${args.symbol}"`,
+    annotations: ANNOTATIONS.readOnlyWeb,
     inputSchema: {
       symbol: z
         .string()
@@ -165,6 +264,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when you need the official C++ Core Guidelines rule for an ID (F.16, R.1, C.21, I.11) or advice on an idiom (RAII, ownership, smart pointers, rule of five). Returns rule text, rationale, and enforcement.",
     errorLabel: "retrieving C++ Core Guideline",
+    annotations: ANNOTATIONS.readOnlyLocal,
     inputSchema: {
       rule_id: z
         .string()
@@ -204,6 +304,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when writing or migrating to C++20/23/26 modules ('import std;', partitions, global module fragment, CMake 3.28+ setup, header migration). Returns architecture guides, rules, and code patterns by topic.",
     errorLabel: "retrieving C++ modules guide",
+    annotations: ANNOTATIONS.readOnlyLocal,
     inputSchema: {
       topic: z
         .string()
@@ -229,6 +330,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when modules fail to build or navigate (module_not_found, 'import std' errors, incompatible BMI) or before choosing a toolchain for modules. Inspects clang++, g++, libc++ and clangd and reports which import std; setup is viable on this host.",
     errorLabel: "checking module toolchain",
+    annotations: ANNOTATIONS.readOnlyLocal,
     inputSchema: {},
     invoke: () => checkModuleToolchain(),
   },
@@ -237,6 +339,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when auditing C++ code for security, undefined behavior, or safety (e.g. before a commit or review), or to look up a SEI CERT C++ rule or CWE. Returns noncompliant examples and secure modern fixes.",
     errorLabel: "checking secure coding rules",
+    annotations: ANNOTATIONS.readOnlyLocal,
     inputSchema: {
       rule_id: z
         .string()
@@ -271,6 +374,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when configuring or asking about C/C++ build and tooling (xmake with C++20 modules and official agent skills, .clang-format, .clang-tidy, LLVM/GCC sanitizers). Returns authoritative commands and production starter configs.",
     errorLabel: "retrieving C++ tooling guide",
+    annotations: ANNOTATIONS.readOnlyLocal,
     inputSchema: {
       tool: z
         .string()
@@ -311,6 +415,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when you need the minimum compiler versions (GCC, Clang, MSVC, Apple Clang) for a modern C++ feature, or to check whether a specific compiler version supports it (std::print, std::expected, import std, std::generator, coroutines, concepts, modules).",
     errorLabel: "checking compiler support",
+    annotations: ANNOTATIONS.readOnlyLocal,
     inputSchema: {
       feature: z
         .string()
@@ -343,6 +448,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when a compiler or linker log contains mangled names (_ZN..., ?...) and you need readable signatures — or when you need to demangle a single symbol. Handles Itanium ABI (GCC/Clang) and MSVC.",
     errorLabel: "demangling symbol",
+    annotations: ANNOTATIONS.readOnlyLocal,
     inputSchema: {
       symbol: z
         .string()
@@ -362,6 +468,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when you know a symbol's name but not where it is defined, or before calling analyze_code_symbol. Searches the indexed project workspace via clangd for classes, structs, functions, methods, and variables.",
     errorLabel: "searching workspace code symbols",
+    annotations: ANNOTATIONS.localMutating,
     inputSchema: {
       query: z
         .string()
@@ -391,6 +498,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when you need deep semantics for one C++ symbol: definition, hover signature, docstrings, inheritance, incoming/outgoing call hierarchy, members, and usage examples. Runs a multi-dimensional clangd analysis.",
     errorLabel: "analyzing code symbol",
+    annotations: ANNOTATIONS.localMutating,
     inputSchema: {
       symbol: z
         .string()
@@ -418,6 +526,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when you need to know how a workspace is built, why clangd tools fail, or which toolchain is available: returns the detected build system (xmake, CMake, compile_commands.json), indexed translation units, and clangd/xmake availability.",
     errorLabel: "inspecting project details",
+    annotations: ANNOTATIONS.localMutating,
     inputSchema: {
       workspaceDir: z
         .string()
@@ -446,6 +555,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when you need live compile errors and warnings for a file or in-memory snippet without running the build. Returns clangd diagnostics with line snippets and caret indicators; supports a severity filter.",
     errorLabel: "retrieving code diagnostics",
+    annotations: ANNOTATIONS.localMutating,
     inputSchema: {
       file: z
         .string()
@@ -484,6 +594,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when renaming a C++ symbol safely across the whole workspace. Performs AST-level rename of declarations, definitions and references via clangd without textual false positives; dry_run previews first.",
     errorLabel: "renaming symbol",
+    annotations: ANNOTATIONS.rename,
     inputSchema: {
       symbol: z
         .string()
@@ -521,6 +632,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when code must match the project's style (before a commit, after generation) or to format a snippet. Runs clang-format with .clang-format discovery, presets (LLVM, Google, Chromium, Mozilla, WebKit, Microsoft), line ranges, and atomic disk apply.",
     errorLabel: "formatting code",
+    requires: { tool: "clang-format", envVar: "CLANG_FORMAT_PATH" },
+    annotations: ANNOTATIONS.localMutating,
     inputSchema: {
       code: z
         .string()
@@ -605,6 +718,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when modernizing or linting C/C++ code (e.g. std::cout -> std::print, NULL -> nullptr, raw new/delete) or gating CI on a check preset. Runs clang-tidy with presets (modernize, bugprone, performance, portability, cppcoreguidelines, cert, security, all) or a raw --checks expression; reports findings by default, apply=true writes fixes to disk.",
     errorLabel: "running clang-tidy",
+    requires: { tool: "clang-tidy", envVar: "CLANG_TIDY_PATH" },
+    annotations: ANNOTATIONS.localMutating,
     inputSchema: {
       file: z.string().optional().describe("Single C/C++ file to analyze."),
       files: z
@@ -668,6 +783,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when starting a new C/C++ project and you want a best-practice skeleton. Scaffolds xmake/CMake with a chosen standard (C++11-26), test framework (Catch2/GTest/doctest), .clang-format, .clangd LSP config, and git.",
     errorLabel: "scaffolding project",
+    annotations: ANNOTATIONS.localCreating,
     inputSchema: {
       project_name: z
         .string()
@@ -768,6 +884,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when a C/C++ build fails and you need the error decoded: massive template/SFINAE backtraces, unsatisfied C++20 concepts, undefined references, vtable issues, missing includes, or module resolution failures. Returns a plain-language diagnosis and fix.",
     errorLabel: "explaining compiler error",
+    annotations: ANNOTATIONS.readOnlyLocal,
     inputSchema: {
       error: z
         .string()
@@ -799,6 +916,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when you need API documentation generated from C/C++ sources (Markdown, HTML, JSON, YAML) with Doxygen comments, types, and inheritance. Runs clang-doc non-destructively (manifest-tracked outputs).",
     errorLabel: "generating documentation",
+    requires: { tool: "clang-doc", envVar: "CLANG_DOC_PATH" },
+    annotations: ANNOTATIONS.localCreating,
     inputSchema: {
       workspace: z
         .string()
@@ -854,6 +973,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when clangd or clang tools report a missing compile_commands.json, when symbols don't resolve, or when setting up semantic intelligence for a project without a build system. Generates or resolves the database for CMake, xmake, Meson, Bear, or synthetic mode.",
     errorLabel: "generating compilation database",
+    annotations: ANNOTATIONS.localCreating,
     inputSchema: {
       workspace: z
         .string()
@@ -924,6 +1044,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when optimizing a struct/class memory layout or reordering members safely. Runs clang-reorder-fields and updates field declarations, constructor initializer lists, aggregate initializers, and C++20 designated initializers across the codebase.",
     errorLabel: "reordering fields",
+    requires: { tool: "clang-reorder-fields" },
+    annotations: ANNOTATIONS.localMutating,
     inputSchema: {
       record_name: z
         .string()
@@ -970,6 +1092,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when debugging macro expansion or conditional compilation. Traces pp-trace activity — #define/#undef, #include, #if/#ifdef/#elif branches, pragmas, module imports — as an aggregated summary, filtering system-header noise by default.",
     errorLabel: "tracing preprocessor",
+    requires: { tool: "pp-trace" },
+    annotations: ANNOTATIONS.readOnlyLocal,
     inputSchema: {
       file: z
         .string()
