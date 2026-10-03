@@ -8,6 +8,7 @@ import { z } from "zod";
 import { isExecutableAvailable, resolveProjectBuildInfo } from "./project/xmake.js";
 import { checkSecureCoding } from "./tools/cert.js";
 import { runClangTidy } from "./tools/clang-tidy.js";
+import { resolveClangTool } from "./tools/clang-tool-resolver.js";
 import { analyzeCodeSymbol } from "./tools/code-analyzer.js";
 import { getCodeDiagnostics } from "./tools/code-diagnostics.js";
 import { formatCode } from "./tools/code-formatter.js";
@@ -38,6 +39,17 @@ import { getCppToolingGuide } from "./tools/tooling.js";
 // biome-ignore lint/suspicious/noExplicitAny: heterogeneous registry of tool-specific shapes
 type ToolArgs = any;
 
+/**
+ * External executable a tool needs at runtime. Checked before invoking so a missing
+ * dependency fails fast with an actionable message instead of a partial result.
+ */
+export interface ToolDependency {
+  /** Executable base name, e.g. "clang-format". */
+  tool: string;
+  /** Environment variable that overrides the executable path, when one exists. */
+  envVar?: string;
+}
+
 export interface ToolDefinition {
   /** MCP tool name (snake_case). */
   name: string;
@@ -48,13 +60,42 @@ export interface ToolDefinition {
   /** Message prefix for a failed invocation; a function receives the arguments. */
   errorLabel: string | ((args: ToolArgs) => string);
   /** Optional guard that returns a verbatim error message before invoking. */
-  precheck?: (args: ToolArgs) => string | undefined;
+  precheck?: (args: ToolArgs) => string | undefined | Promise<string | undefined>;
+  /** External executable required at runtime; checked before invoking. */
+  requires?: ToolDependency;
   /** Pure tool function. Must not touch MCP types. */
   invoke: (args: ToolArgs) => unknown | Promise<unknown>;
 }
 
 function labelFor(def: ToolDefinition, args: ToolArgs): string {
   return typeof def.errorLabel === "function" ? def.errorLabel(args) : def.errorLabel;
+}
+
+/**
+ * True when a tool result explicitly reports failure. Only `success: false` counts;
+ * `found: false` (e.g. a search with no matches) is a legitimate empty result.
+ */
+export function isFailureResult(result: unknown): boolean {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    "success" in result &&
+    (result as { success?: unknown }).success === false
+  );
+}
+
+/** Resolves a tool dependency and returns an actionable message when it is missing. */
+async function missingDependency(def: ToolDefinition): Promise<string | undefined> {
+  const dep = def.requires;
+  if (!dep) {
+    return undefined;
+  }
+  const info = await resolveClangTool({ name: dep.tool, envVar: dep.envVar });
+  if (info.available) {
+    return undefined;
+  }
+  const override = dep.envVar ? ` or set ${dep.envVar} to its executable path` : "";
+  return `${dep.tool} not found. Install the LLVM ${dep.tool} tool${override}.`;
 }
 
 /** Registers every definition on the MCP server with the shared envelope/error contract. */
@@ -64,18 +105,26 @@ export function registerToolDefinitions(server: McpServer): void {
       def.name,
       { description: def.description, inputSchema: def.inputSchema },
       async (args) => {
-        const precheckMessage = def.precheck?.(args);
+        const precheckMessage = await def.precheck?.(args);
         if (precheckMessage) {
           return {
             isError: true,
             content: [{ type: "text" as const, text: precheckMessage }],
           };
         }
+        const dependencyMessage = await missingDependency(def);
+        if (dependencyMessage) {
+          return {
+            isError: true,
+            content: [{ type: "text" as const, text: dependencyMessage }],
+          };
+        }
         try {
           const result = await def.invoke(args);
-          return {
-            content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-          };
+          const text = JSON.stringify(result, null, 2);
+          return isFailureResult(result)
+            ? { isError: true, content: [{ type: "text" as const, text }] }
+            : { content: [{ type: "text" as const, text }] };
         } catch (error) {
           return {
             isError: true,
@@ -521,6 +570,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when code must match the project's style (before a commit, after generation) or to format a snippet. Runs clang-format with .clang-format discovery, presets (LLVM, Google, Chromium, Mozilla, WebKit, Microsoft), line ranges, and atomic disk apply.",
     errorLabel: "formatting code",
+    requires: { tool: "clang-format", envVar: "CLANG_FORMAT_PATH" },
     inputSchema: {
       code: z
         .string()
@@ -605,6 +655,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when modernizing or linting C/C++ code (e.g. std::cout -> std::print, NULL -> nullptr, raw new/delete) or gating CI on a check preset. Runs clang-tidy with presets (modernize, bugprone, performance, portability, cppcoreguidelines, cert, security, all) or a raw --checks expression; reports findings by default, apply=true writes fixes to disk.",
     errorLabel: "running clang-tidy",
+    requires: { tool: "clang-tidy", envVar: "CLANG_TIDY_PATH" },
     inputSchema: {
       file: z.string().optional().describe("Single C/C++ file to analyze."),
       files: z
@@ -799,6 +850,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when you need API documentation generated from C/C++ sources (Markdown, HTML, JSON, YAML) with Doxygen comments, types, and inheritance. Runs clang-doc non-destructively (manifest-tracked outputs).",
     errorLabel: "generating documentation",
+    requires: { tool: "clang-doc", envVar: "CLANG_DOC_PATH" },
     inputSchema: {
       workspace: z
         .string()
@@ -924,6 +976,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when optimizing a struct/class memory layout or reordering members safely. Runs clang-reorder-fields and updates field declarations, constructor initializer lists, aggregate initializers, and C++20 designated initializers across the codebase.",
     errorLabel: "reordering fields",
+    requires: { tool: "clang-reorder-fields" },
     inputSchema: {
       record_name: z
         .string()
@@ -970,6 +1023,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       "Use when debugging macro expansion or conditional compilation. Traces pp-trace activity — #define/#undef, #include, #if/#ifdef/#elif branches, pragmas, module imports — as an aggregated summary, filtering system-header noise by default.",
     errorLabel: "tracing preprocessor",
+    requires: { tool: "pp-trace" },
     inputSchema: {
       file: z
         .string()

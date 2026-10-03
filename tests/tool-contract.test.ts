@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { runCli } from "../src/cli.js";
 import { createServer } from "../src/index.js";
+import { isFailureResult } from "../src/tool-registry.js";
 
 interface RegisteredTool {
   description?: string;
@@ -143,8 +144,7 @@ const CLI_COMMAND_BY_TOOL: Record<string, string | null> = {
 
 /**
  * Tools invoked with `{}` that answer from local data (no network, no writes)
- * and return a JSON payload. Spawning tools that only probe `--version` are
- * included; anything that fetches, indexes or writes is excluded below.
+ * and always return a JSON payload, regardless of what the host has installed.
  */
 const INVOKE_LOCAL: string[] = [
   "get_guideline",
@@ -153,10 +153,18 @@ const INVOKE_LOCAL: string[] = [
   "check_secure_coding",
   "get_cpp_tooling_guide",
   "check_compiler_support",
+  "get_project_details",
+];
+
+/**
+ * Tools that shell out to an external LLVM binary. With `{}` they return either a
+ * JSON payload or a dependency error, depending on the host, so the contract is
+ * looser: a text envelope whose body parses as JSON only when it is not an error.
+ */
+const INVOKE_DEPENDENT: string[] = [
   "format_code",
   "run_clang_tidy",
   "reorder_struct_fields",
-  "get_project_details",
   "generate_documentation",
 ];
 
@@ -232,7 +240,12 @@ describe("MCP tool contract", () => {
 
 describe("MCP tool handlers", () => {
   it("classifies every tool as invoked or introspect-only", () => {
-    const classified = [...INVOKE_LOCAL, ...INVOKE_MISSING_INPUT, ...INTROSPECT_ONLY].sort();
+    const classified = [
+      ...INVOKE_LOCAL,
+      ...INVOKE_DEPENDENT,
+      ...INVOKE_MISSING_INPUT,
+      ...INTROSPECT_ONLY,
+    ].sort();
     expect(classified).toEqual(Object.keys(EXPECTED_SCHEMAS).sort());
   });
 
@@ -246,6 +259,18 @@ describe("MCP tool handlers", () => {
     });
   }
 
+  for (const name of INVOKE_DEPENDENT) {
+    it(`returns a JSON payload or a dependency error from ${name}`, async () => {
+      const result = await callTool(registeredTools()[name] as RegisteredTool, {});
+      expect(result.content?.[0]?.type).toBe("text");
+      const text = result.content?.[0]?.text ?? "";
+      expect(text.length).toBeGreaterThan(0);
+      if (!result.isError) {
+        expect(() => JSON.parse(text)).not.toThrow();
+      }
+    });
+  }
+
   for (const name of INVOKE_MISSING_INPUT) {
     it(`returns an error envelope from ${name} without arguments`, async () => {
       const result = await callTool(registeredTools()[name] as RegisteredTool, {});
@@ -255,6 +280,34 @@ describe("MCP tool handlers", () => {
       expect(text.length).toBeGreaterThan(0);
     });
   }
+});
+
+describe("MCP error contract", () => {
+  it("treats only an explicit success:false as a failure", () => {
+    expect(isFailureResult({ success: false })).toBe(true);
+    expect(isFailureResult({ success: true })).toBe(false);
+    expect(isFailureResult({ found: false })).toBe(false);
+    expect(isFailureResult(null)).toBe(false);
+    expect(isFailureResult("error")).toBe(false);
+  });
+
+  it("fails fast with an actionable message when a required binary is missing", async () => {
+    const previous = process.env.CLANG_FORMAT_PATH;
+    process.env.CLANG_FORMAT_PATH = "/nonexistent/clang-format-for-test";
+    try {
+      const result = await callTool(registeredTools().format_code as RegisteredTool, {
+        code: "int  main(){}",
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content?.[0]?.text ?? "").toContain("CLANG_FORMAT_PATH");
+    } finally {
+      if (previous === undefined) {
+        delete process.env.CLANG_FORMAT_PATH;
+      } else {
+        process.env.CLANG_FORMAT_PATH = previous;
+      }
+    }
+  });
 });
 
 describe("MCP / CLI parity", () => {
