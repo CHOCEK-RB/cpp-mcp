@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/CHOCEK-RB/cpp-mcp/compare/cpp-mcp-v1.8.0...cpp-mcp-v1.9.0) (2026-10-03)
+
+
+### Features
+
+* declare MCP tool annotations and harden tool error handling ([#66](https://github.com/CHOCEK-RB/cpp-mcp/issues/66)) ([e759d0e](https://github.com/CHOCEK-RB/cpp-mcp/commit/e759d0e20a0348e4d38fe6d2e8e3a2c438f4fcc9))
+
 ## [1.8.0](https://github.com/CHOCEK-RB/cpp-mcp/compare/cpp-mcp-v1.7.0...cpp-mcp-v1.8.0) (2026-09-28)
 
 
