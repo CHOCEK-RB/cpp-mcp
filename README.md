@@ -71,6 +71,12 @@ flowchart TB
 
 ## Tools Catalog
 
+Every tool declares the four MCP behaviour hints (`readOnlyHint`, `destructiveHint`,
+`idempotentHint`, `openWorldHint`) as explicit booleans, so hosts can auto-approve reads and
+warn before writes. Tools that reach cppreference.com set `openWorldHint: true`; tools that
+index or write the workspace set `readOnlyHint: false`, and `rename_code_symbol` additionally
+sets `destructiveHint: true`.
+
 ### 1. `search_cppreference`
 
 Searches cppreference.com for symbols, keywords, or headers and returns canonical documentation URLs.

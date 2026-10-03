@@ -6,6 +6,7 @@ import { isFailureResult } from "../src/tool-registry.js";
 interface RegisteredTool {
   description?: string;
   inputSchema?: { shape?: Record<string, unknown> };
+  annotations?: Record<string, unknown>;
   handler: unknown;
 }
 
@@ -234,6 +235,16 @@ describe("MCP tool contract", () => {
     for (const tool of Object.values(registeredTools())) {
       expect(typeof tool.description).toBe("string");
       expect((tool.description ?? "").length).toBeGreaterThan(20);
+    }
+  });
+
+  it("declares all four behaviour hints as booleans on every tool", () => {
+    const hints = ["readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"] as const;
+    for (const [name, tool] of Object.entries(registeredTools())) {
+      expect(tool.annotations, `${name} is missing annotations`).toBeDefined();
+      for (const hint of hints) {
+        expect(typeof tool.annotations?.[hint], `${name}.${hint}`).toBe("boolean");
+      }
     }
   });
 });
