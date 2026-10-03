@@ -7,6 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Runtime: Bun](https://img.shields.io/badge/runtime-bun-fbf0df?logo=bun)](https://bun.sh)
 [![MCP Protocol](https://img.shields.io/badge/MCP-Registry-purple.svg)](https://modelcontextprotocol.io)
+[![M8ven Score](https://m8ven.ai/badge/mcp/chocek-rb/cpp-mcp)](https://m8ven.ai/mcp/chocek-rb/cpp-mcp?s=readme)
 
 Model Context Protocol (MCP) server that empowers AI coding assistants with authoritative, real-time C and C++ documentation directly from [cppreference.com](https://cppreference.com).
 
