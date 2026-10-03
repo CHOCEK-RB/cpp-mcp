@@ -3,6 +3,7 @@
 // name, description, input schema, error label and pure invocation; src/index.ts
 // registers them in a loop, so a tool is declared exactly once.
 
+import { fileURLToPath } from "node:url";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
@@ -65,6 +66,10 @@ export interface ToolDefinition {
   inputSchema: z.ZodRawShape;
   /** Zod raw shape for the structured payload returned on success. */
   outputSchema?: z.ZodRawShape;
+  /** Input field that receives the workspace path inferred from client roots. */
+  workspaceArg?: "workspaceDir" | "workspace";
+  /** Emit progress and logging notifications while the tool runs. */
+  longRunning?: boolean;
   /** Message prefix for a failed invocation; a function receives the arguments. */
   errorLabel: string | ((args: ToolArgs) => string);
   /** Optional guard that returns a verbatim error message before invoking. */
@@ -106,11 +111,114 @@ async function missingDependency(def: ToolDefinition): Promise<string | undefine
   return `${dep.tool} not found. Install the LLVM ${dep.tool} tool${override}.`;
 }
 
+/**
+ * Workspace-aware tools: the input field that should receive the project root
+ * inferred from the client's `roots` when the caller omits it. Kept in one place
+ * so a new workspace tool only needs a line here.
+ */
+const WORKSPACE_ARGS: Record<string, "workspaceDir" | "workspace"> = {
+  search_code_symbols: "workspaceDir",
+  analyze_code_symbol: "workspaceDir",
+  get_project_details: "workspaceDir",
+  get_code_diagnostics: "workspaceDir",
+  rename_code_symbol: "workspaceDir",
+  format_code: "workspace",
+  run_clang_tidy: "workspace",
+  generate_documentation: "workspace",
+  generate_compilation_database: "workspace",
+  reorder_struct_fields: "workspace",
+  trace_preprocessor: "workspace",
+};
+
+/** Tools whose work is slow enough to justify progress and logging notifications. */
+const LONG_RUNNING_TOOLS = new Set<string>([
+  "search_code_symbols",
+  "analyze_code_symbol",
+  "get_code_diagnostics",
+  "rename_code_symbol",
+  "run_clang_tidy",
+  "generate_documentation",
+  "generate_compilation_database",
+]);
+
+type ProgressToken = string | number;
+
+/** Minimal shape of the per-request extra used for progress notifications. */
+interface ToolExtra {
+  sessionId?: string;
+  _meta?: { progressToken?: ProgressToken };
+  sendNotification: (notification: {
+    method: "notifications/progress";
+    params: {
+      progressToken: ProgressToken;
+      progress: number;
+      total?: number;
+      message?: string;
+    };
+  }) => Promise<void>;
+}
+
+/**
+ * Resolves the workspace from the client's advertised roots, when the client
+ * supports them. Returns undefined so the caller can fall back to the process cwd.
+ */
+async function inferWorkspaceFromRoots(server: McpServer): Promise<string | undefined> {
+  if (!server.server.getClientCapabilities()?.roots) {
+    return undefined;
+  }
+  try {
+    const { roots } = await server.server.listRoots();
+    for (const root of roots) {
+      if (root.uri.startsWith("file:")) {
+        try {
+          return fileURLToPath(root.uri);
+        } catch {
+          // Ignore malformed file URIs and keep looking.
+        }
+      }
+    }
+  } catch {
+    // Roots are optional; fall through to the cwd fallback.
+  }
+  return undefined;
+}
+
+/** Best-effort progress notification; never lets a transport error fail the tool. */
+async function sendProgress(
+  extra: ToolExtra,
+  token: ProgressToken,
+  progress: number,
+  message: string,
+): Promise<void> {
+  try {
+    await extra.sendNotification({
+      method: "notifications/progress",
+      params: { progressToken: token, progress, total: 1, message },
+    });
+  } catch {
+    // Notifications are advisory.
+  }
+}
+
+/** Best-effort logging notification; never lets a transport error fail the tool. */
+async function sendLog(server: McpServer, extra: ToolExtra, message: string): Promise<void> {
+  try {
+    await server.sendLoggingMessage(
+      { level: "info", logger: "cpp-mcp", data: message },
+      extra.sessionId,
+    );
+  } catch {
+    // Logging is advisory.
+  }
+}
+
 /** Registers every definition on the MCP server with the shared envelope/error contract. */
 export function registerToolDefinitions(server: McpServer): void {
   for (const def of TOOL_DEFINITIONS) {
     const title = def.title ?? TOOL_TITLES[def.name];
     const outputSchema = def.outputSchema ?? TOOL_OUTPUT_SCHEMAS[def.name];
+    const workspaceArg = def.workspaceArg ?? WORKSPACE_ARGS[def.name];
+    const longRunning = def.longRunning ?? LONG_RUNNING_TOOLS.has(def.name);
     server.registerTool(
       def.name,
       {
@@ -120,7 +228,7 @@ export function registerToolDefinitions(server: McpServer): void {
         ...(outputSchema ? { outputSchema } : {}),
         annotations: def.annotations,
       },
-      async (args) => {
+      async (args, extra) => {
         const precheckMessage = await def.precheck?.(args);
         if (precheckMessage) {
           return {
@@ -136,7 +244,19 @@ export function registerToolDefinitions(server: McpServer): void {
           };
         }
         try {
+          if (workspaceArg && !args[workspaceArg]) {
+            (args as Record<string, unknown>)[workspaceArg] =
+              (await inferWorkspaceFromRoots(server)) ?? process.cwd();
+          }
+          const progressToken = extra._meta?.progressToken;
+          if (longRunning && progressToken !== undefined) {
+            await sendProgress(extra, progressToken, 0, `Running ${def.name}`);
+            await sendLog(server, extra, `Running ${def.name}`);
+          }
           const result = await def.invoke(args);
+          if (longRunning && progressToken !== undefined) {
+            await sendProgress(extra, progressToken, 1, `Finished ${def.name}`);
+          }
           const text = JSON.stringify(result, null, 2);
           if (isFailureResult(result)) {
             return { isError: true, content: [{ type: "text" as const, text }] };
