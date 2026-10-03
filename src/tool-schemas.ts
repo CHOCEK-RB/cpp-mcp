@@ -226,4 +226,368 @@ export const TOOL_OUTPUT_SCHEMAS: Record<string, z.ZodRawShape> = {
       .optional(),
     error: z.string().optional(),
   },
+  search_cppreference: {
+    query: z.string(),
+    result_urls: z.array(z.string()),
+  },
+  get_cppreference_page: {
+    content: z.string(),
+    next_cursor: z.string().nullable(),
+  },
+  get_guideline: {
+    query: z.string(),
+    found: z.boolean(),
+    totalMatches: z.number(),
+    rule: z.record(z.string(), z.unknown()).optional(),
+    rules: z
+      .array(
+        z.object({
+          id: z.string(),
+          title: z.string(),
+          section: z.string(),
+          url: z.string(),
+          reason: z.string().optional(),
+          enforcement: z.string().optional(),
+          content: z.string().optional(),
+        }),
+      )
+      .optional(),
+    availableSections: z.array(z.string()).optional(),
+    message: z.string().optional(),
+  },
+  get_cpp_modules_guide: {
+    found: z.boolean(),
+    totalTopics: z.number().optional(),
+    topic: z.string().optional(),
+    title: z.string().optional(),
+    standard: z.string().optional(),
+    summary: z.string().optional(),
+    rules: z.array(z.string()).optional(),
+    content: z.string().optional(),
+    matches: z
+      .array(
+        z.object({
+          id: z.string(),
+          title: z.string(),
+          standard: z.string(),
+          summary: z.string(),
+          matchedRules: z.array(z.string()).optional(),
+        }),
+      )
+      .optional(),
+    message: z.string().optional(),
+  },
+  check_module_toolchain: {
+    success: z.boolean(),
+    host: z.object({
+      clang: z.object({ available: z.boolean(), version: z.string().optional() }),
+      gcc: z.object({
+        available: z.boolean(),
+        version: z.string().optional(),
+        stdModule: z.boolean(),
+      }),
+      clangd: z.object({ available: z.boolean(), version: z.string().optional() }),
+      libcxx: z.boolean(),
+    }),
+    recommended: z.enum(["clang-libc++", "gcc-native", "hybrid"]),
+    options: z.array(
+      z.object({
+        id: z.enum(["clang-libc++", "gcc-native", "hybrid"]),
+        label: z.string(),
+        viable: z.boolean(),
+        reason: z.string(),
+        requirements: z.array(z.string()),
+      }),
+    ),
+    notes: z.array(z.string()),
+    error: z.string().optional(),
+  },
+  check_secure_coding: {
+    found: z.boolean(),
+    totalRules: z.number().optional(),
+    rule: z.record(z.string(), z.unknown()).optional(),
+    matches: z
+      .array(
+        z.object({
+          id: z.string(),
+          category: z.string(),
+          title: z.string(),
+          severity: z.string(),
+          cwe: z.string(),
+          vulnerability: z.string(),
+          summary: z.string(),
+          matchedRules: z.array(z.string()).optional(),
+        }),
+      )
+      .optional(),
+    codeAuditFindings: z
+      .array(
+        z.object({
+          ruleId: z.string(),
+          cwe: z.string(),
+          severity: z.string(),
+          vulnerability: z.string(),
+          issue: z.string(),
+          recommendation: z.string(),
+        }),
+      )
+      .optional(),
+    message: z.string().optional(),
+  },
+  get_cpp_tooling_guide: {
+    found: z.boolean(),
+    totalTools: z.number().optional(),
+    tool: z.string().optional(),
+    title: z.string().optional(),
+    configFileName: z.string().optional(),
+    configContent: z.string().optional(),
+    description: z.string().optional(),
+    keyDirectives: z.array(z.record(z.string(), z.unknown())).optional(),
+    commands: z.array(z.record(z.string(), z.unknown())).optional(),
+    content: z.string().optional(),
+    topic: z.string().optional(),
+    category: z.string().optional(),
+    path: z.string().optional(),
+    skillsCount: z.number().optional(),
+    skills: z
+      .array(
+        z.object({
+          id: z.string(),
+          name: z.string(),
+          category: z.string(),
+          title: z.string(),
+          description: z.string(),
+        }),
+      )
+      .optional(),
+    categories: z
+      .array(
+        z.object({
+          category: z.string(),
+          count: z.number(),
+          skills: z.array(z.object({ id: z.string(), title: z.string() })),
+        }),
+      )
+      .optional(),
+    matches: z
+      .array(
+        z.object({
+          id: z.string(),
+          title: z.string(),
+          configFileName: z.string().optional(),
+          description: z.string(),
+          matchedDirectives: z.array(z.string()).optional(),
+          category: z.string().optional(),
+        }),
+      )
+      .optional(),
+    message: z.string().optional(),
+  },
+  rename_code_symbol: {
+    success: z.boolean(),
+    symbol: z.string(),
+    newName: z.string(),
+    dryRun: z.boolean(),
+    workspaceDir: z.string(),
+    totalEdits: z.number(),
+    affectedFiles: z.array(
+      z.object({
+        file: z.string(),
+        absolutePath: z.string(),
+        editCount: z.number(),
+        edits: z.array(
+          z.object({
+            line: z.number(),
+            character: z.number(),
+            endLine: z.number(),
+            endCharacter: z.number(),
+            oldText: z.string(),
+            newText: z.string(),
+            snippet: z.string().optional(),
+          }),
+        ),
+      }),
+    ),
+    error: z.string().optional(),
+  },
+  format_code: {
+    formatted: z.boolean(),
+    changed: z.boolean(),
+    original: z.string().optional(),
+    formattedCode: z.string().optional(),
+    diff: z.string().optional(),
+    file: z.string().optional(),
+    applied: z.boolean().optional(),
+    styleUsed: z.string().optional(),
+    error: z.string().optional(),
+    message: z.string().optional(),
+  },
+  run_clang_tidy: {
+    success: z.boolean(),
+    tool: z.string().optional(),
+    version: z.string().optional(),
+    preset: z.string().optional(),
+    checks: z.string().optional(),
+    applied: z.boolean(),
+    files: z.array(z.string()),
+    totalWarnings: z.number(),
+    totalErrors: z.number(),
+    diagnostics: z.array(
+      z.object({
+        file: z.string(),
+        line: z.number(),
+        column: z.number(),
+        severity: z.enum(["warning", "error", "note"]),
+        message: z.string(),
+        check: z.string().optional(),
+      }),
+    ),
+    compileCommandsDir: z.string().optional(),
+    policyPath: z.string().optional(),
+    error: z.string().optional(),
+    message: z.string().optional(),
+  },
+  scaffold_project: {
+    success: z.boolean(),
+    projectName: z.string(),
+    projectDir: z.string(),
+    buildSystem: z.string(),
+    projectType: z.string(),
+    cppStandard: z.string(),
+    testFramework: z.string(),
+    packageManager: z.string(),
+    filesCreated: z.array(z.string()),
+    files: z.record(z.string(), z.string()),
+    nextSteps: z.array(z.string()),
+    gitInitialized: z.boolean().optional(),
+    message: z.string().optional(),
+  },
+  explain_compiler_error: {
+    success: z.boolean(),
+    category: z.string(),
+    detectedCompiler: z.string(),
+    summary: z.string(),
+    location: z
+      .object({
+        file: z.string(),
+        line: z.number().optional(),
+        column: z.number().optional(),
+      })
+      .optional(),
+    codeSnippet: z.string().optional(),
+    rootCause: z.string(),
+    remediation: z.string(),
+    suggestedHeaders: z.array(z.string()).optional(),
+    demangledSymbols: z.array(z.object({ mangled: z.string(), demangled: z.string() })).optional(),
+    simplifiedError: z.string(),
+    pitfalls: z.array(z.string()).optional(),
+  },
+  generate_documentation: {
+    success: z.boolean(),
+    tool: z.string(),
+    version: z.string().optional(),
+    format: z.string(),
+    outputDir: z.string(),
+    filesGenerated: z.array(
+      z.object({
+        relativePath: z.string(),
+        absolutePath: z.string(),
+        sizeBytes: z.number(),
+      }),
+    ),
+    totalFiles: z.number(),
+    summary: z.string(),
+    previewMarkdown: z.string().optional(),
+    error: z.string().optional(),
+  },
+  generate_compilation_database: {
+    success: z.boolean(),
+    buildSystem: z.string(),
+    compileCommandsPath: z.string().optional(),
+    entryCount: z.number(),
+    rootLinked: z.boolean(),
+    filesIndexed: z.array(z.string()),
+    summary: z.string(),
+    error: z.string().optional(),
+  },
+  reorder_struct_fields: {
+    success: z.boolean(),
+    recordName: z.string(),
+    fieldsOrder: z.array(z.string()),
+    dryRun: z.boolean(),
+    totalFiles: z.number(),
+    modifiedFiles: z.array(z.string()),
+    changes: z.array(
+      z.object({
+        file: z.string(),
+        modified: z.boolean(),
+        diff: z.string().optional(),
+      }),
+    ),
+    unifiedDiff: z.string().optional(),
+    warnings: z.array(z.string()),
+    summary: z.string(),
+    error: z.string().optional(),
+  },
+  trace_preprocessor: {
+    success: z.boolean(),
+    source: z.string(),
+    tool: z.object({
+      name: z.string(),
+      path: z.string().optional(),
+      version: z.string().optional(),
+    }),
+    summary: z.object({
+      totalEvents: z.number(),
+      userEvents: z.number(),
+      truncated: z.boolean(),
+      counts: z.record(z.string(), z.number()),
+    }),
+    macros: z.array(
+      z.object({
+        name: z.string(),
+        action: z.enum(["define", "undefine"]),
+        file: z.string().optional(),
+        loc: z.string().optional(),
+      }),
+    ),
+    includes: z.array(
+      z.object({
+        fileName: z.string(),
+        angled: z.boolean(),
+        resolved: z.string().optional(),
+        searchPath: z.string().optional(),
+        relativePath: z.string().optional(),
+        loc: z.string().optional(),
+      }),
+    ),
+    conditionals: z.array(
+      z.object({
+        kind: z.string(),
+        loc: z.string().optional(),
+        conditionValue: z.boolean().optional(),
+        ifLoc: z.string().optional(),
+      }),
+    ),
+    pragmas: z.array(
+      z.object({
+        kind: z.string(),
+        loc: z.string().optional(),
+        namespace: z.string().optional(),
+        detail: z.string().optional(),
+      }),
+    ),
+    modules: z.array(
+      z.object({
+        imported: z.string(),
+        loc: z.string().optional(),
+        path: z.string().optional(),
+      }),
+    ),
+    events: z
+      .array(z.object({ callback: z.string(), fields: z.record(z.string(), z.string()) }))
+      .optional(),
+    warnings: z.array(z.string()),
+    error: z.string().optional(),
+  },
 };

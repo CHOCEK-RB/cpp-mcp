@@ -2,10 +2,13 @@ import { describe, expect, it } from "bun:test";
 import { runCli } from "../src/cli.js";
 import { createServer } from "../src/index.js";
 import { isFailureResult } from "../src/tool-registry.js";
+import { TOOL_OUTPUT_SCHEMAS, TOOL_TITLES } from "../src/tool-schemas.js";
 
 interface RegisteredTool {
   description?: string;
+  title?: string;
   inputSchema?: { shape?: Record<string, unknown> };
+  outputSchema?: unknown;
   annotations?: Record<string, unknown>;
   handler: unknown;
 }
@@ -301,6 +304,11 @@ describe("MCP structured output", () => {
     lookup_header: { symbol: "std::vector" },
     check_cpp_standard: { symbol: "std::auto_ptr", standard: "C++17" },
     demangle_symbol: { symbol: "_Z3fooi" },
+    get_guideline: {},
+    get_cpp_modules_guide: {},
+    check_module_toolchain: {},
+    check_secure_coding: {},
+    get_cpp_tooling_guide: {},
   };
 
   for (const [name, args] of Object.entries(samples)) {
@@ -313,10 +321,24 @@ describe("MCP structured output", () => {
     });
   }
 
-  it("keeps tools without an output schema text-only", async () => {
-    const result = await callTool(registeredTools().check_module_toolchain as RegisteredTool, {});
-    expect(result.isError).not.toBe(true);
-    expect(result.structuredContent).toBeUndefined();
+  it("registers an output schema for every tool", () => {
+    const tools = registeredTools();
+    for (const name of Object.keys(EXPECTED_SCHEMAS)) {
+      expect(tools[name]?.outputSchema, `${name} is missing an output schema`).toBeDefined();
+    }
+  });
+
+  it("keeps output schemas and titles in sync with the tool list", () => {
+    const names = Object.keys(EXPECTED_SCHEMAS).sort();
+    expect(Object.keys(TOOL_OUTPUT_SCHEMAS).sort()).toEqual(names);
+    expect(Object.keys(TOOL_TITLES).sort()).toEqual(names);
+  });
+
+  it("gives every tool a non-empty title", () => {
+    for (const [name, tool] of Object.entries(registeredTools())) {
+      expect(typeof tool.title, `${name} title`).toBe("string");
+      expect((tool.title ?? "").length).toBeGreaterThan(0);
+    }
   });
 });
 
