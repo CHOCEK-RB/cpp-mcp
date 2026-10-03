@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1](https://github.com/CHOCEK-RB/cpp-mcp/compare/cpp-mcp-v1.9.0...cpp-mcp-v1.9.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* inline MCP tool annotation hints for source-level scanners ([#69](https://github.com/CHOCEK-RB/cpp-mcp/issues/69)) ([b31c89a](https://github.com/CHOCEK-RB/cpp-mcp/commit/b31c89a7ca9390ddbd81f56a664fa9b17fa6d1cc))
+
 ## [1.9.0](https://github.com/CHOCEK-RB/cpp-mcp/compare/cpp-mcp-v1.8.0...cpp-mcp-v1.9.0) (2026-10-03)
 
 
