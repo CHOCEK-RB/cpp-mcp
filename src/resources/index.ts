@@ -1,4 +1,10 @@
-import { type McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import {
+  type McpServer,
+  type ReadResourceCallback,
+  type ReadResourceTemplateCallback,
+  type ResourceMetadata,
+  ResourceTemplate,
+} from "@modelcontextprotocol/sdk/server/mcp.js";
 import { COMPILER_SUPPORT_BY_ID, COMPILER_SUPPORT_ENTRIES } from "../data/compiler_support.js";
 import { CPP_STANDARD_HEADERS, HEADER_MAP } from "../data/headers.js";
 import { C_STANDARDS, CPP_STANDARDS, FEATURE_TEST_MACROS } from "../tools/standards.js";
@@ -50,9 +56,79 @@ const MODERNIZE_CHEATSHEET = [
   "> Note: some conversions are intentionally partial. Stream manipulators (`std::hex`, `std::setw`, `std::setprecision`), locale-sensitive formatting, and non-constant format strings are left unchanged; review the report instead of assuming a full rewrite.",
 ].join("\n");
 
+/** Human-friendly titles for hosts that render resource names. */
+const RESOURCE_TITLES: Record<string, string> = {
+  cpp_standard_headers: "C/C++ Standard Headers Index",
+  cpp_standard_header_detail: "C/C++ Header Specification",
+  cpp_standards_timeline: "C/C++ Standards Timeline",
+  cpp_core_guidelines_index: "C++ Core Guidelines Index",
+  cpp_core_guideline_detail: "C++ Core Guideline",
+  cpp_modules_guide_index: "C++ Modules Guide Index",
+  cpp_modules_topic_detail: "C++ Modules Topic",
+  cpp_cert_rules_index: "SEI CERT C++ Rules Index",
+  cpp_cert_rule_detail: "SEI CERT C++ Rule",
+  cpp_tooling_index: "C/C++ Tooling Index",
+  cpp_tooling_detail: "C/C++ Tool Guide",
+  cpp_xmake_skills_index: "xmake Skills Index",
+  cpp_xmake_skill_detail: "xmake Skill",
+  cpp_compiler_support: "Compiler Support Matrix",
+  cpp_compiler_support_detail: "Compiler Support Feature",
+  cpp_modernize_cheatsheet: "Modern C++ Cheat Sheet",
+};
+
+/** Case-insensitive prefix filter for URI-template completion values. */
+function prefixMatches(values: Iterable<string>, value: string, limit = 100): string[] {
+  const needle = value.trim().toLowerCase();
+  const out: string[] = [];
+  for (const candidate of values) {
+    if (!needle || candidate.toLowerCase().startsWith(needle)) {
+      out.push(candidate);
+      if (out.length >= limit) {
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Registers a resource, injecting a display title from {@link RESOURCE_TITLES} when
+ * the caller did not provide one.
+ */
+function addResource(
+  server: McpServer,
+  name: string,
+  uri: string,
+  config: ResourceMetadata,
+  read: ReadResourceCallback,
+): void;
+function addResource(
+  server: McpServer,
+  name: string,
+  template: ResourceTemplate,
+  config: ResourceMetadata,
+  read: ReadResourceTemplateCallback,
+): void;
+function addResource(
+  server: McpServer,
+  name: string,
+  uriOrTemplate: string | ResourceTemplate,
+  config: ResourceMetadata,
+  read: ReadResourceCallback | ReadResourceTemplateCallback,
+): void {
+  const title = RESOURCE_TITLES[name];
+  const titled: ResourceMetadata = { ...(title ? { title } : {}), ...config };
+  if (typeof uriOrTemplate === "string") {
+    server.registerResource(name, uriOrTemplate, titled, read as ReadResourceCallback);
+  } else {
+    server.registerResource(name, uriOrTemplate, titled, read as ReadResourceTemplateCallback);
+  }
+}
+
 export function registerResources(server: McpServer): void {
   // Resource 1: Complete Standard Headers Index
-  server.registerResource(
+  addResource(
+    server,
     "cpp_standard_headers",
     "cppref://headers",
     {
@@ -74,9 +150,15 @@ export function registerResources(server: McpServer): void {
   );
 
   // Resource 2: Detailed Specification for a specific header
-  server.registerResource(
+  addResource(
+    server,
     "cpp_standard_header_detail",
-    new ResourceTemplate("cppref://headers/{name}", { list: undefined }),
+    new ResourceTemplate("cppref://headers/{name}", {
+      list: undefined,
+      complete: {
+        name: (value) => prefixMatches(HEADER_MAP.keys(), value),
+      },
+    }),
     {
       description:
         "Full specification, declared symbols, and language revisions for a specific C or C++ header (e.g. 'vector', 'ranges', 'print', 'cstdio').",
@@ -122,7 +204,8 @@ export function registerResources(server: McpServer): void {
   );
 
   // Resource 3: Standards Timeline and Feature Test Macros
-  server.registerResource(
+  addResource(
+    server,
     "cpp_standards_timeline",
     "cppref://standards",
     {
@@ -150,7 +233,8 @@ export function registerResources(server: McpServer): void {
   );
 
   // Resource 4: C++ Core Guidelines Index
-  server.registerResource(
+  addResource(
+    server,
     "cpp_core_guidelines_index",
     "cppref://guidelines",
     {
@@ -180,9 +264,21 @@ export function registerResources(server: McpServer): void {
   );
 
   // Resource 5: C++ Core Guidelines Rule Detail
-  server.registerResource(
+  addResource(
+    server,
     "cpp_core_guideline_detail",
-    new ResourceTemplate("cppref://guidelines/{id}", { list: undefined }),
+    new ResourceTemplate("cppref://guidelines/{id}", {
+      list: undefined,
+      complete: {
+        id: async (value) => {
+          const { CPP_CORE_GUIDELINES } = await import("../data/guidelines.js");
+          return prefixMatches(
+            CPP_CORE_GUIDELINES.map((rule) => rule.id),
+            value,
+          );
+        },
+      },
+    }),
     {
       description:
         "Full specification, reason, enforcement, and markdown examples for a specific C++ Core Guidelines rule (e.g. 'F.16', 'R.1', 'C.21').",
@@ -226,7 +322,8 @@ export function registerResources(server: McpServer): void {
   );
 
   // Resource 6: C++ Modules Guide Index
-  server.registerResource(
+  addResource(
+    server,
     "cpp_modules_guide_index",
     "cppref://modules",
     {
@@ -256,9 +353,21 @@ export function registerResources(server: McpServer): void {
   );
 
   // Resource 7: C++ Modules Topic Detail
-  server.registerResource(
+  addResource(
+    server,
     "cpp_modules_topic_detail",
-    new ResourceTemplate("cppref://modules/{topic}", { list: undefined }),
+    new ResourceTemplate("cppref://modules/{topic}", {
+      list: undefined,
+      complete: {
+        topic: async (value) => {
+          const { MODULE_GUIDES } = await import("../data/modules_guide.js");
+          return prefixMatches(
+            MODULE_GUIDES.map((guide) => guide.id),
+            value,
+          );
+        },
+      },
+    }),
     {
       description:
         "Full architectural specification, rules, and code patterns for a specific C++ module topic (e.g. 'import-std', 'partitions', 'cmake-build-systems').",
@@ -309,7 +418,8 @@ export function registerResources(server: McpServer): void {
   );
 
   // Resource 8: SEI CERT C++ Rules Index
-  server.registerResource(
+  addResource(
+    server,
     "cpp_cert_rules_index",
     "cppref://cert",
     {
@@ -342,9 +452,21 @@ export function registerResources(server: McpServer): void {
   );
 
   // Resource 9: SEI CERT C++ Rule Detail
-  server.registerResource(
+  addResource(
+    server,
     "cpp_cert_rule_detail",
-    new ResourceTemplate("cppref://cert/{id}", { list: undefined }),
+    new ResourceTemplate("cppref://cert/{id}", {
+      list: undefined,
+      complete: {
+        id: async (value) => {
+          const { CERT_RULES } = await import("../data/cert_rules.js");
+          return prefixMatches(
+            CERT_RULES.map((rule) => rule.id),
+            value,
+          );
+        },
+      },
+    }),
     {
       description:
         "Full SEI CERT C++ rule specification, risk assessment, noncompliant code example, and compliant secure solution.",
@@ -388,7 +510,8 @@ export function registerResources(server: McpServer): void {
   );
 
   // Resource 10: Modern C/C++ Developer Tooling Catalog
-  server.registerResource(
+  addResource(
+    server,
     "cpp_tooling_index",
     "cppref://tooling",
     {
@@ -418,9 +541,21 @@ export function registerResources(server: McpServer): void {
   );
 
   // Resource 11: Specific C/C++ Tool Documentation & Config
-  server.registerResource(
+  addResource(
+    server,
     "cpp_tooling_detail",
-    new ResourceTemplate("cppref://tooling/{tool}", { list: undefined }),
+    new ResourceTemplate("cppref://tooling/{tool}", {
+      list: undefined,
+      complete: {
+        tool: async (value) => {
+          const { C_CPP_TOOLS } = await import("../data/tooling.js");
+          return prefixMatches(
+            C_CPP_TOOLS.map((tool) => tool.id),
+            value,
+          );
+        },
+      },
+    }),
     {
       description:
         "Full documentation, commands, and production starter configuration for a specific C/C++ tool (e.g. 'xmake', 'clang-format', 'clang-tidy', 'sanitizers').",
@@ -488,7 +623,8 @@ export function registerResources(server: McpServer): void {
   );
 
   // Resource 12: Official xmake Agent Skills Index
-  server.registerResource(
+  addResource(
+    server,
     "cpp_xmake_skills_index",
     "cppref://tooling/xmake/skills",
     {
@@ -525,9 +661,21 @@ export function registerResources(server: McpServer): void {
   );
 
   // Resource 13: Official xmake Skill Recipe Markdown
-  server.registerResource(
+  addResource(
+    server,
     "cpp_xmake_skill_detail",
-    new ResourceTemplate("cppref://tooling/xmake/{topic}", { list: undefined }),
+    new ResourceTemplate("cppref://tooling/xmake/{topic}", {
+      list: undefined,
+      complete: {
+        topic: async (value) => {
+          const { XMAKE_SKILLS } = await import("../data/xmake-skills.js");
+          return prefixMatches(
+            XMAKE_SKILLS.map((skill) => skill.id),
+            value,
+          );
+        },
+      },
+    }),
     {
       description:
         "Full recipe and tutorial markdown for a specific xmake capability (e.g. 'cxx-modules', 'cross-compilation', 'packages', 'cuda', 'unity').",
@@ -571,7 +719,8 @@ export function registerResources(server: McpServer): void {
   );
 
   // Resource 14: Compiler Support Matrix Catalog
-  server.registerResource(
+  addResource(
+    server,
     "cpp_compiler_support",
     "cppref://compiler-support",
     {
@@ -593,9 +742,19 @@ export function registerResources(server: McpServer): void {
   );
 
   // Resource 14: Compiler Support Feature Detail
-  server.registerResource(
+  addResource(
+    server,
     "cpp_compiler_support_detail",
-    new ResourceTemplate("cppref://compiler-support/{feature}", { list: undefined }),
+    new ResourceTemplate("cppref://compiler-support/{feature}", {
+      list: undefined,
+      complete: {
+        feature: (value) =>
+          prefixMatches(
+            COMPILER_SUPPORT_ENTRIES.map((entry) => entry.id),
+            value,
+          ),
+      },
+    }),
     {
       description:
         "Detailed compiler support matrix and paper info for a specific feature (e.g. 'std-print', 'std-expected', 'import-std', 'std-generator').",
@@ -644,7 +803,8 @@ export function registerResources(server: McpServer): void {
   );
 
   // Resource 16: Modernize Cheat Sheet
-  server.registerResource(
+  addResource(
+    server,
     "cpp_modernize_cheatsheet",
     "cppref://modernize/cheatsheet",
     {
