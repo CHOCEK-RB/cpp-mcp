@@ -51,6 +51,7 @@
     "check": "tsc --noEmit",
     "check:hints": "bun scripts/check-hints.ts",
     "check:publint": "publint --strict",
+    "check:coverage": "bun run scripts/check-coverage.ts",
     "test": "bun test",
     "test:coverage": "bun test --coverage",
     "sync:headers": "bun scripts/sync-headers.ts",

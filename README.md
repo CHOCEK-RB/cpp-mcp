@@ -7,6 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Runtime: Bun](https://img.shields.io/badge/runtime-bun-fbf0df?logo=bun)](https://bun.sh)
 [![MCP Protocol](https://img.shields.io/badge/MCP-Registry-purple.svg)](https://modelcontextprotocol.io)
+[![M8ven Score](https://m8ven.ai/badge/mcp/chocek-rb/cpp-mcp)](https://m8ven.ai/mcp/chocek-rb/cpp-mcp?s=readme)
 
 Model Context Protocol (MCP) server that empowers AI coding assistants with authoritative, real-time C and C++ documentation directly from [cppreference.com](https://cppreference.com).
 
@@ -70,6 +71,12 @@ flowchart TB
 ---
 
 ## Tools Catalog
+
+Every tool declares the four MCP behaviour hints (`readOnlyHint`, `destructiveHint`,
+`idempotentHint`, `openWorldHint`) as explicit booleans, so hosts can auto-approve reads and
+warn before writes. Tools that reach cppreference.com set `openWorldHint: true`; tools that
+index or write the workspace set `readOnlyHint: false`, and `rename_code_symbol` additionally
+sets `destructiveHint: true`.
 
 ### 1. `search_cppreference`
 
@@ -1096,6 +1103,7 @@ The workspace semantic engine is built specifically for modern C/C++ workflows:
 | `CLANGD_PATH` | Overrides the `clangd` executable used by the semantic tools. |
 | `CLANGD_QUERY_DRIVER` | Compiler driver(s) clangd may query for builtin system includes (gcc, cross-toolchains). Comma- or whitespace-separated; passed as `--query-driver`. |
 | `CLANG_FORMAT_PATH` | Overrides the `clang-format` executable used by `format_code` / `cpp-mcp code-format`. |
+| `CLANG_DOC_PATH` | Overrides the `clang-doc` executable used by `generate_documentation` / `cpp-mcp docs`. |
 | `CLANG_TIDY_PATH` | Overrides the `clang-tidy` executable used by `run_clang_tidy` / `cpp-mcp clang-tidy`. |
 
 ## Project Policy (`.cpp-mcp.json`)

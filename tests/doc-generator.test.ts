@@ -1,12 +1,39 @@
 // tests/doc-generator.test.ts
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import { runCli } from "../src/cli.js";
 import { createServer } from "../src/index.js";
 import { findClangDoc, generateDocumentation } from "../src/tools/doc-generator.js";
 
 const TEST_WORKSPACE = path.join("/tmp", `cpp-mcp-doc-test-${Date.now()}`);
+
+/**
+ * Functional probe: clang-doc may be installed yet unusable (e.g. distros that install
+ * the Mustache templates in a layout the binary cannot read). Version discovery alone is
+ * not enough, so the execution tests are only run when clang-doc can actually emit docs.
+ */
+async function clangDocCanGenerate(): Promise<boolean> {
+  const probeDir = fs.mkdtempSync(path.join(os.tmpdir(), "cpp-mcp-doc-probe-"));
+  try {
+    const source = path.join(probeDir, "probe.hpp");
+    fs.writeFileSync(source, "/// Probe.\nstruct Probe { int value; };\n", "utf-8");
+    const res = await generateDocumentation({
+      workspace: probeDir,
+      files: [source],
+      outputDir: "probe-output",
+      format: "md",
+    });
+    return res.success && res.totalFiles > 0;
+  } catch {
+    return false;
+  } finally {
+    fs.rmSync(probeDir, { recursive: true, force: true });
+  }
+}
+
+const CLANG_DOC_READY = await clangDocCanGenerate();
 
 beforeAll(() => {
   fs.mkdirSync(path.join(TEST_WORKSPACE, "include"), { recursive: true });
@@ -54,7 +81,24 @@ describe("doc-generator - Tool Registration", () => {
   });
 });
 
-describe("doc-generator - clang-doc Discovery & Execution", () => {
+describe("doc-generator - clang-doc path override", () => {
+  it("honours CLANG_DOC_PATH over the PATH lookup", async () => {
+    const previous = process.env.CLANG_DOC_PATH;
+    process.env.CLANG_DOC_PATH = "/nonexistent/clang-doc-override";
+    try {
+      const info = await findClangDoc();
+      expect(info.available).toBe(false);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.CLANG_DOC_PATH;
+      } else {
+        process.env.CLANG_DOC_PATH = previous;
+      }
+    }
+  });
+});
+
+describe.skipIf(!CLANG_DOC_READY)("doc-generator - clang-doc Discovery & Execution", () => {
   it("detects clang-doc on the host system", async () => {
     const info = await findClangDoc();
     expect(info.available).toBe(true);

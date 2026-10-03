@@ -1,6 +1,7 @@
 // src/cli.ts
 // Direct CLI mode for cpp-mcp without an MCP client.
 import pkg from "../package.json" with { type: "json" };
+import { CLI_COMMAND_BY_NAME, type CliCommandName, renderHelp } from "./cli-registry.js";
 import { isExecutableAvailable, resolveProjectBuildInfo } from "./project/xmake.js";
 import { checkSecureCoding } from "./tools/cert.js";
 import { isClangTidyPreset, runClangTidy } from "./tools/clang-tidy.js";
@@ -43,78 +44,7 @@ import { checkCppStandard } from "./tools/standards.js";
 import { getCppToolingGuide } from "./tools/tooling.js";
 
 export function printHelp(): void {
-  console.log(`cpp-mcp v${pkg.version} - Fast offline C/C++ reference and developer tools
-
-Usage:
-  cpp-mcp [command] [arguments] [options]
-  cpp-mcp <symbol>                  # Fast header lookup (e.g. cpp-mcp std::span)
-
-Commands:
-  header <symbol>                   Lookup standard header for a symbol (e.g. std::span -> <span>)
-  query <symbol|concept>            Comprehensive lookup across headers and documentation
-  search <query>                    Search cppreference.com for documentation and URLs
-  project [dir]                     Inspect workspace build configuration, compile_commands, and tools
-  code-search <query>               Search symbols in workspace code (clangd + xmake/CMake)
-  code-analyze <symbol>             Analyze symbol definition, hierarchy, and usage
-  code-diagnostics [file]           Inspect live compiler errors and warnings via clangd
-  code-rename <symbol> <new_name>   Rename symbol across project using AST analysis (clangd)
-  code-format [file]                Format C/C++ source code or file via clang-format (--style, --apply)
-  clang-tidy [files...]             Lint/auto-fix C/C++ files via clang-tidy (--preset, --checks, --apply, --check)
-  scaffold <name>                   Scaffold modern C++ project (xmake/CMake, C++20, Catch2, clangd)
-  explain-error <text|->            Explain complex C++ compiler or linker errors (or pipe via stdin)
-  docs [files...]                   Generate API documentation via clang-doc (--format, --output)
-  compile-db [dir]                  Generate compile_commands.json (auto, CMake, xmake, Meson, Bear, synthetic)
-  reorder-fields <record> <order>   Reorder fields in C/C++ struct/class via clang-reorder-fields (--apply)
-  trace-preprocessor <file>         Trace macros, includes, and #if branches via pp-trace (--callbacks, --max-events)
-  compiler <feature> [options]      Check compiler support matrix (GCC, Clang, MSVC, Apple Clang)
-  demangle <symbol|->               Demangle Itanium or MSVC mangled symbols (or stdin)
-  cert <rule_id|cwe|category>       Audit against SEI CERT C++ rules and CWEs
-  guideline <rule_id|query>         Lookup C++ Core Guidelines rules and enforcement
-  standard <version>                Inspect C or C++ standard features and test macros
-  module <topic>                    Inspect C++20/23/26 modules architecture guides
-  module-toolchain                  Check which 'import std;' / modules toolchain is viable on this host
-  tooling <tool> [topic]            Inspect modern C++ tooling & official xmake recipes (58 skills)
-
-Options:
-  --json                            Output response in raw JSON format
-  --raw                             Print only primary scalar value (e.g. only header name or formatted code)
-  --workspace <dir>                 Project root directory for code tools and .clang-format lookup
-  --file <path>                     Source file path for symbol disambiguation, diagnostics, rename, or format
-  --line <num>                      Line number (1-indexed) for symbol disambiguation or rename
-  --lines <start:end>               Line range (1-indexed) to format only a sub-region
-  --style <name>                    Format style ('file', 'LLVM', 'Google', 'Chromium', 'Mozilla', 'WebKit')
-  --apply                           Apply rename, format, or reorder changes to disk (default is dry-run)
-  --dry-run                         Preview changes without modifying files (default)
-  --order, --fields-order <order>   Comma-separated list of field names in desired order
-  --extra-arg <arg>                 Additional compiler flag for clang-reorder-fields or pp-trace (e.g. -std=c++20)
-  --callbacks <a,b,...>             Restrict pp-trace to specific callbacks or globs (e.g. MacroDefined,MacroExpands)
-  --max-events <num>                Max raw pp-trace events returned with --include-events (default: 500)
-  --include-events                  Include capped raw pp-trace callback events in the output
-  --all-files                       Include system-header events in pp-trace output (default: project files only)
-  --dir <path>                      Target directory for scaffolded project (default: ./<name>)
-  --build <xmake|cmake>             Build system for scaffolding (default: xmake)
-  --build-system <system>           Build system for compile-db ('auto', 'cmake', 'xmake', 'meson', 'bear', 'synthetic')
-  --build-dir <dir>                 Build directory for compile_commands.json (default: 'build')
-  --no-root-link                    Do not copy/link compile_commands.json to workspace root
-  --type <type>                     Project type (executable, library, header-only, cxx-modules, qt, cuda)
-  --std <version>                   C++ standard for scaffolding/compile-db (11, 14, 17, 20, 23, 26)
-  --test <framework>                Test framework (catch2, gtest, doctest, none)
-  --pm, --package-manager <name>    Package manager (xrepo, vcpkg, conan, none)
-  --git                             Initialize git repository during scaffold
-  --no-clang                        Disable generation of .clang-format and .clangd
-  --force, --overwrite              Overwrite existing non-empty directory during scaffold
-  --severity <level>                Filter diagnostics (all, error, warning)
-  --code <code>                     Inline code snippet to check or format without saving to disk
-  --output, -o <dir>                Output directory for generated documentation (default: docs/api)
-  --format <format>                 Doc format: 'md', 'html', 'json', 'yaml' (default: md)
-  --public                          Document only public declarations
-  --doxygen                         Parse only Doxygen-style comments
-  --compiler <name>                 Compiler name for compatibility checks (gcc, clang, msvc, apple_clang)
-  --version <ver>                   Compiler version to evaluate against feature requirement
-  -v, --version                     Print version and exit
-  -h, --help                        Print this help message and exit
-
-When executed without arguments, cpp-mcp runs as an MCP stdio server.`);
+  console.log(renderHelp());
 }
 
 async function readStdin(timeoutMs?: number): Promise<string> {
@@ -372,8 +302,8 @@ export async function runCli(args: string[]): Promise<number> {
   const target = positionalArgs.slice(1).join(" ").trim();
 
   try {
-    switch (command) {
-      case "header": {
+    const handlers: Record<CliCommandName, () => Promise<number> | number> = {
+      header: async () => {
         if (!target) {
           console.error(
             "Error: 'header' command requires a symbol argument (e.g. 'cpp-mcp header std::span')",
@@ -396,9 +326,8 @@ export async function runCli(args: string[]): Promise<number> {
           console.log(`${res.header}${sinceInfo}`);
         }
         return 0;
-      }
-
-      case "query": {
+      },
+      query: async () => {
         const queryTerm = target;
         if (!queryTerm) {
           console.error(
@@ -434,9 +363,8 @@ export async function runCli(args: string[]): Promise<number> {
 
         console.error(`No documentation or header found for '${queryTerm}'.`);
         return 1;
-      }
-
-      case "demangle": {
+      },
+      demangle: async () => {
         let symbolToDemangle = target;
         if (target === "-" || (!target && !process.stdin.isTTY)) {
           symbolToDemangle = await readStdin();
@@ -452,9 +380,8 @@ export async function runCli(args: string[]): Promise<number> {
         }
         console.log(res.demangled);
         return 0;
-      }
-
-      case "compiler": {
+      },
+      compiler: async () => {
         if (!target) {
           console.error(
             "Error: 'compiler' command requires a feature name (e.g. 'cpp-mcp compiler constexpr')",
@@ -491,9 +418,8 @@ export async function runCli(args: string[]): Promise<number> {
           );
         }
         return 0;
-      }
-
-      case "cert": {
+      },
+      cert: async () => {
         if (!target) {
           console.error(
             "Error: 'cert' command requires a rule ID, CWE, or category (e.g. 'cpp-mcp cert MEM50-CPP')",
@@ -530,9 +456,8 @@ export async function runCli(args: string[]): Promise<number> {
           return 0;
         }
         return 0;
-      }
-
-      case "guideline": {
+      },
+      guideline: async () => {
         if (!target) {
           console.error(
             "Error: 'guideline' command requires a rule ID or query (e.g. 'cpp-mcp guideline F.16')",
@@ -565,9 +490,8 @@ export async function runCli(args: string[]): Promise<number> {
           return 0;
         }
         return 0;
-      }
-
-      case "standard": {
+      },
+      standard: async () => {
         if (!target) {
           console.error(
             "Error: 'standard' command requires a symbol and optional target standard (e.g. 'cpp-mcp standard std::span C++20')",
@@ -598,9 +522,8 @@ export async function runCli(args: string[]): Promise<number> {
         }
         console.log(`Summary:  ${res.summary}`);
         return 0;
-      }
-
-      case "module": {
+      },
+      module: async () => {
         const res = getCppModulesGuide({ topic: target || undefined, query: target || undefined });
         if (isJson) {
           console.log(JSON.stringify(res, null, 2));
@@ -629,10 +552,8 @@ export async function runCli(args: string[]): Promise<number> {
           return 0;
         }
         return 0;
-      }
-
-      case "module-toolchain":
-      case "module-check": {
+      },
+      "module-toolchain": async () => {
         const res = await checkModuleToolchain();
 
         if (isJson || isRaw) {
@@ -661,9 +582,8 @@ export async function runCli(args: string[]): Promise<number> {
           for (const note of res.notes) console.log(`- ${note}`);
         }
         return 0;
-      }
-
-      case "tooling": {
+      },
+      tooling: async () => {
         const parts = target ? target.split(/\s+/) : [];
         let toolArg: string | undefined;
         let topicArg: string | undefined;
@@ -781,9 +701,8 @@ export async function runCli(args: string[]): Promise<number> {
         }
 
         return 0;
-      }
-
-      case "search": {
+      },
+      search: async () => {
         if (!target) {
           console.error(
             "Error: 'search' command requires a query (e.g. 'cpp-mcp search std::vector')",
@@ -804,9 +723,8 @@ export async function runCli(args: string[]): Promise<number> {
           console.log(`${i + 1}. ${res.result_urls[i]}`);
         }
         return 0;
-      }
-
-      case "project": {
+      },
+      project: async () => {
         const ws = target || flagWorkspace || process.cwd();
         const info = await resolveProjectBuildInfo({ workspaceDir: ws });
         const [hasClangd, hasXmake] = await Promise.all([
@@ -845,9 +763,8 @@ export async function runCli(args: string[]): Promise<number> {
           console.log(`Note:                ${fullInfo.error}`);
         }
         return fullInfo.found ? 0 : 1;
-      }
-
-      case "code-search": {
+      },
+      "code-search": async () => {
         if (!target) {
           console.error(
             "Error: 'code-search' command requires a query (e.g. 'cpp-mcp code-search Calculator')",
@@ -878,9 +795,8 @@ export async function runCli(args: string[]): Promise<number> {
           console.log(`- ${s.name} (${s.kind})${container} -> ${s.file}:${s.line}`);
         }
         return 0;
-      }
-
-      case "code-analyze": {
+      },
+      "code-analyze": async () => {
         if (!target) {
           console.error(
             "Error: 'code-analyze' command requires a symbol name (e.g. 'cpp-mcp code-analyze Calculator::add')",
@@ -924,11 +840,8 @@ export async function runCli(args: string[]): Promise<number> {
           }
         }
         return 0;
-      }
-
-      case "code-diagnostics":
-      case "diagnostics":
-      case "check": {
+      },
+      "code-diagnostics": async () => {
         const targetFile = target || flagFile;
         const res = await getCodeDiagnostics({
           file: targetFile,
@@ -988,10 +901,8 @@ export async function runCli(args: string[]): Promise<number> {
         }
 
         return res.totalErrors > 0 ? 1 : 0;
-      }
-
-      case "code-rename":
-      case "rename": {
+      },
+      "code-rename": async () => {
         const symbolArg = positionalArgs[1];
         const newNameArg = positionalArgs[2];
         if (!symbolArg || !newNameArg) {
@@ -1045,10 +956,8 @@ export async function runCli(args: string[]): Promise<number> {
           console.log("Tip: Run with --apply to write changes to files on disk.");
         }
         return 0;
-      }
-
-      case "code-format":
-      case "format": {
+      },
+      "code-format": async () => {
         let codeInput = flagCode;
         let fileInput = target || flagFile;
 
@@ -1137,11 +1046,8 @@ export async function runCli(args: string[]): Promise<number> {
         if (res.diff) console.log(res.diff);
         console.log(`\nTip: Run with --apply to write formatting changes to disk.`);
         return 0;
-      }
-
-      case "clang-tidy":
-      case "tidy":
-      case "modernize": {
+      },
+      "clang-tidy": async () => {
         const filesArg = positionalArgs.slice(1);
         if (!flagFile && filesArg.length === 0) {
           console.error(
@@ -1194,10 +1100,8 @@ export async function runCli(args: string[]): Promise<number> {
           return 1;
         }
         return 0;
-      }
-
-      case "scaffold":
-      case "init": {
+      },
+      scaffold: async () => {
         const projectName = target || positionalArgs[1];
         if (!projectName) {
           console.error(
@@ -1288,10 +1192,8 @@ export async function runCli(args: string[]): Promise<number> {
           console.log(`  $ ${step}`);
         }
         return 0;
-      }
-
-      case "explain-error":
-      case "explain": {
+      },
+      "explain-error": async () => {
         let errorToExplain = target;
         if (target === "-" || (!target && !process.stdin.isTTY)) {
           errorToExplain = await readStdin(target === "-" ? undefined : 50);
@@ -1357,11 +1259,8 @@ export async function runCli(args: string[]): Promise<number> {
         }
 
         return 0;
-      }
-
-      case "docs":
-      case "generate-docs":
-      case "clang-doc": {
+      },
+      docs: async () => {
         const VALID_FORMATS = new Set(["md", "html", "json", "yaml"]);
         if (flagFormat && !VALID_FORMATS.has(flagFormat)) {
           console.error(
@@ -1417,11 +1316,8 @@ export async function runCli(args: string[]): Promise<number> {
           console.log(res.previewMarkdown);
         }
         return 0;
-      }
-
-      case "compile-db":
-      case "compiledb":
-      case "generate-compile-commands": {
+      },
+      "compile-db": async () => {
         if (flagBuildSystem && !VALID_COMPILE_DB_SYSTEMS.has(flagBuildSystem)) {
           console.error(
             `Error: Invalid --build-system '${flagBuildSystem}'. Supported: ${Array.from(VALID_COMPILE_DB_SYSTEMS).join(", ")}.`,
@@ -1475,10 +1371,8 @@ export async function runCli(args: string[]): Promise<number> {
           }
         }
         return 0;
-      }
-
-      case "reorder-fields":
-      case "reorder": {
+      },
+      "reorder-fields": async () => {
         const recordArg = positionalArgs[1];
         if (!recordArg) {
           console.error(
@@ -1564,11 +1458,8 @@ export async function runCli(args: string[]): Promise<number> {
           console.log("Tip: Run with --apply to write changes to files on disk.");
         }
         return 0;
-      }
-
-      case "trace-preprocessor":
-      case "trace-pp":
-      case "pretrace": {
+      },
+      "trace-preprocessor": async () => {
         const traceFile = positionalArgs[1] ?? flagFile;
         if (!traceFile) {
           console.error(
@@ -1682,30 +1573,38 @@ export async function runCli(args: string[]): Promise<number> {
           }
         }
         return 0;
-      }
+      },
+    };
 
-      default: {
-        // Direct shorthand query: e.g. `cpp-mcp std::span`
-        const queryTerm = positionalArgs.join(" ").trim();
-        const headerRes = await lookupHeader(queryTerm);
-        if (isJson) {
-          console.log(JSON.stringify(headerRes, null, 2));
-          return headerRes.found ? 0 : 1;
-        }
-        if (headerRes.found && headerRes.header) {
-          if (isRaw) {
-            console.log(headerRes.header);
-          } else {
-            const sinceInfo = headerRes.since ? ` (${headerRes.since})` : "";
-            console.log(`${headerRes.header}${sinceInfo}`);
-          }
-          return 0;
-        }
-
-        console.error(`Unknown command or symbol '${command}'. Run 'cpp-mcp --help' for usage.`);
-        return 1;
+    const spec = CLI_COMMAND_BY_NAME.get(command);
+    if (spec) {
+      const handler = handlers[spec.command];
+      if (handler) {
+        return await handler();
       }
+      console.error(`Internal error: the ${spec.command} command is registered without a handler.`);
+      return 1;
     }
+
+    // Direct shorthand query: e.g. `cpp-mcp std::span`
+    const queryTerm = positionalArgs.join(" ").trim();
+    const headerRes = await lookupHeader(queryTerm);
+    if (isJson) {
+      console.log(JSON.stringify(headerRes, null, 2));
+      return headerRes.found ? 0 : 1;
+    }
+    if (headerRes.found && headerRes.header) {
+      if (isRaw) {
+        console.log(headerRes.header);
+      } else {
+        const sinceInfo = headerRes.since ? ` (${headerRes.since})` : "";
+        console.log(`${headerRes.header}${sinceInfo}`);
+      }
+      return 0;
+    }
+
+    console.error(`Unknown command or symbol '${command}'. Run 'cpp-mcp --help' for usage.`);
+    return 1;
   } catch (error) {
     console.error(
       `Error executing command '${command}': ${error instanceof Error ? error.message : String(error)}`,
