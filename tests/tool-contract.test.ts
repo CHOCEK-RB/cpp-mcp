@@ -13,6 +13,7 @@ interface RegisteredTool {
 interface ToolCallResult {
   isError?: boolean;
   content?: Array<{ type: string; text?: string }>;
+  structuredContent?: unknown;
 }
 
 /**
@@ -291,6 +292,32 @@ describe("MCP tool handlers", () => {
       expect(text.length).toBeGreaterThan(0);
     });
   }
+});
+
+describe("MCP structured output", () => {
+  const samples: Record<string, Record<string, unknown>> = {
+    check_compiler_support: { feature: "std::print" },
+    get_project_details: {},
+    lookup_header: { symbol: "std::vector" },
+    check_cpp_standard: { symbol: "std::auto_ptr", standard: "C++17" },
+    demangle_symbol: { symbol: "_Z3fooi" },
+  };
+
+  for (const [name, args] of Object.entries(samples)) {
+    it(`returns structuredContent consistent with the text JSON from ${name}`, async () => {
+      const result = await callTool(registeredTools()[name] as RegisteredTool, args);
+      expect(result.isError).not.toBe(true);
+      expect(result.content?.[0]?.type).toBe("text");
+      const text = result.content?.[0]?.text ?? "";
+      expect(result.structuredContent).toEqual(JSON.parse(text));
+    });
+  }
+
+  it("keeps tools without an output schema text-only", async () => {
+    const result = await callTool(registeredTools().check_module_toolchain as RegisteredTool, {});
+    expect(result.isError).not.toBe(true);
+    expect(result.structuredContent).toBeUndefined();
+  });
 });
 
 describe("MCP error contract", () => {

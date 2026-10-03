@@ -7,6 +7,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { isExecutableAvailable, resolveProjectBuildInfo } from "./project/xmake.js";
+import { TOOL_OUTPUT_SCHEMAS, TOOL_TITLES } from "./tool-schemas.js";
 import { checkSecureCoding } from "./tools/cert.js";
 import { runClangTidy } from "./tools/clang-tidy.js";
 import { resolveClangTool } from "./tools/clang-tool-resolver.js";
@@ -54,12 +55,16 @@ export interface ToolDependency {
 export interface ToolDefinition {
   /** MCP tool name (snake_case). */
   name: string;
+  /** Human-friendly title for hosts that render one. */
+  title?: string;
   /** Trigger-first description shown to the model. */
   description: string;
   /** MCP behaviour hints so hosts can gate or warn before invoking. */
   annotations: ToolAnnotations;
   /** Zod raw shape for the tool inputs. */
   inputSchema: z.ZodRawShape;
+  /** Zod raw shape for the structured payload returned on success. */
+  outputSchema?: z.ZodRawShape;
   /** Message prefix for a failed invocation; a function receives the arguments. */
   errorLabel: string | ((args: ToolArgs) => string);
   /** Optional guard that returns a verbatim error message before invoking. */
@@ -104,9 +109,17 @@ async function missingDependency(def: ToolDefinition): Promise<string | undefine
 /** Registers every definition on the MCP server with the shared envelope/error contract. */
 export function registerToolDefinitions(server: McpServer): void {
   for (const def of TOOL_DEFINITIONS) {
+    const title = def.title ?? TOOL_TITLES[def.name];
+    const outputSchema = def.outputSchema ?? TOOL_OUTPUT_SCHEMAS[def.name];
     server.registerTool(
       def.name,
-      { description: def.description, inputSchema: def.inputSchema, annotations: def.annotations },
+      {
+        ...(title ? { title } : {}),
+        description: def.description,
+        inputSchema: def.inputSchema,
+        ...(outputSchema ? { outputSchema } : {}),
+        annotations: def.annotations,
+      },
       async (args) => {
         const precheckMessage = await def.precheck?.(args);
         if (precheckMessage) {
@@ -125,9 +138,19 @@ export function registerToolDefinitions(server: McpServer): void {
         try {
           const result = await def.invoke(args);
           const text = JSON.stringify(result, null, 2);
-          return isFailureResult(result)
-            ? { isError: true, content: [{ type: "text" as const, text }] }
-            : { content: [{ type: "text" as const, text }] };
+          if (isFailureResult(result)) {
+            return { isError: true, content: [{ type: "text" as const, text }] };
+          }
+          const envelope: {
+            content: Array<{ type: "text"; text: string }>;
+            structuredContent?: Record<string, unknown>;
+          } = { content: [{ type: "text" as const, text }] };
+          // Only advertise structured content for tools that declare a shape; the
+          // SDK validates it against `outputSchema` on success.
+          if (outputSchema && typeof result === "object" && result !== null) {
+            envelope.structuredContent = result as Record<string, unknown>;
+          }
+          return envelope;
         } catch (error) {
           return {
             isError: true,
