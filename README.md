@@ -1096,6 +1096,7 @@ The workspace semantic engine is built specifically for modern C/C++ workflows:
 | `CLANGD_PATH` | Overrides the `clangd` executable used by the semantic tools. |
 | `CLANGD_QUERY_DRIVER` | Compiler driver(s) clangd may query for builtin system includes (gcc, cross-toolchains). Comma- or whitespace-separated; passed as `--query-driver`. |
 | `CLANG_FORMAT_PATH` | Overrides the `clang-format` executable used by `format_code` / `cpp-mcp code-format`. |
+| `CLANG_DOC_PATH` | Overrides the `clang-doc` executable used by `generate_documentation` / `cpp-mcp docs`. |
 | `CLANG_TIDY_PATH` | Overrides the `clang-tidy` executable used by `run_clang_tidy` / `cpp-mcp clang-tidy`. |
 
 ## Project Policy (`.cpp-mcp.json`)

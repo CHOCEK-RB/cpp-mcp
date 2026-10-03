@@ -51,7 +51,7 @@ export async function findClangDoc(customPath?: string): Promise<{
   path?: string;
   version?: string;
 }> {
-  const info = await resolveClangTool({ name: "clang-doc", customPath });
+  const info = await resolveClangTool({ name: "clang-doc", customPath, envVar: "CLANG_DOC_PATH" });
   if (!info.available) {
     return { available: false };
   }
@@ -195,6 +195,31 @@ async function collectGeneratedFiles(
   }
 
   return results.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+}
+
+/**
+ * Result used when clang-doc ran but found no documentable declarations. Returned both
+ * when clang-doc exits zero (newer builds) and when it exits non-zero after reducing
+ * zero symbol infos, so callers get one stable "nothing to document" outcome.
+ */
+function noDocumentableDeclarationsResult(
+  version: string | undefined,
+  format: DocFormat,
+  outputDir: string,
+): GenerateDocsResult {
+  return {
+    success: false,
+    tool: `clang-doc (v${version})`,
+    version,
+    format,
+    outputDir,
+    filesGenerated: [],
+    totalFiles: 0,
+    summary:
+      "No documentation files were generated. No documentable C/C++ declarations or symbols found.",
+    error:
+      "clang-doc emitted no symbol documentation. Ensure the source files contain valid C/C++ declarations, or check if --public excluded private symbols.",
+  };
 }
 
 /**
@@ -342,19 +367,7 @@ export async function generateDocumentation(
       });
 
     if (!hasMeaningfulDocs) {
-      return {
-        success: false,
-        tool: `clang-doc (v${clangDocInfo.version})`,
-        version: clangDocInfo.version,
-        format,
-        outputDir,
-        filesGenerated: [],
-        totalFiles: 0,
-        summary:
-          "No documentation files were generated. No documentable C/C++ declarations or symbols found.",
-        error:
-          "clang-doc finished with exit code 0 but emitted no symbol documentation. Ensure the source files contain valid C/C++ declarations, or check if --public excluded private symbols.",
-      };
+      return noDocumentableDeclarationsResult(clangDocInfo.version, format, outputDir);
     }
 
     // Publish the staged files into the output directory, then remove files this tool
@@ -400,6 +413,14 @@ export async function generateDocumentation(
   } catch (error) {
     const errObj = error as { message?: string; stderr?: string; stdout?: string };
     const errDetails = errObj.stderr || errObj.message || String(error);
+    const combinedOutput = `${errObj.stdout ?? ""}\n${errObj.stderr ?? ""}`;
+
+    // clang-doc exits non-zero when it reduces zero symbol infos (e.g. a translation unit
+    // with no documentable declarations). Report the same "nothing to document" outcome
+    // as the exit-0 path instead of a misleading generic execution failure.
+    if (/reducing\s+0\s+infos?/i.test(combinedOutput)) {
+      return noDocumentableDeclarationsResult(clangDocInfo.version, format, outputDir);
+    }
 
     return {
       success: false,
