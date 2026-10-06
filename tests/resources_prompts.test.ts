@@ -318,18 +318,35 @@ describe("MCP Resources & Prompts", () => {
     expect(parsed.compilers.clang).toBe("17");
   });
 
-  it("should generate compiler compatibility prompt for cpp_check_compiler_compatibility", async () => {
+  it("should give every resource a human-readable title", () => {
     // @ts-expect-error accessing private property for test verification
-    const handler = server._registeredPrompts.cpp_check_compiler_compatibility.callback;
-    const result = await handler({
-      features: "std::print, std::expected",
-      compiler: "gcc",
-      version: "12.2",
-    });
+    const resources = server._registeredResources;
+    expect(resources["cppref://headers"].title).toBe("C/C++ Standard Headers Index");
+    expect(resources["cppref://modernize/cheatsheet"].title).toBe("Modern C++ Cheat Sheet");
+    // @ts-expect-error accessing private property for test verification
+    const templates = server._registeredResourceTemplates;
+    expect(templates.cpp_standard_header_detail.title).toBe("C/C++ Header Specification");
+    expect(templates.cpp_compiler_support_detail.title).toBe("Compiler Support Feature");
+  });
 
-    expect(result.messages).toHaveLength(1);
-    expect(result.messages[0].content.text).toContain("gcc 12.2");
-    expect(result.messages[0].content.text).toContain("std::print, std::expected");
-    expect(result.messages[0].content.text).toContain("Polyfills & Fallbacks");
+  it("should autocomplete resource template variables", async () => {
+    // @ts-expect-error accessing private property for test verification
+    const templates = server._registeredResourceTemplates;
+
+    const headerComplete =
+      templates.cpp_standard_header_detail.resourceTemplate.completeCallback("name");
+    expect(headerComplete).toBeDefined();
+    const headers = await headerComplete?.("vec");
+    expect(headers).toContain("vector");
+
+    const featureComplete =
+      templates.cpp_compiler_support_detail.resourceTemplate.completeCallback("feature");
+    const features = await featureComplete?.("std");
+    expect(features).toContain("std-print");
+
+    const guidelineComplete =
+      templates.cpp_core_guideline_detail.resourceTemplate.completeCallback("id");
+    const rules = await guidelineComplete?.("F.16");
+    expect(rules).toContain("F.16");
   });
 });

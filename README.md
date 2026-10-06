@@ -17,7 +17,7 @@ Model Context Protocol (MCP) server that empowers AI coding assistants with auth
 
 ```mermaid
 flowchart TB
-    Client["AI Clients\n(Antigravity / Claude / VS Code / Cursor / Zed)"] -->|stdio · JSON-RPC| Server["cpp-mcp Server"]
+    Client["AI Clients\n(Antigravity / Claude / VS Code / Cursor / Zed)"] -->|stdio or HTTP · JSON-RPC| Server["cpp-mcp Server"]
 
     subgraph Tools ["24 MCP Tools by Functional Domain"]
         direction LR
@@ -65,6 +65,8 @@ flowchart TB
 - **MCP Resources & Prompts**: Zero-token offline resources (`cppref://headers`, `cppref://modules`, `cppref://cert`, `cppref://tooling`, `cppref://guidelines`, `cppref://modernize/cheatsheet`) and diagnostic prompt templates.
 - **Standalone Binaries & Zero Setup**: Self-contained native single-file binaries (no Node or Bun required) or instant execution via `npx` / `bunx`.
 - **Direct CLI Mode**: Run instant queries directly in your shell or build scripts (`xmake`, `Makefile`, `bash`) without an MCP client (e.g. `cpp-mcp header std::span`, `cpp-mcp demangle _Z3fooi`).
+- **Native MCP Structured Output**: Every tool publishes a `title` and a Zod-backed `outputSchema`, so hosts receive validated `structuredContent` next to the human-readable JSON text fallback.
+- **Opt-in Streamable HTTP Transport**: Serve the same server over the network with `cpp-mcp --transport http`, loopback-only by default, with DNS-rebinding protection and a stateless `/mcp` endpoint.
 - **Noise Elimination**: Strips MediaWiki navigation menus, edit buttons, login prompts, and notices before LLM consumption.
 - **Cursor Pagination**: Transparently handles oversized documentation pages in 16 KB chunks.
 
@@ -76,7 +78,8 @@ Every tool declares the four MCP behaviour hints (`readOnlyHint`, `destructiveHi
 `idempotentHint`, `openWorldHint`) as explicit booleans, so hosts can auto-approve reads and
 warn before writes. Tools that reach cppreference.com set `openWorldHint: true`; tools that
 index or write the workspace set `readOnlyHint: false`, and `rename_code_symbol` additionally
-sets `destructiveHint: true`.
+sets `destructiveHint: true`. Every tool also declares a `title` and an `outputSchema`, so MCP
+hosts get machine-readable `structuredContent` alongside the JSON text fallback.
 
 ### 1. `search_cppreference`
 
@@ -963,6 +966,54 @@ If you downloaded the precompiled binary from [GitHub Releases](https://github.c
 
 ---
 
+## Transports
+
+cpp-mcp speaks the Model Context Protocol over **stdio** by default, which is what desktop
+clients (Claude, VS Code, Zed, …) expect. For networked or containerized setups it can also
+serve the **Streamable HTTP** transport:
+
+```bash
+# Loopback only (default) — http://127.0.0.1:3333/mcp
+cpp-mcp --transport http
+
+# Custom host/port
+cpp-mcp --transport http --host 127.0.0.1 --port 3333
+
+# Bind a non-loopback interface (explicit opt-in)
+cpp-mcp --transport http --host 0.0.0.0 --allow-remote
+```
+
+- `--transport <stdio|http>` — transport mode (default `stdio`).
+- `--host <host>` — bind address (default `127.0.0.1`).
+- `--port <port>` — TCP port (default `3333`).
+- `--allow-remote` — required to bind a non-loopback host. Without it, `cpp-mcp` refuses to
+  start on a non-loopback address.
+
+The HTTP endpoint is exposed at `/mcp` and runs **stateless** (each request gets a fresh
+server instance, so it scales horizontally behind a load balancer). Requests with a
+non-loopback `Host` or `Origin` header are rejected with `403` to mitigate DNS-rebinding
+attacks. `GET /mcp` returns `405` (only `POST` is accepted), and unknown paths return `404`.
+
+Every MCP tool also publishes a `title` and an `outputSchema`, so hosts receive validated
+`structuredContent` alongside the JSON text fallback:
+
+```jsonc
+// tools/call response for lookup_header
+{
+  "content": [{ "type": "text", "text": "{ \"found\": true, ... }" }],
+  "structuredContent": { "found": true, "query": "std::vector", "header": "<vector>", "...": "..." }
+}
+```
+
+Long-running tools (`search_code_symbols`, `analyze_code_symbol`, `get_code_diagnostics`,
+`rename_code_symbol`, `run_clang_tidy`, `generate_documentation`,
+`generate_compilation_database`) emit `notifications/progress` when the client supplies a
+progress token, and workspace tools infer their working directory from the client's
+[roots](https://modelcontextprotocol.io) when `workspaceDir`/`workspace` is omitted (falling
+back to the process working directory).
+
+---
+
 ## Direct CLI Usage (No MCP Client Required)
 
 `cpp-mcp` doubles as a standalone command-line developer utility that integrates into terminals, CI/CD pipelines, and build scripts (`xmake`, `Makefile`, `bash`) without requiring an LLM or MCP client:
@@ -1105,6 +1156,7 @@ The workspace semantic engine is built specifically for modern C/C++ workflows:
 | `CLANG_FORMAT_PATH` | Overrides the `clang-format` executable used by `format_code` / `cpp-mcp code-format`. |
 | `CLANG_DOC_PATH` | Overrides the `clang-doc` executable used by `generate_documentation` / `cpp-mcp docs`. |
 | `CLANG_TIDY_PATH` | Overrides the `clang-tidy` executable used by `run_clang_tidy` / `cpp-mcp clang-tidy`. |
+| `CPP_MCP_STD` | Default C++ standard for `scaffold_project` when `--std` is omitted (also read from `.cpp-mcp.json`). |
 
 ## Project Policy (`.cpp-mcp.json`)
 

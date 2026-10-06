@@ -2,10 +2,13 @@ import { describe, expect, it } from "bun:test";
 import { runCli } from "../src/cli.js";
 import { createServer } from "../src/index.js";
 import { isFailureResult } from "../src/tool-registry.js";
+import { TOOL_OUTPUT_SCHEMAS, TOOL_TITLES } from "../src/tool-schemas.js";
 
 interface RegisteredTool {
   description?: string;
+  title?: string;
   inputSchema?: { shape?: Record<string, unknown> };
+  outputSchema?: unknown;
   annotations?: Record<string, unknown>;
   handler: unknown;
 }
@@ -13,6 +16,7 @@ interface RegisteredTool {
 interface ToolCallResult {
   isError?: boolean;
   content?: Array<{ type: string; text?: string }>;
+  structuredContent?: unknown;
 }
 
 /**
@@ -291,6 +295,51 @@ describe("MCP tool handlers", () => {
       expect(text.length).toBeGreaterThan(0);
     });
   }
+});
+
+describe("MCP structured output", () => {
+  const samples: Record<string, Record<string, unknown>> = {
+    check_compiler_support: { feature: "std::print" },
+    get_project_details: {},
+    lookup_header: { symbol: "std::vector" },
+    check_cpp_standard: { symbol: "std::auto_ptr", standard: "C++17" },
+    demangle_symbol: { symbol: "_Z3fooi" },
+    get_guideline: {},
+    get_cpp_modules_guide: {},
+    check_module_toolchain: {},
+    check_secure_coding: {},
+    get_cpp_tooling_guide: {},
+  };
+
+  for (const [name, args] of Object.entries(samples)) {
+    it(`returns structuredContent consistent with the text JSON from ${name}`, async () => {
+      const result = await callTool(registeredTools()[name] as RegisteredTool, args);
+      expect(result.isError).not.toBe(true);
+      expect(result.content?.[0]?.type).toBe("text");
+      const text = result.content?.[0]?.text ?? "";
+      expect(result.structuredContent).toEqual(JSON.parse(text));
+    });
+  }
+
+  it("registers an output schema for every tool", () => {
+    const tools = registeredTools();
+    for (const name of Object.keys(EXPECTED_SCHEMAS)) {
+      expect(tools[name]?.outputSchema, `${name} is missing an output schema`).toBeDefined();
+    }
+  });
+
+  it("keeps output schemas and titles in sync with the tool list", () => {
+    const names = Object.keys(EXPECTED_SCHEMAS).sort();
+    expect(Object.keys(TOOL_OUTPUT_SCHEMAS).sort()).toEqual(names);
+    expect(Object.keys(TOOL_TITLES).sort()).toEqual(names);
+  });
+
+  it("gives every tool a non-empty title", () => {
+    for (const [name, tool] of Object.entries(registeredTools())) {
+      expect(typeof tool.title, `${name} title`).toBe("string");
+      expect((tool.title ?? "").length).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe("MCP error contract", () => {

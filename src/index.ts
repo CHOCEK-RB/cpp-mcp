@@ -57,6 +57,59 @@ export async function main(): Promise<void> {
   await server.connect(transport);
 }
 
+function readOption(args: string[], name: string): string | undefined {
+  const index = args.indexOf(name);
+  if (index < 0 || index + 1 >= args.length) return undefined;
+  return args[index + 1];
+}
+
+/**
+ * Opt-in Streamable HTTP server (`--transport http`). Loaded lazily so the
+ * default stdio path does not pay for the HTTP transport.
+ */
+export async function mainHttp(args: string[]): Promise<void> {
+  const { DEFAULT_HTTP_HOST, DEFAULT_HTTP_PORT, startHttpServer } = await import("./http.js");
+
+  const host = readOption(args, "--host") ?? DEFAULT_HTTP_HOST;
+  const rawPort = readOption(args, "--port");
+  const port = rawPort === undefined ? DEFAULT_HTTP_PORT : Number.parseInt(rawPort, 10);
+  if (!Number.isInteger(port) || port < 0 || port > 65535) {
+    throw new Error(`Invalid --port value: ${rawPort ?? ""}`);
+  }
+  const allowRemote = args.includes("--allow-remote");
+
+  const running = await startHttpServer({
+    host,
+    port,
+    allowRemote,
+    createMcpServer: createServer,
+  });
+
+  const cleanup = async () => {
+    await running.close().catch(() => {});
+    await sessionManager.closeAll();
+  };
+
+  process.on("SIGINT", () => {
+    void cleanup().finally(() => process.exit(0));
+  });
+
+  process.on("SIGTERM", () => {
+    void cleanup().finally(() => process.exit(0));
+  });
+
+  process.on("exit", () => {
+    void sessionManager.closeAll();
+  });
+
+  console.error(`cpp-mcp MCP Streamable HTTP server listening on ${running.url}`);
+  if (allowRemote) {
+    console.error(
+      "Warning: --allow-remote is enabled; the server accepts connections from other hosts.",
+    );
+  }
+}
+
 const entryArg = typeof process !== "undefined" ? process.argv[1] : undefined;
 
 /**
@@ -79,13 +132,20 @@ const isDirectExecution =
 
 if (isDirectExecution) {
   const args = typeof process !== "undefined" ? process.argv.slice(2) : [];
+  const wantsHttp = readOption(args, "--transport") === "http";
   const isStdioMode =
     args.length === 0 ||
     args.includes("--stdio") ||
     args[0] === "stdio" ||
     args.includes("--transport");
 
-  if (!isStdioMode) {
+  if (wantsHttp) {
+    mainHttp(args).catch(async (err) => {
+      await sessionManager.closeAll();
+      console.error("Fatal error starting cpp-mcp HTTP server:", err);
+      process.exit(1);
+    });
+  } else if (!isStdioMode) {
     runCli(args)
       .then(async (code) => {
         await sessionManager.closeAll();

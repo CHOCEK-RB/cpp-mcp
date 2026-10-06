@@ -214,6 +214,10 @@ const OPTIONS_HELP = `  --json                            Output response in raw
   --doxygen                         Parse only Doxygen-style comments
   --compiler <name>                 Compiler name for compatibility checks (gcc, clang, msvc, apple_clang)
   --version <ver>                   Compiler version to evaluate against feature requirement
+  --transport <mode>                Server transport: 'stdio' (default) or 'http'
+  --host <host>                     HTTP host to bind (default: 127.0.0.1)
+  --port <port>                     HTTP port to bind (default: 3333)
+  --allow-remote                    Allow binding a non-loopback HTTP host
   -v, --version                     Print version and exit
   -h, --help                        Print this help message and exit`;
 
@@ -232,5 +236,6 @@ ${commands}
 Options:
 ${OPTIONS_HELP}
 
-When executed without arguments, cpp-mcp runs as an MCP stdio server.`;
+When executed without arguments, cpp-mcp runs as an MCP stdio server.
+Use 'cpp-mcp --transport http' to serve Streamable HTTP on 127.0.0.1:3333 instead.`;
 }
